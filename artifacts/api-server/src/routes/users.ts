@@ -8,13 +8,19 @@ import {
 } from "@workspace/api-zod";
 import { requireAuth } from "../middlewares/requireAuth";
 import { ensureUser } from "../lib/userService";
+import { xpToNextLevel } from "../lib/rules";
 
 const router: IRouter = Router();
 router.use(requireAuth);
 
 router.get("/users/me", async (req, res): Promise<void> => {
   const user = await ensureUser(req.userId!);
-  res.json(GetCurrentUserResponse.parse(user));
+  res.json(
+    GetCurrentUserResponse.parse({
+      ...user,
+      xpToNextLevel: xpToNextLevel(user.level),
+    }),
+  );
 });
 
 router.patch("/users/me", async (req, res): Promise<void> => {
@@ -31,7 +37,12 @@ router.patch("/users/me", async (req, res): Promise<void> => {
     .where(eq(usersTable.id, req.userId!))
     .returning();
 
-  res.json(UpdateCurrentUserResponse.parse(updated));
+  res.json(
+    UpdateCurrentUserResponse.parse({
+      ...updated,
+      xpToNextLevel: xpToNextLevel(updated.level),
+    }),
+  );
 });
 
 export default router;
