@@ -3,13 +3,39 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Habit Journey API specification
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: users
+    description: Current user profile and onboarding
+  - name: habits
+    description: Habit CRUD
+  - name: checkins
+    description: Daily habit check-ins and streak recovery
+  - name: timeEntries
+    description: Free-form time tracking
+  - name: memories
+    description: Photo/note journal entries
+  - name: rewards
+    description: User-defined real-world rewards
+  - name: wallet
+    description: Coin balance and transaction history
+  - name: character
+    description: Character catalog, ownership, and equipping
+  - name: journey
+    description: Level/XP journey map progress
+  - name: dashboard
+    description: Aggregate "safe wow" summary endpoints
+  - name: groups
+    description: Simplified social challenges
+  - name: ai
+    description: Hybrid rule-engine + LLM coach endpoints
+  - name: Storage
+    description: Object storage upload and serving endpoints
 paths:
   /healthz:
     get:
@@ -24,6 +50,864 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /users/me:
+    get:
+      operationId: getCurrentUser
+      tags: [users]
+      summary: Get current user profile (JIT-provisions on first call)
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/User" }
+    patch:
+      operationId: updateCurrentUser
+      tags: [users]
+      summary: Update current user profile / onboarding fields
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UserUpdate" }
+      responses:
+        "200":
+          description: Updated user
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/User" }
+
+  /habits:
+    get:
+      operationId: listHabits
+      tags: [habits]
+      summary: List habits for the current user
+      parameters:
+        - name: isActive
+          in: query
+          required: false
+          schema: { type: boolean }
+      responses:
+        "200":
+          description: Habits
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Habit" }
+    post:
+      operationId: createHabit
+      tags: [habits]
+      summary: Create a habit
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/HabitInput" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Habit" }
+
+  /habits/{habitId}:
+    get:
+      operationId: getHabit
+      tags: [habits]
+      summary: Get a habit
+      parameters:
+        - name: habitId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Habit
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Habit" }
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+    patch:
+      operationId: updateHabit
+      tags: [habits]
+      summary: Update a habit
+      parameters:
+        - name: habitId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/HabitUpdate" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Habit" }
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+    delete:
+      operationId: deleteHabit
+      tags: [habits]
+      summary: Delete a habit
+      parameters:
+        - name: habitId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /habits/{habitId}/checkins:
+    get:
+      operationId: listHabitCheckins
+      tags: [checkins]
+      summary: List check-ins for a habit
+      parameters:
+        - name: habitId
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: from
+          in: query
+          required: false
+          schema: { type: string, format: date }
+        - name: to
+          in: query
+          required: false
+          schema: { type: string, format: date }
+      responses:
+        "200":
+          description: Check-ins
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Checkin" }
+    post:
+      operationId: createCheckin
+      tags: [checkins]
+      summary: Record a check-in for a habit (updates streak and awards coins)
+      parameters:
+        - name: habitId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CheckinInput" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CheckinResult" }
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /habits/{habitId}/recover-streak:
+    post:
+      operationId: recoverStreak
+      tags: [checkins]
+      summary: Spend coins to restore a just-broken streak
+      parameters:
+        - name: habitId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Streak recovered
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RecoverStreakResult" }
+        "400":
+          description: Not eligible or insufficient coins
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /time-entries:
+    get:
+      operationId: listTimeEntries
+      tags: [timeEntries]
+      summary: List time entries
+      parameters:
+        - name: date
+          in: query
+          required: false
+          schema: { type: string, format: date }
+        - name: habitId
+          in: query
+          required: false
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Time entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/TimeEntry" }
+    post:
+      operationId: createTimeEntry
+      tags: [timeEntries]
+      summary: Log a time entry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TimeEntryInput" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TimeEntry" }
+
+  /time-entries/summary:
+    get:
+      operationId: getTimeEntriesSummary
+      tags: [timeEntries]
+      summary: Get total minutes tracked on a given day, grouped by habit
+      parameters:
+        - name: date
+          in: query
+          required: true
+          schema: { type: string, format: date }
+      responses:
+        "200":
+          description: Summary
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TimeEntriesSummary" }
+
+  /time-entries/{timeEntryId}:
+    delete:
+      operationId: deleteTimeEntry
+      tags: [timeEntries]
+      summary: Delete a time entry
+      parameters:
+        - name: timeEntryId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /memories:
+    get:
+      operationId: listMemories
+      tags: [memories]
+      summary: List memory journal entries
+      parameters:
+        - name: habitId
+          in: query
+          required: false
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Memories
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Memory" }
+    post:
+      operationId: createMemory
+      tags: [memories]
+      summary: Create a memory (optionally with an uploaded photo)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MemoryInput" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Memory" }
+
+  /memories/{memoryId}:
+    delete:
+      operationId: deleteMemory
+      tags: [memories]
+      summary: Delete a memory
+      parameters:
+        - name: memoryId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /rewards:
+    get:
+      operationId: listRewards
+      tags: [rewards]
+      summary: List rewards defined by the user
+      responses:
+        "200":
+          description: Rewards
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Reward" }
+    post:
+      operationId: createReward
+      tags: [rewards]
+      summary: Create a reward
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RewardInput" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Reward" }
+
+  /rewards/{rewardId}:
+    patch:
+      operationId: updateReward
+      tags: [rewards]
+      summary: Update a reward
+      parameters:
+        - name: rewardId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RewardUpdate" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Reward" }
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+    delete:
+      operationId: deleteReward
+      tags: [rewards]
+      summary: Delete a reward
+      parameters:
+        - name: rewardId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /rewards/{rewardId}/redeem:
+    post:
+      operationId: redeemReward
+      tags: [rewards]
+      summary: Redeem a reward by spending coins
+      parameters:
+        - name: rewardId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Redeemed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RedeemRewardResult" }
+        "400":
+          description: Insufficient coins or already redeemed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /wallet:
+    get:
+      operationId: getWallet
+      tags: [wallet]
+      summary: Get coin balance and weekly earn/spend totals
+      responses:
+        "200":
+          description: Wallet
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Wallet" }
+
+  /wallet/transactions:
+    get:
+      operationId: listWalletTransactions
+      tags: [wallet]
+      summary: List recent coin transactions
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 100 }
+      responses:
+        "200":
+          description: Transactions
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/CoinTransaction" }
+
+  /character/catalog:
+    get:
+      operationId: listCharacterCatalog
+      tags: [character]
+      summary: List all character items with owned/equipped/affordable state
+      responses:
+        "200":
+          description: Catalog
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/CharacterItem" }
+
+  /character/me:
+    get:
+      operationId: getMyCharacter
+      tags: [character]
+      summary: Get current level/XP and equipped loadout
+      responses:
+        "200":
+          description: My character
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MyCharacter" }
+
+  /character/items/{itemId}/purchase:
+    post:
+      operationId: purchaseCharacterItem
+      tags: [character]
+      summary: Purchase a character item with coins
+      parameters:
+        - name: itemId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Purchased
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CharacterItem" }
+        "400":
+          description: Insufficient coins or already owned
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /character/items/{itemId}/equip:
+    post:
+      operationId: equipCharacterItem
+      tags: [character]
+      summary: Equip an owned character item
+      parameters:
+        - name: itemId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Equipped
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CharacterItem" }
+        "400":
+          description: Item not owned
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /journey/progress:
+    get:
+      operationId: getJourneyProgress
+      tags: [journey]
+      summary: Get level/XP and milestone map progress
+      responses:
+        "200":
+          description: Journey progress
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/JourneyProgress" }
+
+  /dashboard/today:
+    get:
+      operationId: getDashboardToday
+      tags: [dashboard]
+      summary: Aggregate home-screen summary for today
+      responses:
+        "200":
+          description: Dashboard
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DashboardToday" }
+
+  /dashboard/calendar:
+    get:
+      operationId: getDashboardCalendar
+      tags: [dashboard]
+      summary: Daily completion heatmap data for a calendar month
+      parameters:
+        - name: month
+          in: query
+          required: true
+          description: "Format YYYY-MM"
+          schema: { type: string }
+      responses:
+        "200":
+          description: Calendar days
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/DashboardCalendarDay" }
+
+  /groups:
+    get:
+      operationId: listMyGroups
+      tags: [groups]
+      summary: List groups/challenges the current user belongs to
+      responses:
+        "200":
+          description: Groups
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Group" }
+    post:
+      operationId: createGroup
+      tags: [groups]
+      summary: Create a group challenge (creator auto-joins)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/GroupInput" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Group" }
+
+  /groups/join:
+    post:
+      operationId: joinGroup
+      tags: [groups]
+      summary: Join a group challenge by invite code
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/JoinGroupInput" }
+      responses:
+        "200":
+          description: Joined
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Group" }
+        "404":
+          description: Invalid invite code
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /groups/{groupId}:
+    get:
+      operationId: getGroup
+      tags: [groups]
+      summary: Get group detail with members ranked by progress (leaderboard)
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Group detail
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/GroupDetail" }
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /groups/{groupId}/reactions:
+    get:
+      operationId: listGroupReactions
+      tags: [groups]
+      summary: List recent cheer reactions in a group
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Reactions
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/GroupReaction" }
+    post:
+      operationId: createGroupReaction
+      tags: [groups]
+      summary: Send a cheer/reaction to the group or a specific member
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/GroupReactionInput" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/GroupReaction" }
+
+  /ai/breakdown-goal:
+    post:
+      operationId: aiBreakdownGoal
+      tags: [ai]
+      summary: Rule engine computes a ramp-up milestone plan; LLM phrases it
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AiBreakdownGoalInput" }
+      responses:
+        "200":
+          description: Suggested milestone plan
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AiBreakdownGoalResult" }
+
+  /ai/daily-insight:
+    get:
+      operationId: aiDailyInsight
+      tags: [ai]
+      summary: Rule engine computes a trend metric from recent activity; LLM phrases a coaching insight
+      responses:
+        "200":
+          description: Insight
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AiDailyInsightResult" }
+
+  /ai/checkin-feedback:
+    post:
+      operationId: aiCheckinFeedback
+      tags: [ai]
+      summary: LLM phrases a reaction to a just-recorded check-in
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AiCheckinFeedbackInput" }
+      responses:
+        "200":
+          description: Feedback
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AiCheckinFeedbackResult" }
+
+  /ai/relapse-recovery:
+    post:
+      operationId: aiRelapseRecovery
+      tags: [ai]
+      summary: Rule engine computes a reduced restart target; LLM phrases compassionate encouragement
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AiRelapseRecoveryInput" }
+      responses:
+        "200":
+          description: Recovery plan
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AiRelapseRecoveryResult" }
+
+  /storage/uploads/request-url:
+    post:
+      tags: [Storage]
+      operationId: requestUploadUrl
+      summary: Request a presigned URL for file upload
+      description: |
+        Returns a presigned GCS URL for direct upload. The client sends JSON
+        metadata here, then uploads the file directly to the returned URL.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UploadUrlRequest"
+      responses:
+        "200":
+          description: Presigned upload URL generated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadUrlResponse"
+        "400":
+          description: Missing or invalid required fields.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Failed to generate upload URL.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /storage/public-objects/{filePath}:
+    get:
+      tags: [Storage]
+      operationId: getPublicObject
+      summary: Serve a public asset from PUBLIC_OBJECT_SEARCH_PATHS
+      description: |
+        Unconditionally public -- no authentication or ACL checks.
+        Searches PUBLIC_OBJECT_SEARCH_PATHS for the given file path.
+      parameters:
+        - name: filePath
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Relative file path within the public search paths.
+      responses:
+        "200":
+          description: Object content streamed with correct Content-Type.
+          content:
+            "*/*":
+              schema:
+                type: string
+                format: binary
+        "404":
+          description: File not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Failed to serve public object.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /storage/objects/{objectPath}:
+    get:
+      tags: [Storage]
+      operationId: getStorageObject
+      summary: Serve an object entity from PRIVATE_OBJECT_DIR
+      description: |
+        Serves object entities uploaded via presigned URLs. These can optionally
+        be protected with authentication or ACL checks based on the use case.
+      parameters:
+        - name: objectPath
+          in: path
+          required: true
+          schema:
+            type: string
+          description: "Object path within the private object dir (e.g. uploads/some-uuid)."
+      responses:
+        "200":
+          description: Object content streamed with correct Content-Type.
+          content:
+            "*/*":
+              schema:
+                type: string
+                format: binary
+        "404":
+          description: Object not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Failed to serve object.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +918,468 @@ components:
       required:
         - status
 
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string }
+
+    User:
+      type: object
+      required: [id, displayName, avatarEmoji, level, xp, xpToNextLevel, coins, motivationStyle, primaryGoalCategory, onboardingCompleted, timezone, createdAt]
+      properties:
+        id: { type: string }
+        displayName: { type: string }
+        avatarEmoji: { type: string }
+        level: { type: integer }
+        xp: { type: integer }
+        xpToNextLevel: { type: integer }
+        coins: { type: integer }
+        motivationStyle: { type: string, enum: [encouraging, tough_love, data_driven] }
+        primaryGoalCategory: { type: ["string", "null"], enum: [health, learning, productivity, mindfulness, social, creativity, finance, custom, null] }
+        onboardingCompleted: { type: boolean }
+        timezone: { type: string }
+        createdAt: { type: string, format: date-time }
+    UserUpdate:
+      type: object
+      properties:
+        displayName: { type: string, minLength: 1 }
+        avatarEmoji: { type: string }
+        motivationStyle: { type: string, enum: [encouraging, tough_love, data_driven] }
+        primaryGoalCategory: { type: string, enum: [health, learning, productivity, mindfulness, social, creativity, finance, custom] }
+        onboardingCompleted: { type: boolean }
+        timezone: { type: string }
+
+    HabitMilestone:
+      type: object
+      required: [title, description, targetValue, order]
+      properties:
+        title: { type: string }
+        description: { type: string }
+        targetValue: { type: number }
+        order: { type: integer }
+    Habit:
+      type: object
+      required: [id, title, emoji, category, cadence, customDays, unit, targetValue, difficulty, goalType, isActive, currentStreak, longestStreak, lastCheckinDate, milestones, createdAt]
+      properties:
+        id: { type: integer }
+        title: { type: string }
+        emoji: { type: string }
+        category: { type: string, enum: [health, learning, productivity, mindfulness, social, creativity, finance, custom] }
+        cadence: { type: string, enum: [daily, weekdays, weekly, custom_days] }
+        customDays:
+          type: ["array", "null"]
+          items: { type: integer, minimum: 0, maximum: 6 }
+        unit: { type: string, enum: [minutes, count, pages, custom] }
+        targetValue: { type: number }
+        difficulty: { type: string, enum: [easy, medium, hard] }
+        goalType: { type: string, enum: [build, quit] }
+        isActive: { type: boolean }
+        currentStreak: { type: integer }
+        longestStreak: { type: integer }
+        lastCheckinDate: { type: ["string", "null"], format: date }
+        milestones:
+          type: array
+          items: { $ref: "#/components/schemas/HabitMilestone" }
+        createdAt: { type: string, format: date-time }
+    HabitInput:
+      type: object
+      required: [title, emoji, category, cadence, unit, targetValue, difficulty, goalType]
+      properties:
+        title: { type: string, minLength: 1 }
+        emoji: { type: string }
+        category: { type: string, enum: [health, learning, productivity, mindfulness, social, creativity, finance, custom] }
+        cadence: { type: string, enum: [daily, weekdays, weekly, custom_days] }
+        customDays:
+          type: array
+          items: { type: integer, minimum: 0, maximum: 6 }
+        unit: { type: string, enum: [minutes, count, pages, custom] }
+        targetValue: { type: number }
+        difficulty: { type: string, enum: [easy, medium, hard] }
+        goalType: { type: string, enum: [build, quit] }
+        milestones:
+          type: array
+          items: { $ref: "#/components/schemas/HabitMilestone" }
+    HabitUpdate:
+      type: object
+      properties:
+        title: { type: string, minLength: 1 }
+        emoji: { type: string }
+        category: { type: string, enum: [health, learning, productivity, mindfulness, social, creativity, finance, custom] }
+        cadence: { type: string, enum: [daily, weekdays, weekly, custom_days] }
+        customDays:
+          type: array
+          items: { type: integer, minimum: 0, maximum: 6 }
+        unit: { type: string, enum: [minutes, count, pages, custom] }
+        targetValue: { type: number }
+        difficulty: { type: string, enum: [easy, medium, hard] }
+        isActive: { type: boolean }
+        milestones:
+          type: array
+          items: { $ref: "#/components/schemas/HabitMilestone" }
+
+    Checkin:
+      type: object
+      required: [id, habitId, date, completed, value, note, moodRating, coinsEarned, createdAt]
+      properties:
+        id: { type: integer }
+        habitId: { type: integer }
+        date: { type: string, format: date }
+        completed: { type: boolean }
+        value: { type: ["number", "null"] }
+        note: { type: ["string", "null"] }
+        moodRating: { type: ["integer", "null"] }
+        coinsEarned: { type: integer }
+        createdAt: { type: string, format: date-time }
+    CheckinInput:
+      type: object
+      required: [date, completed]
+      properties:
+        date: { type: string, format: date }
+        completed: { type: boolean }
+        value: { type: number }
+        note: { type: string }
+        moodRating: { type: integer, minimum: 1, maximum: 5 }
+    CheckinResult:
+      allOf:
+        - $ref: "#/components/schemas/Checkin"
+        - type: object
+          required: [newStreak, habit]
+          properties:
+            newStreak: { type: integer }
+            habit: { $ref: "#/components/schemas/Habit" }
+    RecoverStreakResult:
+      type: object
+      required: [habit, coinsSpent]
+      properties:
+        habit: { $ref: "#/components/schemas/Habit" }
+        coinsSpent: { type: integer }
+
+    TimeEntry:
+      type: object
+      required: [id, habitId, label, durationMinutes, date, note, createdAt]
+      properties:
+        id: { type: integer }
+        habitId: { type: ["integer", "null"] }
+        label: { type: string }
+        durationMinutes: { type: integer }
+        date: { type: string, format: date }
+        note: { type: ["string", "null"] }
+        createdAt: { type: string, format: date-time }
+    TimeEntryInput:
+      type: object
+      required: [label, durationMinutes, date]
+      properties:
+        habitId: { type: integer }
+        label: { type: string, minLength: 1 }
+        durationMinutes: { type: integer, minimum: 1 }
+        date: { type: string, format: date }
+        note: { type: string }
+    TimeEntriesSummary:
+      type: object
+      required: [date, totalMinutes, byHabit]
+      properties:
+        date: { type: string, format: date }
+        totalMinutes: { type: integer }
+        byHabit:
+          type: array
+          items:
+            type: object
+            required: [habitId, label, minutes]
+            properties:
+              habitId: { type: ["integer", "null"] }
+              label: { type: string }
+              minutes: { type: integer }
+
+    Memory:
+      type: object
+      required: [id, habitId, note, photoUrl, date, createdAt]
+      properties:
+        id: { type: integer }
+        habitId: { type: ["integer", "null"] }
+        note: { type: string }
+        photoUrl: { type: ["string", "null"] }
+        date: { type: string, format: date }
+        createdAt: { type: string, format: date-time }
+    MemoryInput:
+      type: object
+      required: [note, date]
+      properties:
+        habitId: { type: integer }
+        note: { type: string, minLength: 1 }
+        photoObjectPath: { type: string, description: "objectPath returned by POST /storage/uploads/request-url" }
+        date: { type: string, format: date }
+
+    Reward:
+      type: object
+      required: [id, habitId, title, emoji, coinCost, isRedeemed, redeemedAt, createdAt]
+      properties:
+        id: { type: integer }
+        habitId: { type: ["integer", "null"] }
+        title: { type: string }
+        emoji: { type: string }
+        coinCost: { type: integer }
+        isRedeemed: { type: boolean }
+        redeemedAt: { type: ["string", "null"], format: date-time }
+        createdAt: { type: string, format: date-time }
+    RewardInput:
+      type: object
+      required: [title, emoji, coinCost]
+      properties:
+        habitId: { type: integer }
+        title: { type: string, minLength: 1 }
+        emoji: { type: string }
+        coinCost: { type: integer, minimum: 1 }
+    RewardUpdate:
+      type: object
+      properties:
+        title: { type: string, minLength: 1 }
+        emoji: { type: string }
+        coinCost: { type: integer, minimum: 1 }
+    RedeemRewardResult:
+      type: object
+      required: [reward, coinsRemaining]
+      properties:
+        reward: { $ref: "#/components/schemas/Reward" }
+        coinsRemaining: { type: integer }
+
+    Wallet:
+      type: object
+      required: [coins, earnedThisWeek, spentThisWeek]
+      properties:
+        coins: { type: integer }
+        earnedThisWeek: { type: integer }
+        spentThisWeek: { type: integer }
+    CoinTransaction:
+      type: object
+      required: [id, amount, reason, createdAt]
+      properties:
+        id: { type: integer }
+        amount: { type: integer }
+        reason: { type: string, enum: [checkin, streak_bonus, streak_recovery, reward_redemption, item_purchase, challenge_bonus, manual] }
+        createdAt: { type: string, format: date-time }
+
+    CharacterItem:
+      type: object
+      required: [id, name, slot, emoji, coinCost, owned, equipped]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        slot: { type: string, enum: [outfit, hat, accessory, pet, background] }
+        emoji: { type: string }
+        coinCost: { type: integer }
+        owned: { type: boolean }
+        equipped: { type: boolean }
+    MyCharacter:
+      type: object
+      required: [level, xp, xpToNextLevel, equippedItems]
+      properties:
+        level: { type: integer }
+        xp: { type: integer }
+        xpToNextLevel: { type: integer }
+        equippedItems:
+          type: array
+          items: { $ref: "#/components/schemas/CharacterItem" }
+
+    JourneyMilestone:
+      type: object
+      required: [id, levelRequired, title, description, emoji, rewardCoins, reached]
+      properties:
+        id: { type: integer }
+        levelRequired: { type: integer }
+        title: { type: string }
+        description: { type: string }
+        emoji: { type: string }
+        rewardCoins: { type: integer }
+        reached: { type: boolean }
+    JourneyProgress:
+      type: object
+      required: [level, xp, xpToNextLevel, milestones]
+      properties:
+        level: { type: integer }
+        xp: { type: integer }
+        xpToNextLevel: { type: integer }
+        milestones:
+          type: array
+          items: { $ref: "#/components/schemas/JourneyMilestone" }
+
+    DashboardHabitToday:
+      type: object
+      required: [habitId, title, emoji, unit, targetValue, completedToday, valueToday, currentStreak, scheduledToday]
+      properties:
+        habitId: { type: integer }
+        title: { type: string }
+        emoji: { type: string }
+        unit: { type: string }
+        targetValue: { type: number }
+        completedToday: { type: boolean }
+        valueToday: { type: ["number", "null"] }
+        currentStreak: { type: integer }
+        scheduledToday: { type: boolean }
+    DashboardToday:
+      type: object
+      required: [activeHabitsCount, completedTodayCount, scheduledTodayCount, timeTrackedMinutesToday, coins, level, xp, xpToNextLevel, habitsToday]
+      properties:
+        activeHabitsCount: { type: integer }
+        completedTodayCount: { type: integer }
+        scheduledTodayCount: { type: integer }
+        timeTrackedMinutesToday: { type: integer }
+        coins: { type: integer }
+        level: { type: integer }
+        xp: { type: integer }
+        xpToNextLevel: { type: integer }
+        habitsToday:
+          type: array
+          items: { $ref: "#/components/schemas/DashboardHabitToday" }
+    DashboardCalendarDay:
+      type: object
+      required: [date, completedCount, scheduledCount, timeMinutes]
+      properties:
+        date: { type: string, format: date }
+        completedCount: { type: integer }
+        scheduledCount: { type: integer }
+        timeMinutes: { type: integer }
+
+    Group:
+      type: object
+      required: [id, name, inviteCode, goalDescription, startDate, endDate, memberCount, createdAt]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        inviteCode: { type: string }
+        goalDescription: { type: string }
+        startDate: { type: string, format: date }
+        endDate: { type: ["string", "null"], format: date }
+        memberCount: { type: integer }
+        createdAt: { type: string, format: date-time }
+    GroupInput:
+      type: object
+      required: [name, goalDescription, startDate]
+      properties:
+        name: { type: string, minLength: 1 }
+        goalDescription: { type: string, minLength: 1 }
+        startDate: { type: string, format: date }
+        endDate: { type: string, format: date }
+    GroupMember:
+      type: object
+      required: [userId, displayName, avatarEmoji, progressCount, isMe]
+      properties:
+        userId: { type: string }
+        displayName: { type: string }
+        avatarEmoji: { type: string }
+        progressCount: { type: integer }
+        isMe: { type: boolean }
+    GroupDetail:
+      allOf:
+        - $ref: "#/components/schemas/Group"
+        - type: object
+          required: [members]
+          properties:
+            members:
+              type: array
+              items: { $ref: "#/components/schemas/GroupMember" }
+    JoinGroupInput:
+      type: object
+      required: [inviteCode]
+      properties:
+        inviteCode: { type: string, minLength: 1 }
+    GroupReaction:
+      type: object
+      required: [id, fromUserId, fromDisplayName, toUserId, emoji, createdAt]
+      properties:
+        id: { type: integer }
+        fromUserId: { type: string }
+        fromDisplayName: { type: string }
+        toUserId: { type: ["string", "null"] }
+        emoji: { type: string }
+        createdAt: { type: string, format: date-time }
+    GroupReactionInput:
+      type: object
+      required: [emoji]
+      properties:
+        toUserId: { type: string }
+        emoji: { type: string, minLength: 1 }
+
+    AiBreakdownGoalInput:
+      type: object
+      required: [title, category, goalType, difficulty, unit, targetValue]
+      properties:
+        title: { type: string }
+        description: { type: string }
+        category: { type: string, enum: [health, learning, productivity, mindfulness, social, creativity, finance, custom] }
+        goalType: { type: string, enum: [build, quit] }
+        difficulty: { type: string, enum: [easy, medium, hard] }
+        unit: { type: string, enum: [minutes, count, pages, custom] }
+        targetValue: { type: number }
+    AiBreakdownGoalResult:
+      type: object
+      required: [milestones, coachMessage]
+      properties:
+        milestones:
+          type: array
+          items: { $ref: "#/components/schemas/HabitMilestone" }
+        coachMessage: { type: string }
+    AiDailyInsightResult:
+      type: object
+      required: [message, highlightMetric, trend]
+      properties:
+        message: { type: string }
+        highlightMetric: { type: string }
+        trend: { type: string, enum: [up, down, steady] }
+    AiCheckinFeedbackInput:
+      type: object
+      required: [habitId, completed, streak]
+      properties:
+        habitId: { type: integer }
+        completed: { type: boolean }
+        value: { type: number }
+        streak: { type: integer }
+    AiCheckinFeedbackResult:
+      type: object
+      required: [message, tone]
+      properties:
+        message: { type: string }
+        tone: { type: string, enum: [celebratory, encouraging, supportive] }
+    AiRelapseRecoveryInput:
+      type: object
+      required: [habitId, missedDays]
+      properties:
+        habitId: { type: integer }
+        missedDays: { type: integer, minimum: 1 }
+    AiRelapseRecoveryResult:
+      type: object
+      required: [message, suggestedTargetValue, encouragement]
+      properties:
+        message: { type: string }
+        suggestedTargetValue: { type: number }
+        encouragement: { type: string }
+
+    UploadUrlRequest:
+      type: object
+      required: [name, size, contentType]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          description: Original file name.
+        size:
+          type: integer
+          minimum: 1
+          description: File size in bytes.
+        contentType:
+          type: string
+          minLength: 1
+          description: "MIME type of the file (e.g. image/jpeg)."
+    UploadUrlResponse:
+      type: object
+      required: [uploadURL, objectPath]
+      properties:
+        uploadURL:
+          type: string
+          format: uri
+          description: Presigned GCS URL for PUT upload.
+        objectPath:
+          type: string
+          description: "Normalized object path (e.g. /objects/uploads/uuid). Store this in your database."
+        metadata:
+          $ref: "#/components/schemas/UploadUrlRequest"

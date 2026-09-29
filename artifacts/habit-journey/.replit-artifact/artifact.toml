@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Habit Journey"
+description = "A gamified habit-building and time-tracking companion where users create habits, check in daily, track time, and get coached by a hybrid rule-engine + AI system. Progress levels up a character on a visual journey map, earns coins for real-world rewards, and can be shared with friends via simple group challenges."
+version = "1.0.0"
+id = "artifacts/habit-journey"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 18510
+
+[services.development]
+run = "pnpm --filter @workspace/habit-journey run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/habit-journey", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/habit-journey/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "18510"
+BASE_PATH = "/"
