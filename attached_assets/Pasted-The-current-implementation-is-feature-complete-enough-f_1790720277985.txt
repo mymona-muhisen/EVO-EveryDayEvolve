@@ -1,0 +1,69 @@
+The current implementation is feature-complete enough for an end-to-end smoke test.
+
+DO NOT add new features or redesign anything yet.
+
+Your task now is to perform a real end-to-end test using an actual authenticated user and the running application.
+
+Test this exact flow:
+
+1. Start the application and verify the server is healthy.
+2. Open the real deployed/local application.
+3. Sign up or sign in with a real test account through Clerk.
+4. Verify `/api/users/me` returns the correct user and profile data.
+5. Complete onboarding if required.
+6. Create a positive habit from the UI.
+7. Verify the habit is persisted in the database.
+8. Verify the associated journey is created.
+9. Open the dashboard and verify the new habit appears.
+10. Complete today's habit from the UI.
+11. Verify the daily attendance/check-in is persisted.
+12. Verify consistency/streak logic updates correctly.
+13. Verify XP is updated correctly.
+14. Verify coins are updated correctly.
+15. Verify the journey day/progress moves correctly.
+16. Verify the character reflects the updated progress.
+17. Create/select a real reward and verify it persists and appears in the journey/dashboard.
+18. Test a missed-day / difficulty reflection flow.
+19. Verify the adaptation logic changes the next target when the rules require it.
+20. Test the AI coach with a REAL AI request:
+
+    * habit goal breakdown
+    * daily insight
+    * check-in feedback
+    * missed-day / relapse message
+21. Verify the AI response is returned correctly and displayed in Arabic.
+22. Verify the deterministic fallback works if the AI provider fails.
+23. Test buying one character item with coins if the shop is currently implemented.
+24. Test creating or joining one group if the group feature is currently implemented.
+25. Test one image upload if memories are currently implemented.
+26. Refresh the browser at important points and verify state persists.
+27. Log out and log in again and verify the same data is still present.
+
+IMPORTANT:
+
+* Do not only inspect source code.
+* Actually execute the requests and UI interactions.
+* Record every failure with:
+
+  * exact route/action
+  * expected result
+  * actual result
+  * error message
+  * likely root cause
+  * severity: BLOCKER / HIGH / MEDIUM / LOW
+* Fix BLOCKER and HIGH issues immediately.
+* Do not refactor unrelated working code.
+* After each fix, rerun the affected test.
+* At the end, provide a concise test report with:
+
+  1. PASS
+  2. FAIL
+  3. FIXED
+  4. REMAINING
+  5. AI provider actually used
+  6. Any environment variables/secrets still required
+
+IMPORTANT:
+Do not assume the AI provider is OpenAI. Inspect the current configuration and report whether the project is using OpenAI, Gemini, Groq, or another provider before testing the AI calls.
+
+The goal is to prove that the core product works as a real user journey, not merely that the code compiles.
