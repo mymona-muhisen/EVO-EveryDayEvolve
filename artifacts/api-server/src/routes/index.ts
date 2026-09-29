@@ -1,8 +1,34 @@
 import { Router, type IRouter } from "express";
 import healthRouter from "./health";
+import storageRouter from "./storage";
+import usersRouter from "./users";
+import habitsRouter from "./habits";
+import checkinsRouter from "./checkins";
+import timeEntriesRouter from "./timeEntries";
+import memoriesRouter from "./memories";
+import rewardsRouter from "./rewards";
+import walletRouter from "./wallet";
+import characterRouter from "./character";
+import journeyRouter from "./journey";
+import dashboardRouter from "./dashboard";
+import groupsRouter from "./groups";
+import aiRouter from "./ai";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
+router.use(storageRouter);
+router.use(usersRouter);
+router.use(habitsRouter);
+router.use(checkinsRouter);
+router.use(timeEntriesRouter);
+router.use(memoriesRouter);
+router.use(rewardsRouter);
+router.use(walletRouter);
+router.use(characterRouter);
+router.use(journeyRouter);
+router.use(dashboardRouter);
+router.use(groupsRouter);
+router.use(aiRouter);
 
 export default router;

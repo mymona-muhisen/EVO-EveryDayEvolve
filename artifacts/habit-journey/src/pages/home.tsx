@@ -1,0 +1,37 @@
+import { useState } from 'react';
+import { Link } from 'wouter';
+import { useQueryClient } from '@tanstack/react-query';
+import { useGetDashboardToday, useGetDashboardCalendar, useAiDailyInsight, useCreateCheckin, getGetDashboardTodayQueryKey, getGetDashboardCalendarQueryKey, getListHabitsQueryKey, type User } from '@workspace/api-client-react';
+import { ArrowLeft, Check, Coins, Flame, Clock3, Sparkles, Plus } from 'lucide-react';
+import { toast } from 'sonner';
+import { Loading, ErrorBlock, Empty, SectionTitle, dateToday } from '@/components/journey-ui';
+
+export function HomePage({user}: {user:User}) {
+  const today = useGetDashboardToday();
+  const month = dateToday().slice(0,7);
+  const calendar = useGetDashboardCalendar({month});
+  const insight = useAiDailyInsight();
+  const checkin = useCreateCheckin(); const qc=useQueryClient();
+  const [justDone,setJustDone]=useState<number|null>(null);
+  const quickCheck = (id:number,target:number) => checkin.mutate({habitId:id,data:{date:dateToday(),completed:true,value:target}}, {onSuccess:(r)=>{setJustDone(id);setTimeout(()=>setJustDone(null),2200);toast.success(`أحسنت! ربحت ${r.coinsEarned} عملة`);qc.invalidateQueries({queryKey:getGetDashboardTodayQueryKey()});qc.invalidateQueries({queryKey:getGetDashboardCalendarQueryKey({month})});qc.invalidateQueries({queryKey:getListHabitsQueryKey()});},onError:()=>toast.error('لم نتمكن من تسجيل خطوتك')});
+  if(today.isLoading) return <Loading/>; if(today.isError) return <ErrorBlock retry={()=>today.refetch()}/>;
+  const d=today.data; if(!d) return null; const percent=d.scheduledTodayCount?Math.round(d.completedTodayCount/d.scheduledTodayCount*100):0;
+  return <div>
+    <div className="grid lg:grid-cols-[1.38fr_.62fr] gap-5 mb-10">
+      <div className="relative min-h-[310px] md:min-h-[350px] rounded-[28px] overflow-hidden bg-[#dce5cb] flex items-center"><img src={`${import.meta.env.BASE_URL}journey-landscape.png`} className="absolute inset-0 w-full h-full object-cover" alt="طريق رحلتك بين الجبال"/><div className="absolute inset-0 bg-gradient-to-l from-[#e8e8d1] via-[#e8e8d1aa] to-transparent"/><div className="relative z-10 p-7 md:p-11 max-w-[490px]"><div className="eyebrow mb-3">فصل جديد من رحلتك</div><h1 className="text-3xl md:text-[42px] leading-[1.4] font-black mb-3">صباح الخير، {user.displayName.split(' ')[0]}.</h1><p className="text-[#4b6c5d] leading-8 mb-6">اليوم ليس عن الكمال، بل عن الخطوة القادمة. هل أنت مستعد؟</p><Link href="/journey" className="btn">استكشف طريقك <ArrowLeft size={17}/></Link></div></div>
+      <div className="rounded-[28px] bg-[#214e43] text-[#fff9e9] p-7 flex flex-col justify-between relative overflow-hidden"><div className="absolute -left-8 -top-12 w-48 h-48 border-[35px] border-[#ffffff0d] rounded-full"/><div className="relative"><span className="text-[#d5b37d] text-sm font-bold">محطة اليوم</span><div className="text-[60px] leading-none font-black mt-4" style={{fontFamily:'Cairo'}}>{d.completedTodayCount}<span className="text-[#9db8a6] text-3xl"> / {d.scheduledTodayCount}</span></div><p className="text-[#c9ddd0] mt-1">خطوات أتممتها اليوم</p></div><div className="relative"><div className="h-2 rounded-full bg-[#426b5e] mt-7 overflow-hidden"><div className="h-full rounded-full bg-[#eab879] transition-all duration-700" style={{width:`${percent}%`}}/></div><div className="flex justify-between mt-3 text-xs text-[#c9ddd0]"><span>تقدّم اليوم</span><span>{percent}%</span></div></div></div>
+    </div>
+    <div className="grid lg:grid-cols-[1.55fr_.85fr] gap-8">
+      <div>
+        <SectionTitle label="خطوات صغيرة، أثر كبير" title="عادات اليوم" action={<Link href="/habits" className="text-sm font-bold text-[#23604e] flex items-center gap-1">كل العادات <ArrowLeft size={16}/></Link>}/>
+        {d.habitsToday.filter(h=>h.scheduledToday).length ? <div className="space-y-3">{d.habitsToday.filter(h=>h.scheduledToday).map((h,i)=><div key={h.habitId} className="paper rounded-[20px] px-5 py-4 flex items-center gap-4 rise" style={{animationDelay:`${i*70}ms`}}><button disabled={h.completedToday||checkin.isPending} onClick={()=>quickCheck(h.habitId,h.targetValue)} aria-label={`تسجيل ${h.title}`} className={`shrink-0 w-12 h-12 rounded-[15px] border-2 flex items-center justify-center transition-all ${h.completedToday||justDone===h.habitId?'bg-[#2d745b] border-[#2d745b] text-white pop':'border-[#b9c9b6] text-[#2d745b] hover:bg-[#e2eee4] hover:scale-105'}`}><Check size={22} strokeWidth={2.4}/></button><Link href={`/habits/${h.habitId}`} className="flex-1 min-w-0"><div className="flex items-center gap-2"><span className="text-2xl">{h.emoji}</span><strong className="font-bold truncate">{h.title}</strong></div><div className="text-sm muted mt-1">{h.completedToday?'خطوة أُنجزت اليوم':`هدفك: ${h.targetValue} ${h.unit==='minutes'?'دقيقة':h.unit==='pages'?'صفحة':'مرّة'}`}</div></Link><div className="text-[#b87755] text-sm font-bold flex items-center gap-1"><Flame size={16}/>{h.currentStreak}</div></div>)}</div> : <Empty title="صفحتك جاهزة للخطوة الأولى" desc="أضف عادة صغيرة تريد أن تبدأ بها اليوم." action={<Link href="/habits" className="btn"><Plus size={16}/> إضافة عادة</Link>}/>}
+        <div className="grid sm:grid-cols-3 gap-3 mt-6">{[{icon:Flame,value:d.activeHabitsCount,label:'عادة نشطة'}, {icon:Coins,value:d.coins,label:'عملة في محفظتك'}, {icon:Clock3,value:d.timeTrackedMinutesToday,label:'دقيقة استثمرتها اليوم'}].map((x,i)=><div key={i} className="panel rounded-2xl p-5"><x.icon size={18} className="text-[#bc7555] mb-4"/><div className="text-2xl font-black">{x.value}</div><div className="text-xs muted mt-1">{x.label}</div></div>)}</div>
+      </div>
+      <aside className="space-y-6">
+        <div className="paper rounded-[22px] p-6"><div className="flex items-center gap-2 eyebrow"><Sparkles size={16}/> رسالة من مدرّبك</div>{insight.isLoading?<div className="mt-5"><div className="skeleton h-4 w-2/3 mb-3"/><div className="skeleton h-4 w-full mb-3"/><div className="skeleton h-4 w-4/5"/></div>:insight.isError?<div className="mt-4 text-sm muted">المدرّب يستريح قليلًا. <button className="underline" onClick={()=>insight.refetch()}>حاول مجددًا</button></div>:<><p className="text-lg font-semibold leading-[1.9] mt-4">«{insight.data?.message}»</p><span className="badge mt-4">{insight.data?.highlightMetric}</span></>}</div>
+        <div className="paper rounded-[22px] p-6"><SectionTitle label="لمحة عن مسيرتك" title="الأيام الأخيرة"/>{calendar.isLoading?<div className="skeleton h-24"/>:<div className="grid grid-cols-7 gap-2">{(calendar.data||[]).slice(-28).map(day=><div key={day.date} title={`${day.date}: ${day.completedCount} من ${day.scheduledCount}`} className={`aspect-square rounded-[8px] ${day.completedCount===0?'bg-[#eee9dc]':day.completedCount>=day.scheduledCount?'bg-[#387b60]':'bg-[#b2c9a7]'}`}/>)}</div>}<div className="text-xs muted mt-4">كل مربع يحفظ يومًا من طريقك.</div></div>
+        <div className="rounded-[22px] bg-[#eddbc0] p-6"><div className="eyebrow">المستوى {d.level}</div><div className="flex justify-between items-end mt-2"><strong className="text-xl">أنت تتقدّم</strong><span className="text-sm">{d.xp} / {d.xpToNextLevel} نقطة</span></div><div className="h-2 bg-[#d6c3a4] rounded-full mt-4 overflow-hidden"><div className="h-full bg-[#245448] rounded-full" style={{width:`${Math.min(100,d.xp/d.xpToNextLevel*100)}%`}}/></div></div>
+      </aside>
+    </div>
+  </div>;
+}
