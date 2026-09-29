@@ -5,7 +5,9 @@
  * Habit Journey API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { Habit } from './habit';
 
-export interface HealthStatus {
-  status: string;
+export interface RecoverStreakResult {
+  habit: Habit;
+  coinsSpent: number;
 }

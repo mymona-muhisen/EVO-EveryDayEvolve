@@ -176,14 +176,14 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
 
-  /habits/{habitId}/checkins:
+  /checkins:
     get:
       operationId: listHabitCheckins
       tags: [checkins]
       summary: List check-ins for a habit
       parameters:
         - name: habitId
-          in: path
+          in: query
           required: true
           schema: { type: integer }
         - name: from
@@ -202,6 +202,8 @@ paths:
               schema:
                 type: array
                 items: { $ref: "#/components/schemas/Checkin" }
+
+  /habits/{habitId}/checkins:
     post:
       operationId: createCheckin
       tags: [checkins]

@@ -5,7 +5,9 @@
  * Habit Journey API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { Reward } from './reward';
 
-export interface HealthStatus {
-  status: string;
+export interface RedeemRewardResult {
+  reward: Reward;
+  coinsRemaining: number;
 }

@@ -6,6 +6,8 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface HealthStatus {
-  status: string;
+export interface GroupReactionInput {
+  toUserId?: string;
+  /** @minLength 1 */
+  emoji: string;
 }
