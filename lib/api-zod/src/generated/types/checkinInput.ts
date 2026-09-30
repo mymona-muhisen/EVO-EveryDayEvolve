@@ -5,10 +5,13 @@
  * Habit Journey API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { CheckinInputDifficulty } from './checkinInputDifficulty';
+import type { CheckinInputMissedReason } from './checkinInputMissedReason';
 
 export interface CheckinInput {
   date: Date;
-  completed: boolean;
+  /** Legacy compatibility; success is determined server-side when value is provided */
+  completed?: boolean;
   value?: number;
   note?: string;
   /**
@@ -16,4 +19,6 @@ export interface CheckinInput {
      * @maximum 5
      */
   moodRating?: number;
+  difficulty?: CheckinInputDifficulty;
+  missedReason?: CheckinInputMissedReason;
 }

@@ -8,9 +8,25 @@ import {
   doublePrecision,
   timestamp,
   unique,
+  pgEnum,
 } from "drizzle-orm/pg-core";
 import { usersTable } from "./users";
 import { habitsTable } from "./habits";
+
+export const checkinDifficultyEnum = pgEnum("checkin_difficulty", [
+  "easy",
+  "normal",
+  "hard",
+  "very_hard",
+]);
+export const missedReasonEnum = pgEnum("missed_reason", [
+  "too_difficult",
+  "no_time",
+  "forgot",
+  "lost_motivation",
+  "unexpected",
+  "other",
+]);
 
 export const checkinsTable = pgTable(
   "checkins",
@@ -27,6 +43,13 @@ export const checkinsTable = pgTable(
     value: doublePrecision("value"),
     note: text("note"),
     moodRating: integer("mood_rating"),
+    difficulty: checkinDifficultyEnum("difficulty"),
+    missedReason: missedReasonEnum("missed_reason"),
+    targetSnapshot: doublePrecision("target_snapshot"),
+    minimumSnapshot: doublePrecision("minimum_snapshot"),
+    successLimitSnapshot: doublePrecision("success_limit_snapshot"),
+    targetCompleted: boolean("target_completed").notNull().default(false),
+    rewardGranted: boolean("reward_granted").notNull().default(false),
     coinsEarned: integer("coins_earned").notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()

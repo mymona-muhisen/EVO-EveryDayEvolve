@@ -141,3 +141,91 @@ export async function relapseRecoveryMessages(facts: {
     return { message: fallbackMessage, encouragement: fallbackEncouragement };
   }
 }
+
+export interface HabitAdaptationPhrasing {
+  headline: string;
+  explanation: string;
+  next_step: string;
+  encouragement: string;
+}
+
+export async function habitAdaptationMessages(
+  facts: {
+    reason: string;
+    missedReason: string | null;
+    changedTarget: boolean;
+    changedMinimum: boolean;
+    hasBusyDayOption: boolean;
+  },
+  provider: AiTextProvider = geminiProvider,
+): Promise<HabitAdaptationPhrasing> {
+  const fallback: HabitAdaptationPhrasing = facts.missedReason === "no_time"
+    ? {
+        headline: "خطة مرنة للأيام المزدحمة",
+        explanation: "ضيق الوقت لا يعني أن هدفك يحتاج إلى تخفيض.",
+        next_step: "جرّب النسخة الأقصر في يوم مزدحم.",
+        encouragement: "القليل المستمر يساعدك على الحفاظ على العادة.",
+      }
+    : facts.missedReason === "forgot"
+      ? {
+          headline: "اجعل تذكّر العادة أسهل",
+          explanation: "تكرار النسيان قد يعني أن إشارة التذكير ستفيدك.",
+          next_step: "اربط العادة بوقت ثابت أو نشاط تقوم به يوميًا.",
+          encouragement: "تغيير صغير في البيئة قد يجعل العودة أسهل.",
+        }
+      : facts.missedReason === "unexpected"
+        ? {
+            headline: "امنح نفسك مساحة للظروف",
+            explanation: "الأحداث غير المتوقعة لا تعني أن هدفك غير مناسب.",
+            next_step: "استأنف العادة عندما تسمح ظروفك.",
+            encouragement: "يمكنك العودة دون أن تعاقب نفسك.",
+          }
+        : {
+            headline: facts.changedTarget || facts.changedMinimum ? "اقتراح لتعديل هدفك" : "استمر على وتيرتك",
+            explanation: facts.changedTarget || facts.changedMinimum
+              ? "يقترح سجلّك تعديلًا بسيطًا ليكون الهدف أكثر قابلية للاستمرار."
+              : "لا توجد حاجة إلى تغيير هدفك الآن.",
+            next_step: facts.hasBusyDayOption
+              ? "يمكنك اختيار نسخة أقصر للأيام المزدحمة."
+              : "جرّب الاقتراح أو واصل بهدفك الحالي.",
+            encouragement: "الاستمرارية أهم من الكمال.",
+          };
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const raw = await Promise.race([
+      provider.generateText(
+        'أنت مدرب عادات داعم. صغ رسالة عربية موجزة فقط اعتمادًا على الحقائق والسبب المرفقين. لا تخترع أو تذكر أي أرقام أو قيم أو تغييرات غير موجودة. أعد JSON صالحًا بهذه المفاتيح الأربعة بالضبط: {"headline": string, "explanation": string, "next_step": string, "encouragement": string}.',
+        facts,
+        true,
+      ),
+      new Promise<never>((_, reject) => {
+        timeout = setTimeout(() => reject(new Error("AI phrasing timeout")), 2500);
+      }),
+    ]);
+    const parsed: unknown = JSON.parse(raw);
+    const keys = ["headline", "explanation", "next_step", "encouragement"];
+    if (!parsed || typeof parsed !== "object"
+      || Object.keys(parsed).sort().join(",") !== [...keys].sort().join(",")) {
+      throw new Error("Malformed habit-adaptation response");
+    }
+    const result = parsed as Record<string, unknown>;
+    const numeral = /[0-9٠-٩۰-۹]/;
+    for (const key of keys) {
+      if (typeof result[key] !== "string" || !result[key].trim()
+        || result[key].length > 240 || numeral.test(result[key] as string)) {
+        throw new Error("Invalid habit-adaptation phrasing");
+      }
+    }
+    return {
+      headline: result.headline as string,
+      explanation: result.explanation as string,
+      next_step: result.next_step as string,
+      encouragement: result.encouragement as string,
+    };
+  } catch {
+    logFallback();
+    return fallback;
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
+}

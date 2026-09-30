@@ -5,7 +5,7 @@ import {
   useGetTrackingSession, useChangeTrackingSession, useCreateTrackingCheckin,
   useGetTrackedDay, useGetTrackedDayAnalysis, useUpdateTimeEntry,
   useListTimeEntries, useGetTimeEntriesSummary, useCreateTimeEntry, useDeleteTimeEntry,
-  useListHabits, useCreateHabit,
+  useListHabits, useCreateHabit, useGetDashboardToday,
   getGetTrackingSessionQueryKey, getGetTrackedDayQueryKey, getGetTrackedDayAnalysisQueryKey,
   getListTimeEntriesQueryKey, getGetTimeEntriesSummaryQueryKey, getListHabitsQueryKey,
   getGetDashboardTodayQueryKey,
@@ -13,7 +13,8 @@ import {
 } from '@workspace/api-client-react';
 import { toast } from 'sonner';
 import { ArrowLeft, Clock3, Pause, Play, Check, Pencil, Trash2, Settings2, Flag, RotateCcw } from 'lucide-react';
-import { PageHead, SectionTitle, Field, Modal, Empty, Loading, ErrorBlock, AddButton, dateToday, arDate } from '@/components/journey-ui';
+import { PageHead, SectionTitle, Field, Modal, Empty, Loading, ErrorBlock, AddButton, dateToday as localDateToday, arDate } from '@/components/journey-ui';
+import { HabitPlanForm } from '@/components/habit-plan-form';
 
 const activities: {key:TimeCategory; name:string; icon:string; color:string}[] = [
   {key:'study',name:'دراسة',icon:'📚',color:'#608a79'}, {key:'work',name:'عمل',icon:'💻',color:'#447364'},
@@ -32,12 +33,15 @@ const choices=(selected:TimeCategory,onChoose:(key:TimeCategory)=>void)=> <div c
   {activities.map(a=><button data-testid={`button-category-${a.key}`} type="button" key={a.key} onClick={()=>onChoose(a.key)} className={`rounded-2xl border p-3 sm:p-4 text-right transition-colors ${selected===a.key?'bg-[#dce9dc] border-[#3f775e]':'bg-[#faf7ee] border-[#e7decd] hover:border-[#76a08a]'}`}><span className="text-xl ml-2">{a.icon}</span><span className="font-bold text-sm">{a.name}</span></button>)}
 </div>;
 
-export function TimePage(){
-   const [date,setDate]=useState(dateToday()),[interval,setInterval]=useState<15|30>(15),[openIntro,setOpenIntro]=useState(()=>window.location.hash==='#how'),[openManual,setOpenManual]=useState(false);
+export function TimePage({user}: {user: {timezone:string}}){
+   const dashboard=useGetDashboardToday();
+   const dateToday=()=>dashboard.data?.date?.slice(0,10)??localDateToday(user.timezone);
+   const [date,setDate]=useState(localDateToday(user.timezone)),[interval,setInterval]=useState<15|30>(15),[openIntro,setOpenIntro]=useState(()=>window.location.hash==='#how'),[openManual,setOpenManual]=useState(false);
+   useEffect(()=>{if(dashboard.data?.date)setDate(current=>current===localDateToday(user.timezone)?dashboard.data!.date!.slice(0,10):current)},[dashboard.data?.date,user.timezone]);
   const [label,setLabel]=useState(''),[minutes,setMinutes]=useState(25),[habitId,setHabitId]=useState(''),[note,setNote]=useState('');
   const [selected,setSelected]=useState<TimeCategory>('study'),[other,setOther]=useState(''),[edit,setEdit]=useState<TimeEntry|null>(null),[editMinutes,setEditMinutes]=useState(15),[editNote,setEditNote]=useState('');
   const [confirmed,setConfirmed]=useState<TimeEntry|null>(null),[confirmPause,setConfirmPause]=useState(false),[confirmFinish,setConfirmFinish]=useState(false),[settings,setSettings]=useState(false);
-  const [decision,setDecision]=useState<'unanswered'|'accepted'|'declined'>('unanswered'),[replacement,setReplacement]=useState<ReplacementActivity|null>(null),[custom,setCustom]=useState(false),[customTitle,setCustomTitle]=useState(''),[createdId,setCreatedId]=useState<number|null>(null);
+   const [decision,setDecision]=useState<'unanswered'|'accepted'|'declined'>('unanswered'),[replacement,setReplacement]=useState<ReplacementActivity|null>(null),[custom,setCustom]=useState(false),[customTitle,setCustomTitle]=useState(''),[createdId,setCreatedId]=useState<number|null>(null),[planOpen,setPlanOpen]=useState(false);
   const [now,setNow]=useState(Date.now()),[notificationPermission,setNotificationPermission]=useState<NotificationPermission>(typeof Notification==='undefined'?'denied':Notification.permission);
   const notifiedAt=useRef<string|null>(null);
   const qc=useQueryClient();
@@ -101,14 +105,10 @@ export function TimePage(){
   const ready=enough && analysis.data?.status==='ready';
    const proposal=ready?analysis.data?.suggestedChange:null;
   const replacements=ready && analysis.data?.replacements.length?analysis.data.replacements:fallbackReplacements;
-  const makeHabit=async()=>{
+   const makeHabit=async()=>{
     const title=(custom?customTitle:replacement?.title||'').trim();
     if(!title){toast.error('اكتب اسمًا للعادة');return}
-    const cat=custom?'personal':replacement?.category;
-    const habitCategory:HabitInput['category']=cat==='study'?'learning':cat==='exercise'?'health':cat==='work'?'productivity':cat==='socializing'?'social':cat==='personal'?'mindfulness':'custom';
-    const input:HabitInput={title,emoji:activity(cat||'personal').icon,category:habitCategory,cadence:'daily',unit:'minutes',targetValue:Math.min(10,Math.max(5,replacement?.minutes||10)),difficulty:'easy',goalType:'build'};
-    try{const habit=await createHabit.mutateAsync({data:input});setCreatedId(habit.id);qc.invalidateQueries({queryKey:getListHabitsQueryKey()});qc.invalidateQueries({queryKey:getGetDashboardTodayQueryKey()});toast.success('بدأت عادتك الصغيرة');}
-    catch{toast.error('تعذّر إنشاء العادة. حاول مجددًا.')}
+     setPlanOpen(true);
   };
   const minuteDisplay=remaining===null?'—':`${String(Math.floor(remaining/60)).padStart(2,'0')}:${String(remaining%60).padStart(2,'0')}`;
   return <div dir="rtl">
@@ -153,6 +153,7 @@ export function TimePage(){
       </section>}
       <section className="mt-9"><SectionTitle label="مكان لكل التفاصيل" title="سجلاتك اليدوية" action={<AddButton onClick={()=>setOpenManual(true)} label="إضافة وقت"/>}/>{entries.isLoading||summary.isLoading?<Loading/>:entries.isError||summary.isError?<ErrorBlock retry={()=>{entries.refetch();summary.refetch()}}/>:<div className="panel rounded-2xl p-5"><strong>إجمالي السجلات: {duration(summary.data?.totalMinutes??0)}</strong><p className="muted text-sm mt-2">{entries.data?.filter(x=>x.source==='manual').length||0} أنشطة أُضيفت يدويًا · يمكنك تعديلها أو حذفها من خريطة اليوم أعلاه.</p>{summary.data?.byHabit.length? <div className="border-t border-[#ded6c7] mt-4 pt-3 space-y-2">{summary.data.byHabit.map((x,i)=><div key={i} className="flex justify-between text-sm"><span>{x.label}</span><b>{duration(x.minutes)}</b></div>)}</div>:null}</div>}</section>
     </>}
+    {planOpen&&<Modal title="اختر بداية عادتك" onClose={()=>setPlanOpen(false)}><HabitPlanForm seed={{title:(custom?customTitle:replacement?.title)||'',minutes:replacement?.minutes||10,emoji:activity(custom?'personal':replacement?.category||'personal').icon,category:(custom?'mindfulness':replacement?.category==='study'?'learning':replacement?.category==='exercise'?'health':replacement?.category==='work'?'productivity':'custom') as HabitInput['category']}} onSaved={id=>{setCreatedId(id);setPlanOpen(false);qc.invalidateQueries({queryKey:getListHabitsQueryKey()});qc.invalidateQueries({queryKey:getGetDashboardTodayQueryKey()})}}/></Modal>}
     {openIntro&&<Modal title="لنتعرّف على يومك" onClose={()=>setOpenIntro(false)}><div className="text-center py-3"><div className="text-5xl mb-4">🕐</div><h3 className="text-2xl font-black">15 دقيقة تكفي</h3><p className="muted leading-8 mt-3">كل فترة قصيرة نسألك ماذا كنت تفعل. لا تحتاج إلى كتابة شيء؛ اختر النشاط الأقرب فقط. يمكنك الإيقاف أو تغيير المدة متى شئت.</p><div className="text-[#be8e5b] text-2xl tracking-widest my-5">● ● ● ● ●</div></div><div className="flex gap-3"><button data-testid="button-intro-next" className="btn flex-1" onClick={()=>{setOpenIntro(false);setSettings(true)}}>ابدأ الآن</button><button data-testid="button-intro-later" className="btn btn-light" onClick={()=>setOpenIntro(false)}>لاحقًا</button></div></Modal>}
     {settings&&<Modal title={current?'مدة الاطمئنان':'كيف تريد تتبّع يومك؟'} onClose={()=>setSettings(false)}><p className="muted mb-5">اختر الإيقاع الذي يناسبك. لا نغيّر شيئًا مما سجّلته سابقًا.</p><div className="space-y-3 mb-6">{([15,30] as const).map(n=><button data-testid={`button-interval-${n}`} key={n} onClick={()=>setInterval(n)} className={`w-full text-right rounded-2xl border p-5 ${interval===n?'bg-[#e1eddf] border-[#327259]':'bg-[#faf7ef] border-[#e7dfcd]'}`}><strong>كل {n} دقيقة</strong><p className="muted text-sm mt-1">{n===15?'صورة أدق عن يومك.':'تتبّع أخف وأقل إزعاجًا.'}</p></button>)}</div><button data-testid="button-save-interval" disabled={change.isPending} className="btn w-full" onClick={()=>action(current?'interval':'start',interval)}>{change.isPending?'لحظة واحدة...':current?'حفظ المدة القادمة':'ابدأ يومي'}</button><p className="muted text-xs mt-4">تذكيرات المتصفح تظهر فقط إذا منحتها الإذن وكانت الصفحة مفتوحة؛ لا نعتمد عليها في الخلفية.</p></Modal>}
     {confirmPause&&<Modal title="استراحة قصيرة؟" onClose={()=>setConfirmPause(false)}><p className="muted mb-6">هل تريد إيقاف التتبّع مؤقتًا؟ يمكنك العودة من حيث توقفت.</p><div className="flex gap-2"><button data-testid="button-confirm-pause" disabled={change.isPending} className="btn" onClick={()=>action('pause')}>إيقاف مؤقت</button><button className="btn btn-light" onClick={()=>setConfirmPause(false)}>إلغاء</button></div></Modal>}

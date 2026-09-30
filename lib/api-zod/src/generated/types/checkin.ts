@@ -5,6 +5,8 @@
  * Habit Journey API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { CheckinDifficulty } from './checkinDifficulty';
+import type { CheckinMissedReason } from './checkinMissedReason';
 
 export interface Checkin {
   id: number;
@@ -17,6 +19,17 @@ export interface Checkin {
   note: string | null;
   /** @nullable */
   moodRating: number | null;
+  /** @nullable */
+  difficulty: CheckinDifficulty;
+  /** @nullable */
+  missedReason: CheckinMissedReason;
+  /** @nullable */
+  targetSnapshot: number | null;
+  /** @nullable */
+  minimumSnapshot: number | null;
+  /** @nullable */
+  successLimitSnapshot: number | null;
+  targetCompleted: boolean;
   coinsEarned: number;
   createdAt: Date;
 }

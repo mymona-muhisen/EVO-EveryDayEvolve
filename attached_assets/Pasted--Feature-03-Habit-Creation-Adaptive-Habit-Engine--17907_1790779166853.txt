@@ -1,0 +1,619 @@
+نفّذ الآن إصلاحات Feature 03 — Habit Creation + Adaptive Habit Engine
+بناءً على نتائج المراجعة التي قدمتها للتو.
+
+IMPORTANT:
+- ابدأ بالتنفيذ الآن.
+- لا تعد مراجعة فقط.
+- لا تنتظر موافقة إضافية.
+- لا تعِد كتابة الميزات الموجودة من الصفر.
+- حافظ على Authentication وTime Tracking وJourney وCoins وXP والواجهة الحالية.
+- عدّل فقط ما يلزم لإغلاق الفجوات المذكورة.
+- بعد كل مجموعة تغييرات، شغّل الاختبارات المناسبة.
+- إذا وجدت تعارضًا بين المواصفات والكود الحالي، حافظ على البيانات الموجودة قدر الإمكان وطبّق migration آمنًا.
+- لا تضف ميزات جديدة خارج هذه المهمة.
+
+==================================================
+PHASE 1 — فصل TARGET عن MINIMUM
+==================================================
+
+المشكلة الحالية:
+العادة تحفظ targetValue فقط.
+
+المطلوب:
+
+للـBUILD HABITS أضف:
+
+- targetValue
+- minimumValue
+
+مثال:
+targetValue = 10 minutes
+minimumValue = 5 minutes
+
+قواعد النجاح:
+- actualValue >= minimumValue → successful day
+- actualValue >= targetValue → target completed
+- actualValue < minimumValue → incomplete
+
+يجب أن يظهر في الواجهة بوضوح:
+
+Target: 10 min
+Minimum: 5 min
+
+ولا تعتبر إتمام الحد الأدنى فشلًا.
+
+أضف minimumValue إلى قاعدة البيانات/API/types/forms كما يلزم.
+
+IMPORTANT:
+- لا تغيّر targetValue التاريخي للأيام السابقة.
+- إذا كانت هناك عادات قديمة لا تملك minimumValue، أنشئ قيمة افتراضية آمنة ومتوافقة مع البيانات الحالية بدل كسرها.
+- اجعل القيم قابلة للتعديل من المستخدم.
+
+==================================================
+PHASE 2 — Habit Creation يجب أن يستخدم AI Habit Builder
+==================================================
+
+حاليًا إنشاء العادة من البديل يحدد 5–10 دقائق مباشرة.
+
+غيّر التدفق ليصبح:
+
+User intention
+→ AI understands goal
+→ AI suggests Target + Minimum
+→ User reviews
+→ User edits if desired
+→ User accepts
+→ Habit is created
+
+مثال:
+
+User:
+"I want to read for 1 hour every day."
+
+AI:
+Target = 10 minutes
+Minimum = 5 minutes
+
+واجهة الاقتراح:
+
+هدفك:
+القراءة لمدة ساعة يوميًا
+
+البداية المقترحة:
+10 دقائق يوميًا
+
+الحد الأدنى:
+5 دقائق
+
+سبب الاقتراح:
+...
+
+Buttons:
+- اعتماد الخطة
+- تعديل بنفسي
+
+المستخدم يستطيع تعديل target/minimum/frequency قبل الحفظ.
+
+لا تجعل AI قادرًا على إجبار المستخدم على الخطة.
+
+==================================================
+PHASE 3 — REDUCE HABITS
+==================================================
+
+للعادات السلبية/التقليلية، لا تستخدم BUILD logic بشكل أعمى.
+
+أضف دعمًا لـ:
+
+- baseline/current value
+- target limit
+- success limit
+
+مثال:
+Current average = 180 min
+Target limit = 160 min
+Success limit = 170 min
+
+قاعدة النجاح:
+actualValue <= successLimit
+
+ويظهر للمستخدم بشكل مفهوم:
+
+حد اليوم:
+160 دقيقة
+
+والحد المقبول للنجاح:
+170 دقيقة
+
+لا تعرض له أسماء تقنية مثل successLimit.
+
+إذا لم تكن بنية REDUCE الحالية مكتملة، عدّلها بأقل تغيير ممكن.
+
+==================================================
+PHASE 4 — DIFFICULTY UX
+==================================================
+
+حاليًا النظام يستخدم تقييم 1–5.
+
+استبدله في تجربة المستخدم بالقيم:
+
+😊 Easy
+😐 Normal
+😣 Hard
+😞 Very Hard
+
+يمكن الاحتفاظ بالرقم الداخلي إن كان ذلك أسهل للتوافق، لكن اعرض الكلمات الأربع للمستخدم.
+
+التعامل مع القيمة يجب أن يكون واضحًا:
+
+Easy = 1
+Normal = 2
+Hard = 3
+Very Hard = 4
+
+أو استخدم enum واضحًا.
+
+بعد إكمال العادة:
+- اسأل عن difficulty
+- احفظها في habit day/reflection
+- اسمح بملاحظة اختيارية
+
+==================================================
+PHASE 5 — MISSED DAY FLOW
+==================================================
+
+حاليًا النظام يخفض الهدف مباشرة ولا يسأل لماذا.
+
+استبدل ذلك بتجربة:
+
+Missed day
+→ "What got in the way?"
+
+الخيارات:
+
+😫 Too difficult
+🕐 No time
+😴 Forgot
+😕 Lost motivation
+⚡ Unexpected event
+✍️ Other
+
+احفظ missedReason.
+
+IMPORTANT:
+لا ترسل دائمًا missedDays: 1 بشكل ثابت.
+استخدم البيانات الفعلية من habit history.
+
+لا تجعل تفويت يوم يصفر الرحلة.
+
+==================================================
+PHASE 6 — DETERMINISTIC ADAPTIVE ENGINE
+==================================================
+
+أنشئ Adaptive Habit Engine مستقلًا عن AI.
+
+الـRules Engine هو المسؤول عن الأرقام.
+
+AI لا يقرر الأرقام.
+
+BUILD HABITS:
+
+1. يوم صعب واحد:
+لا تعدّل الهدف بشكل كبير.
+
+2. تكرار Hard/Very Hard:
+إذا ظهر نمط من صعوبة متكررة، اقترح تخفيض target مستقبلًا.
+
+3. Very Hard بشكل متكرر:
+يمكن تخفيض الهدف بشكل أوضح.
+
+4. Easy بشكل متكرر:
+يمكن اقتراح زيادة صغيرة فقط.
+
+5. Normal:
+حافظ على الخطة.
+
+6. Too difficult:
+خفّض future target/minimum بشكل تدريجي.
+
+7. No time:
+لا تخفّض الهدف الأساسي تلقائيًا.
+استخدم Busy Day Version إن كانت متاحة.
+
+8. Forgot:
+اقترح تعديل الـcue/reminder.
+
+9. Lost motivation:
+اقترح تقليل friction وتبسيط بداية السلوك.
+
+10. Unexpected event:
+عادةً لا تعدّل الخطة الأساسية.
+
+IMPORTANT:
+- التعديلات المستقبلية فقط.
+- لا تغيّر بيانات الأيام السابقة.
+- لا تسمح بتخفيض minimum إلى ما لا نهاية.
+- لا تقفز بالهدف فجأة.
+- لا تستخدم AI لاتخاذ القرار الرقمي.
+
+أنشئ minimumFloor حيث يلزم.
+
+==================================================
+PHASE 7 — BUSY DAY VERSION
+==================================================
+
+أضف مفهوم:
+
+Normal target
+Minimum
+Busy-day version
+
+مثال:
+
+Target = 10 min
+Minimum = 5 min
+Busy-day version = 3 min
+
+إذا كان missed reason = No time:
+اعرض للمستخدم خيارًا مثل:
+
+"حتى في الأيام المزدحمة، يمكنك تنفيذ نسخة 3 دقائق."
+
+لكن لا تغيّر الخطة الأساسية تلقائيًا.
+
+==================================================
+PHASE 8 — AI ADAPTATION EXPLANATION
+==================================================
+
+بعد أن يقرر الـRules Engine التعديل:
+
+Rules Engine
+→ adjustment
+→ AI explanation
+→ UI
+
+مثال:
+
+Rules:
+oldTarget = 10
+newTarget = 8
+reason = repeated_hard_days
+
+AI receives these exact values.
+
+AI must NOT change them.
+
+AI only generates Arabic explanation مثل:
+
+"يبدو أن 10 دقائق أصبحت ثقيلة قليلًا في الأيام الأخيرة، لذلك خففنا الهدف إلى 8 دقائق حتى تبقى الاستمرارية أسهل."
+
+Structured output:
+
+{
+  "headline": "...",
+  "explanation": "...",
+  "next_step": "...",
+  "encouragement": "..."
+}
+
+==================================================
+PHASE 9 — DAILY TARGET HISTORY
+==================================================
+
+كل habit day يجب أن يحتفظ بالقيم التي كانت فعالة في ذلك اليوم.
+
+مثال:
+
+Day 1:
+target = 10
+minimum = 5
+
+Day 2:
+target = 10
+minimum = 5
+
+Day 3:
+target = 8
+minimum = 5
+
+Day 4:
+target = 8
+minimum = 5
+
+لا تعدّل Day 1 عندما يتغير Day 3.
+
+إذا احتجت إلى current habit target منفصل عن history، استخدم:
+
+habit.currentTarget
+habit.currentMinimum
+
+مع snapshot داخل habit_days.
+
+==================================================
+PHASE 10 — HABIT PAGE UX
+==================================================
+
+حدّث صفحة العادة لتجيب المستخدم فورًا:
+
+ما المطلوب اليوم؟
+ما الحد الأدنى؟
+كم أنجزت؟
+هل أنجزت الهدف؟
+كم يومًا في الرحلة؟
+كم يومًا ناجحًا؟
+ما المكافأة؟
+
+مثال:
+
+Reading
+
+Today's target
+10 min
+
+Minimum
+5 min
+
+Progress
+7 / 10 min
+
+[Complete]
+
+Day 7 / 22
+
+Consistency
+6 successful days / 7
+
+Reward
+Headphones
+
+بعد الإكمال:
+
+How did it feel?
+
+[😊 Easy] [😐 Normal] [😣 Hard] [😞 Very Hard]
+
+==================================================
+PHASE 11 — AI DAY ANALYSIS IMPROVEMENTS
+==================================================
+
+بعد إكمال Feature 03، أصلح فجوات AI Day Analysis التي وجدتها.
+
+أضف إلى سياق التحليل عندما تكون البيانات متاحة:
+
+- yesterday comparison
+- previous tracked days
+- current habits
+- recent difficulty
+- missed-day reasons
+- user interests
+
+ولا ترسل معلومات غير ضرورية.
+
+أضف استخراجًا أفضل للأنماط إن كانت البيانات تسمح:
+
+- peak periods
+- repeated time blocks
+- average session length
+- comparison with previous day
+
+لا تخترع Pattern إذا كانت البيانات غير كافية.
+
+==================================================
+PHASE 12 — AI ANALYSIS CACHE
+==================================================
+
+لا تستدع Gemini في كل dashboard load.
+
+أنشئ آلية cache بسيطة.
+
+مثلاً:
+dayAnalysisHash
+
+احسب hash من البيانات التي يعتمد عليها التحليل.
+
+إذا لم تتغير البيانات:
+- أعد استخدام التحليل الموجود.
+
+إذا تغيرت:
+- نفذ تحليلًا جديدًا.
+
+احفظ:
+- hash
+- analysis
+- createdAt
+
+لا تضف database complexity غير ضرورية.
+
+==================================================
+PHASE 13 — DASHBOARD COACH CARD
+==================================================
+
+حاليًا رسالة المدرّب في Dashboard مبنية على weekly habit count.
+
+لا تستبدل النظام كله.
+
+أضف بطاقة مستقلة:
+
+"رسالة من مدربك"
+
+لكنها تكون مبنية على Day Analysis عندما يكون هناك Insight مفيد.
+
+مثال:
+
+"لاحظت أن معظم وقت وسائل التواصل لديك يتركز مساءً. قد تكون 20 دقيقة فرصة مناسبة لتجربة تغيير صغير."
+
+Buttons:
+- جرّب هذا التغيير
+- ليس الآن
+
+إذا لا يوجد Insight مفيد:
+استخدم الرسالة الحالية أو رسالة fallback مناسبة.
+
+==================================================
+PHASE 14 — AI RESPONSE VALIDATION
+==================================================
+
+لا تكتفِ بفحص وجود 3 حقول نصية.
+
+أنشئ schema validation للـAI output.
+
+تحقق من:
+
+- type enum
+- headline string
+- observation string
+- pattern string|null
+- suggested_change object|null
+- minutes number|null
+- category string|null
+- replacement_options array
+- each replacement has title/minutes/reason
+- coach_message string
+
+IMPORTANT:
+الأرقام authoritative تأتي من التطبيق وليس من AI.
+
+إذا أعاد AI رقمًا مختلفًا عن الرقم الذي حسبه التطبيق:
+- تجاهل الرقم القادم من AI
+- استخدم الرقم المحسوب من التطبيق
+- اسمح للـAI بصياغة النص فقط
+
+إذا كان JSON غير صالح:
+- استخدم fallback.
+
+==================================================
+PHASE 15 — FALLBACKS
+==================================================
+
+إذا Gemini API:
+- unavailable
+- timeout
+- rate limit
+- malformed response
+
+لا تكسر UI.
+
+استخدم fallback deterministic.
+
+مثال:
+
+"لاحظنا أن هذا النشاط أخذ جزءًا كبيرًا من وقتك اليوم. يمكنك تجربة تقليل 15–20 دقيقة وملء هذا الوقت بشيء آخر تختاره."
+
+==================================================
+PHASE 16 — TESTING
+==================================================
+
+بعد التنفيذ اختبر فعليًا:
+
+TEST 1
+Create BUILD habit:
+"I want to read 1 hour every day."
+
+Expected:
+Target + Minimum generated.
+User can edit.
+Habit saved.
+
+TEST 2
+Complete only minimum.
+
+Expected:
+Successful day.
+Not failure.
+
+TEST 3
+Complete full target.
+
+Expected:
+Target completed.
+XP/coins/journey progression works.
+
+TEST 4
+Difficulty = Hard repeatedly.
+
+Expected:
+Future target decreases according to deterministic rules.
+
+TEST 5
+Difficulty = Easy repeatedly.
+
+Expected:
+Small increase suggestion.
+
+TEST 6
+Missed day = Too difficult.
+
+Expected:
+Reason saved.
+Future adjustment.
+Journey not reset.
+
+TEST 7
+Missed day = No time.
+
+Expected:
+Busy-day behavior offered.
+
+TEST 8
+Missed day = Forgot.
+
+Expected:
+Cue/reminder suggestion.
+
+TEST 9
+Change target on Day 5.
+
+Expected:
+Days 1–4 retain their old target values.
+
+TEST 10
+REDUCE habit.
+
+Expected:
+Limit/success threshold logic works.
+
+TEST 11
+Open dashboard multiple times without changing data.
+
+Expected:
+Cached AI analysis reused.
+
+TEST 12
+Change time data and reopen analysis.
+
+Expected:
+New analysis generated.
+
+TEST 13
+Gemini failure.
+
+Expected:
+Fallback message appears and app remains functional.
+
+TEST 14
+Invalid Gemini JSON.
+
+Expected:
+Validation catches it and fallback is used.
+
+TEST 15
+Arabic RTL on desktop and mobile.
+
+==================================================
+FINAL REPORT
+==================================================
+
+When finished, report:
+
+1. Files changed
+2. Database/schema changes
+3. API changes
+4. AI changes
+5. Rules added
+6. Tests performed
+7. Tests passed
+8. Tests failed
+9. Remaining issues
+10. Exact AI provider/model currently being used
+
+Do not stop at "implemented".
+Actually test the end-to-end flow.

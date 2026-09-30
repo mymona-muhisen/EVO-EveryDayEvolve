@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, gte } from "drizzle-orm";
+import { eq, and, gte, desc } from "drizzle-orm";
 import { db, habitsTable, checkinsTable } from "@workspace/db";
 import {
   AiBreakdownGoalBody,
@@ -9,11 +9,16 @@ import {
   AiCheckinFeedbackResponse,
   AiRelapseRecoveryBody,
   AiRelapseRecoveryResponse,
+  AiHabitBuilderBody,
+  AiHabitBuilderResponse,
 } from "@workspace/api-zod";
 import { requireAuth } from "../middlewares/requireAuth";
 import { ensureUser } from "../lib/userService";
 import { toDateOnly } from "../lib/dates";
-import { goalMilestones, phraseMilestones, checkinTone, recoveryTarget } from "../lib/aiRules";
+import {
+  goalMilestones, phraseMilestones, checkinTone, recoveryTarget,
+  buildHabitTargets, missedScheduledDays,
+} from "../lib/aiRules";
 import {
   breakdownGoalMessages,
   dailyInsightMessage,
@@ -42,6 +47,22 @@ router.post("/ai/breakdown-goal", async (req, res): Promise<void> => {
       coachMessage,
     }),
   );
+});
+
+router.post("/ai/habit-builder", async (req, res): Promise<void> => {
+  await ensureUser(req.userId!);
+  const parsed = AiHabitBuilderBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  const targets = buildHabitTargets(parsed.data.requestedDuration);
+  res.json(AiHabitBuilderResponse.parse({
+    title: parsed.data.intent.trim(),
+    ...targets,
+    reason: "تم اختيار الهدف اليومي من المدة التي طلبتها، مع حد أدنى مناسب وأقل من الهدف للأيام المزدحمة.",
+    coachMessage: "يمكنك تعديل الاسم والأهداف قبل إنشاء العادة.",
+  }));
 });
 
 router.get("/ai/daily-insight", async (req, res): Promise<void> => {
@@ -126,16 +147,25 @@ router.post("/ai/relapse-recovery", async (req, res): Promise<void> => {
     return;
   }
 
+  const history = await db.select({ date: checkinsTable.date })
+    .from(checkinsTable)
+    .where(and(eq(checkinsTable.habitId, habit.id), eq(checkinsTable.userId, req.userId!)))
+    .orderBy(desc(checkinsTable.date));
+  const missedDays = missedScheduledDays(
+    habit.cadence, habit.customDays, history.map((row) => row.date), toDateOnly(new Date()), habit.createdAt,
+  );
   const suggestedTargetValue = recoveryTarget(habit.targetValue);
 
   const { message, encouragement } = await relapseRecoveryMessages({
     habitTitle: habit.title,
-    missedDays: parsed.data.missedDays,
+    missedDays,
     suggestedTargetValue,
     unit: habit.unit,
   });
 
-  res.json(AiRelapseRecoveryResponse.parse({ message, originalTargetValue: habit.targetValue, suggestedTargetValue, encouragement }));
+  res.json(AiRelapseRecoveryResponse.parse({
+    message, originalTargetValue: habit.targetValue, suggestedTargetValue, encouragement, missedDays,
+  }));
 });
 
 export default router;

@@ -8,6 +8,9 @@
 
 export interface AiRelapseRecoveryInput {
   habitId: number;
-  /** @minimum 1 */
-  missedDays: number;
+  /**
+     * Legacy compatibility; server derives this from check-in history
+     * @minimum 0
+     */
+  missedDays?: number;
 }

@@ -24,8 +24,18 @@ export interface HabitUpdate {
   customDays?: number[];
   unit?: HabitUpdateUnit;
   targetValue?: number;
+  /** @exclusiveMinimum 0 */
+  minimumValue?: number;
+  /** @exclusiveMinimum 0 */
+  busyDayValue?: number;
+  /** @exclusiveMinimum 0 */
+  baselineValue?: number;
+  /** @exclusiveMinimum 0 */
+  successLimitValue?: number;
   /** If provided with targetValue, update only when the stored target still equals this value */
   expectedTargetValue?: number;
+  /** Compare-and-set guard for minimumValue updates */
+  expectedMinimumValue?: number;
   difficulty?: HabitUpdateDifficulty;
   isActive?: boolean;
   milestones?: HabitMilestone[];

@@ -26,6 +26,14 @@ export interface Habit {
   customDays: number[] | null;
   unit: HabitUnit;
   targetValue: number;
+  /** @nullable */
+  minimumValue: number | null;
+  /** @nullable */
+  busyDayValue: number | null;
+  /** @nullable */
+  baselineValue: number | null;
+  /** @nullable */
+  successLimitValue: number | null;
   difficulty: HabitDifficulty;
   goalType: HabitGoalType;
   isActive: boolean;

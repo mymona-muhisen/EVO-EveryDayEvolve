@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { db, timeEntriesTable, type TimeEntryRow } from "@workspace/db";
 import { geminiProvider } from "./gemini";
 import { logger } from "./logger";
+import { z } from "zod";
 
 export const categories = {
   study: "الدراسة", work: "العمل", social_media: "وسائل التواصل",
@@ -30,9 +31,31 @@ export async function getTrackedDay(userId: string, date: string) {
 
 type Day = Awaited<ReturnType<typeof getTrackedDay>>;
 type Replacement = { title: string; minutes: number; category: TimeCategory };
+export type AnalysisContext = {
+  previousTrackedDays: { date: string; totalMinutes: number }[];
+  currentHabits: { title: string; category: string; targetValue: number; goalType: string }[];
+  recentDifficulty: { date: string; difficulty: string | null }[];
+  missedReasons: { date: string; reason: string | null }[];
+  userInterest: string | null;
+};
+
+const coachResponse = z.object({
+  type: z.enum(["pattern", "progress", "opportunity", "consistency", "no_major_change"]),
+  headline: z.string().trim().min(1).max(120),
+  observation: z.string().trim().min(1).max(300),
+  pattern: z.string().max(300).nullable(),
+  suggested_change: z.object({
+    minutes: z.number().nullable(), category: z.string().nullable(),
+  }).nullable(),
+  replacement_options: z.array(z.object({
+    title: z.string().min(1).max(80), minutes: z.number().nonnegative(),
+    reason: z.string().max(160),
+  })).max(6),
+  coach_message: z.string().trim().min(1).max(240),
+});
 
 /** All numbers and conclusions come from observed data, never from generated text. */
-export async function analyzeTrackedDay(day: Day, timezone: string) {
+export async function analyzeTrackedDay(day: Day, timezone: string, context?: AnalysisContext) {
   const timedEntries = day.entries.filter(e => e.source === "check_in" && e.startTime);
   if (timedEntries.length < 3 || day.totalMinutes < 60) {
     return {
@@ -64,25 +87,38 @@ export async function analyzeTrackedDay(day: Day, timezone: string) {
     : "ما زلنا نتعرف إلى توزيع وقتك.";
 
   // Use the user's saved timezone for the three-hour block; do not infer causes.
-  const hour = (entry: TimeEntryRow) => {
+  const localHour = (instant: Date) => {
     try {
-      return Number(new Intl.DateTimeFormat("en-GB", { timeZone: timezone, hour: "2-digit", hourCycle: "h23" }).format(entry.startTime!));
+      return Number(new Intl.DateTimeFormat("en-GB", { timeZone: timezone, hour: "2-digit", hourCycle: "h23" }).format(instant));
     } catch {
-      return entry.startTime!.getUTCHours();
+      return instant.getUTCHours();
     }
   };
   const timedByCategory = timedEntries.filter(e => e.category === leader?.category);
-  let peakStart = -1, peakMinutes = 0;
-  for (let h = 0; h < 24; h++) {
-    const minutes = timedByCategory.filter(e => {
-      const localHour = hour(e);
-      return localHour >= h && localHour < h + 3;
-    }).reduce((sum, e) => sum + e.durationMinutes, 0);
-    if (minutes > peakMinutes) { peakStart = h; peakMinutes = minutes; }
+  const blocks = Array.from({ length: 8 }, () => ({ minutes: 0, count: 0 }));
+  for (const entry of timedByCategory) {
+    const bucket = Math.floor(localHour(entry.startTime!) / 3);
+    blocks[bucket].count++;
+    // Assign each elapsed minute to its actual local three-hour block, including boundary crossings.
+    for (let minute = 0; minute < entry.durationMinutes; minute++) {
+      const instant = new Date(entry.startTime!.getTime() + minute * 60_000);
+      blocks[Math.floor(localHour(instant) / 3)].minutes++;
+    }
   }
+  const peakIndex = blocks.reduce((best, block, index) =>
+    block.minutes > blocks[best].minutes ? index : best, 0);
+  const peakStart = peakIndex * 3, peakMinutes = blocks[peakIndex].minutes;
+  const avgSession = timedByCategory.length
+    ? Math.round(timedByCategory.reduce((sum, e) => sum + e.durationMinutes, 0) / timedByCategory.length)
+    : 0;
+  const previousDay = context?.previousTrackedDays.find(d => d.date ===
+    new Date(Date.parse(`${day.date}T12:00:00Z`) - 86_400_000).toISOString().slice(0, 10));
+  const comparison = previousDay
+    ? ` أمس سُجّلت ${previousDay.totalMinutes} دقيقة مقابل ${day.totalMinutes} دقيقة اليوم؛ هذه مقارنة للوقت المسجّل فقط.`
+    : "";
   const pattern = peakStart >= 0 && peakMinutes >= 30
-    ? `من وقت ${categories[leader.category]} المسجّل، ظهرت ${peakMinutes} دقيقة بين ${String(peakStart).padStart(2, "0")}:00 و${String(Math.min(peakStart + 3, 24)).padStart(2, "0")}:00.`
-    : "لم يظهر وقت محدد يتكرر فيه هذا النشاط بعد.";
+    ? `ظهر ${peakMinutes} دقيقة من ${categories[leader.category]} بين ${String(peakStart).padStart(2, "0")}:00 و${String(peakStart + 3).padStart(2, "0")}:00${blocks[peakIndex].count >= 2 ? ` عبر ${blocks[peakIndex].count} تسجيلات` : ""}. متوسط مدة التسجيل ${avgSession} دقيقة.${comparison}`
+    : `لم يظهر وقت محدد يتكرر فيه هذا النشاط بعد.${comparison}`;
   const fallback = {
     status: "ready" as const,
     headline: "يومك يمنحك صورة أوضح",
@@ -95,21 +131,24 @@ export async function analyzeTrackedDay(day: Day, timezone: string) {
     replacements,
   };
   try {
-    const raw = await geminiProvider.generateText(
-      'أنت مدرب سلوكي داعم بالعربية الفصحى. البيانات والأرقام والاستنتاجات المرفقة حُسبت مسبقًا. أعد JSON فقط يحتوي headline وpattern وopportunity كنصوص قصيرة. لا تغيّر الأرقام، لا تخترع أسبابًا أو معلومات، لا تشخّص أو تخجل المستخدم. استند حصريًا إلى observation وpattern وsuggestedChange المرفقة. إذا لا يوجد تغيير مقترح فلا تطلب تقليل الوقت.',
-      { observation, pattern, suggestedChange, topCategories: day.topCategories, totalMinutes: day.totalMinutes },
+    let timer!: ReturnType<typeof setTimeout>;
+    const raw = await Promise.race([geminiProvider.generateText(
+      'أنت مدرب داعم باللغة العربية. أعد JSON بالمفاتيح type, headline, observation, pattern, suggested_change, replacement_options, coach_message. النوع من pattern/progress/opportunity/consistency/no_major_change. أعد الأرقام والفئات كما أُرسلت فقط؛ لا تخترع أسبابًا أو روتينًا، ولا تشخّص أو تلُم المستخدم. observation وpattern وsuggested_change والبدائل Facts محسوبة مسبقًا. إن غاب اقتراح التغيير فلا تقترح تقليلًا. اختصر الرسالة.',
+      { observation, pattern, suggestedChange, replacements, previousTrackedDays: context?.previousTrackedDays,
+        currentHabits: context?.currentHabits, recentDifficulty: context?.recentDifficulty,
+        missedReasons: context?.missedReasons, userInterest: context?.userInterest,
+        topCategories: day.topCategories, totalMinutes: day.totalMinutes },
       true,
-    );
-    const parsed: unknown = JSON.parse(raw);
-    if (!parsed || typeof parsed !== "object" ||
-      !("headline" in parsed) || typeof parsed.headline !== "string" || !parsed.headline.trim() ||
-      !("pattern" in parsed) || typeof parsed.pattern !== "string" || !parsed.pattern.trim() ||
-      !("opportunity" in parsed) || typeof parsed.opportunity !== "string" || !parsed.opportunity.trim()) {
-      throw new Error("Invalid analysis text");
-    }
-    return { ...fallback, headline: parsed.headline, pattern: parsed.pattern, opportunity: parsed.opportunity };
+    ), new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error("Analysis provider timed out")), 3000);
+    })]).finally(() => clearTimeout(timer));
+    const parsed = coachResponse.parse(JSON.parse(raw));
+    // The model's observation, pattern, numbers, and replacement objects never become application facts.
+    // A headline without digits prevents it from introducing a different numeric assertion.
+    if (/\d|[٠-٩]|[۰-۹]/u.test(parsed.headline)) throw new Error("AI headline changed numeric facts");
+    return { ...fallback, headline: parsed.headline, source: "gemini" as const };
   } catch {
     logger.warn("Time analysis phrasing unavailable; using deterministic Arabic fallback");
-    return fallback;
+    return { ...fallback, source: "fallback" as const };
   }
 }

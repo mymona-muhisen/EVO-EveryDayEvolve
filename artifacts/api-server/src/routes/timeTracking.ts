@@ -11,7 +11,8 @@ import {
 import { requireAuth } from "../middlewares/requireAuth";
 import { ensureUser } from "../lib/userService";
 import { toDateOnly, coerceQueryDates } from "../lib/dates";
-import { analyzeTrackedDay, categories, getTrackedDay } from "../lib/trackedDay";
+import { categories, getTrackedDay } from "../lib/trackedDay";
+import { getCachedTrackedAnalysis } from "../lib/trackedAnalysisCache";
 
 const router: IRouter = Router();
 router.use(requireAuth);
@@ -131,8 +132,9 @@ router.get("/time-tracking/analysis", async (req, res): Promise<void> => {
     coerceQueryDates(req.query as Record<string, unknown>, ["date"]));
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
   const user = await ensureUser(req.userId!);
-  const day = await getTrackedDay(req.userId!, toDateOnly(parsed.data.date));
-  res.json(GetTrackedDayAnalysisResponse.parse(await analyzeTrackedDay(day, user.timezone)));
+  const result = await getCachedTrackedAnalysis(req.userId!, toDateOnly(parsed.data.date),
+    user.timezone, user.primaryGoalCategory);
+  res.json(GetTrackedDayAnalysisResponse.parse(result));
 });
 
 export default router;

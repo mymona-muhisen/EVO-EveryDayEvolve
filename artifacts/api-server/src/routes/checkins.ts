@@ -9,6 +9,9 @@ import {
   CreateCheckinResponse,
   RecoverStreakParams,
   RecoverStreakResponse,
+  UpdateCheckinReflectionParams,
+  UpdateCheckinReflectionBody,
+  UpdateCheckinReflectionResponse,
 } from "@workspace/api-zod";
 import { requireAuth } from "../middlewares/requireAuth";
 import { ensureUser } from "../lib/userService";
@@ -20,6 +23,7 @@ import {
   xpForDifficulty,
 } from "../lib/rules";
 import { toDateOnly, coerceQueryDates } from "../lib/dates";
+import { effectiveMinimum, evaluateHabitCheckin } from "../lib/aiRules";
 
 const router: IRouter = Router();
 router.use(requireAuth);
@@ -79,13 +83,30 @@ router.post("/habits/:habitId/checkins", async (req, res): Promise<void> => {
   }
 
   const date = toDateOnly(parsed.data.date);
-  const { completed, value, note, moodRating } = parsed.data;
+  const { value, note, moodRating, difficulty, missedReason } = parsed.data;
 
   const [existing] = await db
     .select()
     .from(checkinsTable)
     .where(and(eq(checkinsTable.habitId, habit.id), eq(checkinsTable.date, date)));
   const isNewDay = !existing;
+  const targetSnapshot = existing?.targetSnapshot ?? habit.targetValue;
+  const minimumSnapshot = existing?.minimumSnapshot
+    ?? effectiveMinimum(habit.targetValue, habit.minimumValue);
+  const successLimitSnapshot = existing?.successLimitSnapshot ?? habit.successLimitValue;
+  const evaluation = evaluateHabitCheckin({
+    goalType: habit.goalType,
+    targetValue: targetSnapshot,
+    minimumValue: minimumSnapshot,
+    successLimitValue: successLimitSnapshot,
+    value,
+    legacyCompleted: parsed.data.completed,
+  });
+  const { completed, targetCompleted } = evaluation;
+  if (existing?.completed && !completed) {
+    res.status(409).json({ error: "A successful check-in cannot be changed to incomplete" });
+    return;
+  }
 
   let newStreak = habit.currentStreak;
   let longestStreak = habit.longestStreak;
@@ -95,7 +116,7 @@ router.post("/habits/:habitId/checkins", async (req, res): Promise<void> => {
   let streakBrokenAt = habit.streakBrokenAt;
   let lastCheckinDate = habit.lastCheckinDate;
 
-  if (isNewDay) {
+  if (isNewDay || (completed && !existing?.completed)) {
     if (completed) {
       const continues = continuesStreak(habit.cadence, habit.lastCheckinDate, date, habit.customDays);
       newStreak = continues ? habit.currentStreak + 1 : 1;
@@ -123,7 +144,14 @@ router.post("/habits/:habitId/checkins", async (req, res): Promise<void> => {
       value: value ?? null,
       note: note ?? null,
       moodRating: moodRating ?? null,
-      coinsEarned,
+      difficulty: difficulty ?? null,
+      missedReason: missedReason ?? null,
+      targetSnapshot,
+      minimumSnapshot,
+      successLimitSnapshot,
+      targetCompleted,
+      rewardGranted: false,
+      coinsEarned: 0,
     })
     .onConflictDoUpdate({
       target: [checkinsTable.habitId, checkinsTable.date],
@@ -132,6 +160,9 @@ router.post("/habits/:habitId/checkins", async (req, res): Promise<void> => {
         value: value ?? null,
         note: note ?? null,
         moodRating: moodRating ?? null,
+        difficulty: difficulty ?? null,
+        missedReason: missedReason ?? null,
+        targetCompleted,
       },
     })
     .returning();
@@ -148,7 +179,17 @@ router.post("/habits/:habitId/checkins", async (req, res): Promise<void> => {
     .where(eq(habitsTable.id, habit.id))
     .returning();
 
-  if (isNewDay && completed) {
+  const alreadyRewarded = Boolean(existing?.rewardGranted || (existing?.coinsEarned ?? 0) > 0);
+  let rewardClaimed = false;
+  if (completed && !alreadyRewarded) {
+    const [claimed] = await db.update(checkinsTable)
+      .set({ rewardGranted: true, coinsEarned })
+      .where(and(eq(checkinsTable.id, checkin.id), eq(checkinsTable.rewardGranted, false)))
+      .returning({ id: checkinsTable.id });
+    rewardClaimed = Boolean(claimed);
+  }
+
+  if (rewardClaimed) {
     const baseCoins = coinsEarned - bonusCoins;
     await grantRewards(req.userId!, {
       xp: xpForDifficulty(habit.difficulty),
@@ -161,8 +202,56 @@ router.post("/habits/:habitId/checkins", async (req, res): Promise<void> => {
   }
 
   res.status(201).json(
-    CreateCheckinResponse.parse({ ...checkin, newStreak, habit: updatedHabit }),
+    CreateCheckinResponse.parse({
+      ...checkin,
+      completed,
+      targetCompleted,
+      coinsEarned: rewardClaimed ? coinsEarned : checkin.coinsEarned,
+      newStreak,
+      habit: updatedHabit,
+    }),
   );
+});
+
+router.patch("/habits/:habitId/checkins/:date", async (req, res): Promise<void> => {
+  await ensureUser(req.userId!);
+  const params = UpdateCheckinReflectionParams.safeParse(
+    coerceQueryDates(req.params as Record<string, unknown>, ["date"]),
+  );
+  const parsed = UpdateCheckinReflectionBody.safeParse(req.body);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  const [habit] = await db.select({ id: habitsTable.id })
+    .from(habitsTable)
+    .where(and(eq(habitsTable.id, params.data.habitId), eq(habitsTable.userId, req.userId!)));
+  if (!habit) {
+    res.status(404).json({ error: "Habit not found" });
+    return;
+  }
+  const [checkin] = await db.update(checkinsTable)
+    .set({
+      ...(parsed.data.note !== undefined ? { note: parsed.data.note } : {}),
+      ...(parsed.data.moodRating !== undefined ? { moodRating: parsed.data.moodRating } : {}),
+      ...(parsed.data.difficulty !== undefined ? { difficulty: parsed.data.difficulty } : {}),
+      ...(parsed.data.missedReason !== undefined ? { missedReason: parsed.data.missedReason } : {}),
+    })
+    .where(and(
+      eq(checkinsTable.habitId, params.data.habitId),
+      eq(checkinsTable.userId, req.userId!),
+      eq(checkinsTable.date, toDateOnly(params.data.date)),
+    ))
+    .returning();
+  if (!checkin) {
+    res.status(404).json({ error: "Check-in not found" });
+    return;
+  }
+  res.json(UpdateCheckinReflectionResponse.parse(checkin));
 });
 
 router.post("/habits/:habitId/recover-streak", async (req, res): Promise<void> => {

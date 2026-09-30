@@ -30,6 +30,7 @@ import type {
   CharacterItem,
   Checkin,
   CheckinInput,
+  CheckinReflection,
   CheckinResult,
   CoinTransaction,
   DashboardCalendarDay,
@@ -46,6 +47,9 @@ import type {
   GroupReaction,
   GroupReactionInput,
   Habit,
+  HabitAdaptation,
+  HabitBuilderInput,
+  HabitBuilderResult,
   HabitInput,
   HabitUpdate,
   HealthStatus,
@@ -934,6 +938,174 @@ export const useCreateCheckin = <TError = ErrorType<Error>,
       > => {
       return useMutation(getCreateCheckinMutationOptions(options));
     }
+
+export const getUpdateCheckinReflectionUrl = (habitId: number,
+    date: string,) => {
+
+
+
+
+  return `/api/habits/${habitId}/checkins/${date}`
+}
+
+/**
+ * @summary Add or update reflection and missed-day reason for a recorded check-in
+ */
+export const updateCheckinReflection = async (habitId: number,
+    date: string,
+    checkinReflection: CheckinReflection, options?: Parameters<typeof customFetch>[1]): Promise<Checkin> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<Checkin>(getUpdateCheckinReflectionUrl(habitId,date),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(checkinReflection)
+  }
+);}
+
+
+
+
+
+export const getUpdateCheckinReflectionMutationKey = () => ['updateCheckinReflection'] as const;
+
+export const getUpdateCheckinReflectionMutationOptions = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateCheckinReflection>>, TError,UpdateCheckinReflectionMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateCheckinReflection>>, TError,UpdateCheckinReflectionMutationVariables, TContext> => {
+
+const mutationKey = getUpdateCheckinReflectionMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateCheckinReflection>>, UpdateCheckinReflectionMutationVariables> = (props) => {
+          const {habitId,date,data} = props ?? {};
+
+          return  updateCheckinReflection(habitId,date,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateCheckinReflectionMutationResult = NonNullable<Awaited<ReturnType<typeof updateCheckinReflection>>>
+    export type UpdateCheckinReflectionMutationBody = BodyType<CheckinReflection>
+    export type UpdateCheckinReflectionMutationError = ErrorType<Error>
+    export type UpdateCheckinReflectionMutationVariables = {habitId: number;date: string;data: BodyType<CheckinReflection>}
+
+    /**
+ * @summary Add or update reflection and missed-day reason for a recorded check-in
+ */
+export const useUpdateCheckinReflection = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateCheckinReflection>>, TError,UpdateCheckinReflectionMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateCheckinReflection>>,
+        TError,
+        UpdateCheckinReflectionMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdateCheckinReflectionMutationOptions(options));
+    }
+
+export const getGetHabitAdaptationUrl = (habitId: number,) => {
+
+
+
+
+  return `/api/habits/${habitId}/adaptation`
+}
+
+/**
+ * @summary Deterministic habit target suggestion based on check-in history
+ */
+export const getHabitAdaptation = async (habitId: number, options?: Parameters<typeof customFetch>[1]): Promise<HabitAdaptation> => {
+
+  return customFetch<HabitAdaptation>(getGetHabitAdaptationUrl(habitId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetHabitAdaptationQueryKey = (habitId: number,) => {
+    return [
+    `/api/habits/${habitId}/adaptation`
+    ] as const;
+    }
+
+
+export const getGetHabitAdaptationQueryOptions = <TData = Awaited<ReturnType<typeof getHabitAdaptation>>, TError = ErrorType<Error>>(habitId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getHabitAdaptation>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetHabitAdaptationQueryKey(habitId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getHabitAdaptation>>> = ({ signal }) => getHabitAdaptation(habitId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: habitId !== null && habitId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getHabitAdaptation>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetHabitAdaptationQueryResult = NonNullable<Awaited<ReturnType<typeof getHabitAdaptation>>>
+export type GetHabitAdaptationQueryError = ErrorType<Error>
+
+
+/**
+ * @summary Deterministic habit target suggestion based on check-in history
+ */
+
+export function useGetHabitAdaptation<TData = Awaited<ReturnType<typeof getHabitAdaptation>>, TError = ErrorType<Error>>(
+ habitId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getHabitAdaptation>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetHabitAdaptationQueryOptions(habitId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getRecoverStreakUrl = (habitId: number,) => {
 
@@ -3787,6 +3959,94 @@ export const useAiBreakdownGoal = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getAiBreakdownGoalMutationOptions(options));
+    }
+
+export const getAiHabitBuilderUrl = () => {
+
+
+
+
+  return `/api/ai/habit-builder`
+}
+
+/**
+ * @summary Build an editable habit suggestion using deterministic target math
+ */
+export const aiHabitBuilder = async (habitBuilderInput: HabitBuilderInput, options?: Parameters<typeof customFetch>[1]): Promise<HabitBuilderResult> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<HabitBuilderResult>(getAiHabitBuilderUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(habitBuilderInput)
+  }
+);}
+
+
+
+
+
+export const getAiHabitBuilderMutationKey = () => ['aiHabitBuilder'] as const;
+
+export const getAiHabitBuilderMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof aiHabitBuilder>>, TError,AiHabitBuilderMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof aiHabitBuilder>>, TError,AiHabitBuilderMutationVariables, TContext> => {
+
+const mutationKey = getAiHabitBuilderMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof aiHabitBuilder>>, AiHabitBuilderMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  aiHabitBuilder(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AiHabitBuilderMutationResult = NonNullable<Awaited<ReturnType<typeof aiHabitBuilder>>>
+    export type AiHabitBuilderMutationBody = BodyType<HabitBuilderInput>
+    export type AiHabitBuilderMutationError = ErrorType<unknown>
+    export type AiHabitBuilderMutationVariables = {data: BodyType<HabitBuilderInput>}
+
+    /**
+ * @summary Build an editable habit suggestion using deterministic target math
+ */
+export const useAiHabitBuilder = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof aiHabitBuilder>>, TError,AiHabitBuilderMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof aiHabitBuilder>>,
+        TError,
+        AiHabitBuilderMutationVariables,
+        TContext
+      > => {
+      return useMutation(getAiHabitBuilderMutationOptions(options));
     }
 
 export const getAiDailyInsightUrl = () => {

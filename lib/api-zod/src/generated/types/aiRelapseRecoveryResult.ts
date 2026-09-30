@@ -11,4 +11,6 @@ export interface AiRelapseRecoveryResult {
   originalTargetValue: number;
   suggestedTargetValue: number;
   encouragement: string;
+  /** @minimum 0 */
+  missedDays: number;
 }

@@ -234,6 +234,64 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
+        "409":
+          description: A successful check-in cannot be changed to incomplete
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /habits/{habitId}/checkins/{date}:
+    patch:
+      operationId: updateCheckinReflection
+      tags: [checkins]
+      summary: Add or update reflection and missed-day reason for a recorded check-in
+      parameters:
+        - name: habitId
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: date
+          in: path
+          required: true
+          schema: { type: string, format: date }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CheckinReflection" }
+      responses:
+        "200":
+          description: Updated reflection
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Checkin" }
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /habits/{habitId}/adaptation:
+    get:
+      operationId: getHabitAdaptation
+      tags: [habits]
+      summary: Deterministic habit target suggestion based on check-in history
+      parameters:
+        - name: habitId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Adaptation suggestion
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/HabitAdaptation" }
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
 
   /habits/{habitId}/recover-streak:
     post:
@@ -866,6 +924,23 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/AiBreakdownGoalResult" }
 
+  /ai/habit-builder:
+    post:
+      operationId: aiHabitBuilder
+      tags: [ai]
+      summary: Build an editable habit suggestion using deterministic target math
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/HabitBuilderInput" }
+      responses:
+        "200":
+          description: Habit suggestion
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/HabitBuilderResult" }
+
   /ai/daily-insight:
     get:
       operationId: aiDailyInsight
@@ -1070,7 +1145,7 @@ components:
         order: { type: integer }
     Habit:
       type: object
-      required: [id, title, emoji, category, cadence, customDays, unit, targetValue, difficulty, goalType, isActive, currentStreak, longestStreak, lastCheckinDate, milestones, createdAt]
+      required: [id, title, emoji, category, cadence, customDays, unit, targetValue, minimumValue, busyDayValue, baselineValue, successLimitValue, difficulty, goalType, isActive, currentStreak, longestStreak, lastCheckinDate, milestones, createdAt]
       properties:
         id: { type: integer }
         title: { type: string }
@@ -1082,6 +1157,10 @@ components:
           items: { type: integer, minimum: 0, maximum: 6 }
         unit: { type: string, enum: [minutes, count, pages, custom] }
         targetValue: { type: number }
+        minimumValue: { type: ["number", "null"] }
+        busyDayValue: { type: ["number", "null"] }
+        baselineValue: { type: ["number", "null"] }
+        successLimitValue: { type: ["number", "null"] }
         difficulty: { type: string, enum: [easy, medium, hard] }
         goalType: { type: string, enum: [build, quit] }
         isActive: { type: boolean }
@@ -1105,6 +1184,10 @@ components:
           items: { type: integer, minimum: 0, maximum: 6 }
         unit: { type: string, enum: [minutes, count, pages, custom] }
         targetValue: { type: number }
+        minimumValue: { type: number, exclusiveMinimum: 0 }
+        busyDayValue: { type: number, exclusiveMinimum: 0 }
+        baselineValue: { type: number, exclusiveMinimum: 0 }
+        successLimitValue: { type: number, exclusiveMinimum: 0 }
         difficulty: { type: string, enum: [easy, medium, hard] }
         goalType: { type: string, enum: [build, quit] }
         milestones:
@@ -1122,9 +1205,14 @@ components:
           items: { type: integer, minimum: 0, maximum: 6 }
         unit: { type: string, enum: [minutes, count, pages, custom] }
         targetValue: { type: number }
+        minimumValue: { type: number, exclusiveMinimum: 0 }
+        busyDayValue: { type: number, exclusiveMinimum: 0 }
+        baselineValue: { type: number, exclusiveMinimum: 0 }
+        successLimitValue: { type: number, exclusiveMinimum: 0 }
         expectedTargetValue:
           type: number
           description: If provided with targetValue, update only when the stored target still equals this value
+        expectedMinimumValue: { type: number, description: Compare-and-set guard for minimumValue updates }
         difficulty: { type: string, enum: [easy, medium, hard] }
         isActive: { type: boolean }
         milestones:
@@ -1133,7 +1221,7 @@ components:
 
     Checkin:
       type: object
-      required: [id, habitId, date, completed, value, note, moodRating, coinsEarned, createdAt]
+      required: [id, habitId, date, completed, value, note, moodRating, difficulty, missedReason, targetSnapshot, minimumSnapshot, successLimitSnapshot, targetCompleted, coinsEarned, createdAt]
       properties:
         id: { type: integer }
         habitId: { type: integer }
@@ -1142,17 +1230,74 @@ components:
         value: { type: ["number", "null"] }
         note: { type: ["string", "null"] }
         moodRating: { type: ["integer", "null"] }
+        difficulty: { type: ["string", "null"], enum: [easy, normal, hard, very_hard, null] }
+        missedReason: { type: ["string", "null"], enum: [too_difficult, no_time, forgot, lost_motivation, unexpected, other, null] }
+        targetSnapshot: { type: ["number", "null"] }
+        minimumSnapshot: { type: ["number", "null"] }
+        successLimitSnapshot: { type: ["number", "null"] }
+        targetCompleted: { type: boolean }
         coinsEarned: { type: integer }
         createdAt: { type: string, format: date-time }
     CheckinInput:
       type: object
-      required: [date, completed]
+      required: [date]
       properties:
         date: { type: string, format: date }
-        completed: { type: boolean }
+        completed: { type: boolean, description: Legacy compatibility; success is determined server-side when value is provided }
         value: { type: number }
         note: { type: string }
         moodRating: { type: integer, minimum: 1, maximum: 5 }
+        difficulty: { type: string, enum: [easy, normal, hard, very_hard] }
+        missedReason: { type: string, enum: [too_difficult, no_time, forgot, lost_motivation, unexpected, other] }
+    CheckinReflection:
+      type: object
+      properties:
+        note: { type: ["string", "null"] }
+        moodRating: { type: ["integer", "null"], minimum: 1, maximum: 5 }
+        difficulty: { type: ["string", "null"], enum: [easy, normal, hard, very_hard, null] }
+        missedReason: { type: ["string", "null"], enum: [too_difficult, no_time, forgot, lost_motivation, unexpected, other, null] }
+    HabitAdaptation:
+      type: object
+      required: [habitId, reason, suggestion, expectedTargetValue, expectedMinimumValue, targetValue, minimumValue, busyDayValue, missedReason, phrasing, coachMessage, missedDays]
+      properties:
+        habitId: { type: integer }
+        reason: { type: string, enum: [repeated_hard, repeated_easy, missed_reasons, steady, no_history] }
+        suggestion: { type: boolean }
+        expectedTargetValue: { type: number }
+        expectedMinimumValue: { type: number }
+        targetValue: { type: number }
+        minimumValue: { type: number }
+        busyDayValue: { type: ["number", "null"] }
+        missedReason: { type: ["string", "null"], enum: [too_difficult, no_time, forgot, lost_motivation, unexpected, other, null] }
+        phrasing: { $ref: "#/components/schemas/HabitAdaptationPhrasing" }
+        coachMessage: { type: string }
+        missedDays: { type: integer, minimum: 0 }
+    HabitAdaptationPhrasing:
+      type: object
+      required: [headline, explanation, next_step, encouragement]
+      properties:
+        headline: { type: string }
+        explanation: { type: string }
+        next_step: { type: string }
+        encouragement: { type: string }
+    HabitBuilderInput:
+      type: object
+      required: [intent, requestedDuration, unit]
+      properties:
+        intent: { type: string, minLength: 1 }
+        requestedDuration: { type: number, exclusiveMinimum: 0 }
+        unit: { type: string, enum: [minutes, count, pages, custom] }
+        goalType: { type: string, enum: [build, quit] }
+    HabitBuilderResult:
+      type: object
+      required: [title, targetValue, minimumValue, busyDayValue, reason, coachMessage]
+      properties:
+        title: { type: string }
+        targetValue: { type: number }
+        minimumValue: { type: number }
+        busyDayValue: { type: number }
+        reason: { type: string }
+        coachMessage: { type: string }
     CheckinResult:
       allOf:
         - $ref: "#/components/schemas/Checkin"
@@ -1430,6 +1575,7 @@ components:
       type: object
       required: [activeHabitsCount, completedTodayCount, scheduledTodayCount, timeTrackedMinutesToday, coins, level, xp, xpToNextLevel, habitsToday]
       properties:
+        date: { type: string, format: date, description: Today's calendar date in the user's saved timezone }
         activeHabitsCount: { type: integer }
         completedTodayCount: { type: integer }
         scheduledTodayCount: { type: integer }
@@ -1552,18 +1698,19 @@ components:
         tone: { type: string, enum: [celebratory, encouraging, supportive] }
     AiRelapseRecoveryInput:
       type: object
-      required: [habitId, missedDays]
+      required: [habitId]
       properties:
         habitId: { type: integer }
-        missedDays: { type: integer, minimum: 1 }
+        missedDays: { type: integer, minimum: 0, description: Legacy compatibility; server derives this from check-in history }
     AiRelapseRecoveryResult:
       type: object
-      required: [message, originalTargetValue, suggestedTargetValue, encouragement]
+      required: [message, originalTargetValue, suggestedTargetValue, encouragement, missedDays]
       properties:
         message: { type: string }
         originalTargetValue: { type: number }
         suggestedTargetValue: { type: number }
         encouragement: { type: string }
+        missedDays: { type: integer, minimum: 0 }
 
     UploadUrlRequest:
       type: object

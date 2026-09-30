@@ -7,7 +7,111 @@ import {
   dailyInsightMessage,
   relapseRecoveryMessages,
 } from "./aiMessages";
-import { checkinTone, goalMilestones, phraseMilestones, recoveryTarget } from "./aiRules";
+import {
+  checkinTone, goalMilestones, phraseMilestones, recoveryTarget,
+  evaluateHabitCheckin, missedScheduledDays, proposeHabitAdaptation, buildHabitTargets,
+} from "./aiRules";
+import { habitAdaptationMessages } from "./aiMessages";
+
+test("build success boundaries and quit limits are evaluated by the deterministic rules", () => {
+  const shared = { goalType: "build" as const, targetValue: 10, minimumValue: 4 };
+  assert.deepEqual(evaluateHabitCheckin({ ...shared, value: 3.99 }), { completed: false, targetCompleted: false });
+  assert.deepEqual(evaluateHabitCheckin({ ...shared, value: 4 }), { completed: true, targetCompleted: false });
+  assert.deepEqual(evaluateHabitCheckin({ ...shared, value: 10 }), { completed: true, targetCompleted: true });
+  assert.deepEqual(evaluateHabitCheckin({
+    goalType: "quit", targetValue: 10, successLimitValue: 2, value: 2,
+  }), { completed: true, targetCompleted: true });
+  assert.deepEqual(evaluateHabitCheckin({
+    goalType: "quit", targetValue: 5, successLimitValue: 3, value: 4,
+  }), { completed: false, targetCompleted: true });
+  assert.deepEqual(evaluateHabitCheckin({
+    goalType: "quit", targetValue: 5, successLimitValue: 3, value: 3,
+  }), { completed: true, targetCompleted: true });
+  assert.equal(evaluateHabitCheckin({
+    goalType: "quit", targetValue: 10, value: 0, legacyCompleted: true,
+  }).completed, true);
+});
+
+test("missed-day totals honor cadence and adaptation proposals have bounded floors/caps", () => {
+  assert.equal(missedScheduledDays("daily", null, ["2025-01-01"], "2025-01-05"), 3);
+  assert.equal(missedScheduledDays("weekdays", null, ["2025-01-03"], "2025-01-07"), 1);
+  assert.equal(missedScheduledDays("custom_days", [1, 3, 5], ["2025-01-03"], "2025-01-07"), 1);
+  assert.equal(missedScheduledDays("daily", null, ["2025-01-01", "2025-01-04"], "2025-01-06"), 3);
+  assert.equal(missedScheduledDays("daily", null, [], "2025-01-05", "2025-01-01"), 4);
+  assert.ok(missedScheduledDays("daily", null, ["2024-01-01"], "2025-01-01") <= 90);
+  const easier = proposeHabitAdaptation({
+    targetValue: 10, minimumValue: 5,
+    checkins: Array.from({ length: 3 }, () => ({ difficulty: "hard", missedReason: null, completed: true })),
+  });
+  assert.deepEqual(easier, { reason: "repeated_hard", missedReason: null, targetValue: 8, minimumValue: 4, busyDayValue: null });
+  const easy = proposeHabitAdaptation({
+    targetValue: 10, minimumValue: 4,
+    checkins: Array.from({ length: 5 }, () => ({ difficulty: "easy", missedReason: null, completed: true })),
+  });
+  assert.deepEqual(easy, { reason: "repeated_easy", missedReason: null, targetValue: 11, minimumValue: 5, busyDayValue: null });
+  for (const missedReason of ["too_difficult", "no_time", "forgot", "lost_motivation", "unexpected"] as const) {
+    const suggestion = proposeHabitAdaptation({
+      targetValue: 10, minimumValue: 5,
+      checkins: Array.from({ length: 2 }, () => ({ difficulty: null, missedReason, completed: false })),
+    });
+    assert.equal(suggestion.reason, "missed_reasons");
+    assert.ok(suggestion.targetValue > 0 && suggestion.targetValue <= 10);
+    assert.ok(suggestion.minimumValue > 0 && suggestion.minimumValue <= suggestion.targetValue);
+  }
+  const noTime = proposeHabitAdaptation({
+    targetValue: 10, minimumValue: 5,
+    checkins: Array.from({ length: 2 }, () => ({ difficulty: null, missedReason: "no_time" as const, completed: false })),
+  });
+  assert.deepEqual(noTime, {
+    reason: "missed_reasons", missedReason: "no_time", targetValue: 10, minimumValue: 5, busyDayValue: 3,
+  });
+  const forgot = proposeHabitAdaptation({
+    targetValue: 10, minimumValue: 5,
+    checkins: Array.from({ length: 2 }, () => ({ difficulty: null, missedReason: "forgot" as const, completed: false })),
+  });
+  assert.equal(forgot.targetValue, 10);
+  assert.equal(forgot.minimumValue, 5);
+  assert.equal(forgot.missedReason, "forgot");
+  const unexpected = proposeHabitAdaptation({
+    targetValue: 10, minimumValue: 5,
+    checkins: Array.from({ length: 2 }, () => ({ difficulty: null, missedReason: "unexpected" as const, completed: false })),
+  });
+  assert.equal(unexpected.targetValue, 10);
+  assert.equal(unexpected.minimumValue, 5);
+  assert.deepEqual(buildHabitTargets(60), { targetValue: 10, minimumValue: 5, busyDayValue: 3 });
+  assert.deepEqual(buildHabitTargets(1), { targetValue: 1, minimumValue: 1, busyDayValue: 1 });
+});
+
+test("adaptive phrasing accepts only the structured no-number schema and safely falls back", async () => {
+  const valid = {
+    headline: "تعديل مقترح", explanation: "الهدف الحالي قابل للتحسين.",
+    next_step: "جرّب خيارًا أقصر.", encouragement: "التقدم خطوة خطوة.",
+  };
+  const provider: AiTextProvider = {
+    async generateText(system, _context, json) {
+      assert.match(system, /لا تخترع أو تذكر أي أرقام/);
+      assert.equal(json, true);
+      return JSON.stringify(valid);
+    },
+  };
+  assert.deepEqual(await habitAdaptationMessages({
+    reason: "missed_reasons", missedReason: "no_time", changedTarget: false,
+    changedMinimum: false, hasBusyDayOption: true,
+  }, provider), valid);
+  const invalidProvider: AiTextProvider = {
+    async generateText() { return JSON.stringify({ ...valid, next_step: "اجعل الهدف 5 دقائق." }); },
+  };
+  const fallback = await habitAdaptationMessages({
+    reason: "missed_reasons", missedReason: "no_time", changedTarget: false,
+    changedMinimum: false, hasBusyDayOption: true,
+  }, invalidProvider);
+  assert.match(fallback.next_step, /النسخة الأقصر/);
+  const forgotFallback = await habitAdaptationMessages({
+    reason: "missed_reasons", missedReason: "forgot", changedTarget: false,
+    changedMinimum: false, hasBusyDayOption: false,
+  }, invalidProvider);
+  assert.match(forgotFallback.next_step, /وقت ثابت/);
+});
 
 test("milestone numbers and order remain rule-owned when the phrasing provider changes", async () => {
   const steps = goalMilestones(13);

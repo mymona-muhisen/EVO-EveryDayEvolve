@@ -8,6 +8,8 @@
 import type { DashboardHabitToday } from './dashboardHabitToday';
 
 export interface DashboardToday {
+  /** Today's calendar date in the user's saved timezone */
+  date?: Date;
   activeHabitsCount: number;
   completedTodayCount: number;
   scheduledTodayCount: number;

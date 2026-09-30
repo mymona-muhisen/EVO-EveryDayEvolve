@@ -3,6 +3,7 @@ export * from "./habits";
 export * from "./checkins";
 export * from "./timeEntries";
 export * from "./trackingSessions";
+export * from "./dayAnalysisCache";
 export * from "./memories";
 export * from "./rewards";
 export * from "./wallet";

@@ -5,7 +5,15 @@ import type { User } from '@workspace/api-client-react';
 
 export const categories: Record<string,string> = { health:'الصحة', learning:'التعلّم', productivity:'الإنتاجية', mindfulness:'الصفاء الذهني', social:'العلاقات', creativity:'الإبداع', finance:'المال', custom:'شيء آخر' };
 export const styles: Record<string,string> = { encouraging:'مشجّع ولطيف', tough_love:'صريح وحازم', data_driven:'يركّز على الأرقام' };
-export const dateToday = () => new Date().toLocaleDateString('en-CA');
+export const dateToday = (timezone?: string) => {
+  try {
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit',
+    }).format(new Date());
+  } catch {
+    return new Date().toLocaleDateString('en-CA');
+  }
+};
 export const arDate = (date:string) => new Date(date + (date.length === 10 ? 'T12:00:00' : '')).toLocaleDateString('ar-EG-u-nu-latn',{day:'numeric',month:'long',year:'numeric'});
 export function SectionTitle({label,title,action}: {label?:string,title:string,action?:ReactNode}) { return <div className="flex items-end justify-between gap-4 mb-5"><div>{label && <div className="eyebrow mb-1">{label}</div>}<h2 className="text-[24px] md:text-[29px] font-extrabold leading-tight m-0">{title}</h2></div>{action}</div>; }
 export function Empty({title,desc,action}: {title:string,desc:string,action?:ReactNode}) { return <div className="paper rounded-[22px] p-9 text-center"><div className="w-14 h-14 rounded-full bg-[#e5eadc] flex items-center justify-center mx-auto mb-4"><Compass size={26}/></div><h3 className="text-xl font-bold">{title}</h3><p className="muted mt-1 mb-5">{desc}</p>{action}</div>; }

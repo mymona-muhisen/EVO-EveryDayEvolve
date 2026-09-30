@@ -25,6 +25,14 @@ export interface HabitInput {
   customDays?: number[];
   unit: HabitInputUnit;
   targetValue: number;
+  /** @exclusiveMinimum 0 */
+  minimumValue?: number;
+  /** @exclusiveMinimum 0 */
+  busyDayValue?: number;
+  /** @exclusiveMinimum 0 */
+  baselineValue?: number;
+  /** @exclusiveMinimum 0 */
+  successLimitValue?: number;
   difficulty: HabitInputDifficulty;
   goalType: HabitInputGoalType;
   milestones?: HabitMilestone[];

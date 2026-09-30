@@ -54,6 +54,7 @@ router.get("/dashboard/today", async (req, res): Promise<void> => {
 
   res.json(
     GetDashboardTodayResponse.parse({
+      date: today,
       activeHabitsCount: habits.length,
       completedTodayCount: habitsToday.filter((h) => h.completedToday).length,
       scheduledTodayCount: habitsToday.filter((h) => h.scheduledToday).length,

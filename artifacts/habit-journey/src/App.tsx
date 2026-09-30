@@ -106,8 +106,8 @@ function Routes(){
     <Route path="/onboarding">{()=><Protected onboarding>{user=><Onboarding user={user}/>}</Protected>}</Route>
     <Route path="/home">{()=><Protected>{user=><HomePage user={user}/>}</Protected>}</Route>
     <Route path="/habits">{()=><Protected>{()=><HabitsPage/>}</Protected>}</Route>
-    <Route path="/habits/:habitId">{()=><Protected>{()=><HabitDetailPage/>}</Protected>}</Route>
-    <Route path="/time">{()=><Protected>{()=><TimePage/>}</Protected>}</Route>
+    <Route path="/habits/:habitId">{()=><Protected>{user=><HabitDetailPage user={user}/>}</Protected>}</Route>
+    <Route path="/time">{()=><Protected>{user=><TimePage user={user}/>}</Protected>}</Route>
     <Route path="/memories">{()=><Protected>{()=><MemoriesPage/>}</Protected>}</Route>
     <Route path="/rewards">{()=><Protected>{()=><RewardsPage/>}</Protected>}</Route>
     <Route path="/journey">{()=><Protected>{()=><JourneyPage/>}</Protected>}</Route>

@@ -160,6 +160,14 @@ export interface Habit {
   customDays: number[] | null;
   unit: HabitUnit;
   targetValue: number;
+  /** @nullable */
+  minimumValue: number | null;
+  /** @nullable */
+  busyDayValue: number | null;
+  /** @nullable */
+  baselineValue: number | null;
+  /** @nullable */
+  successLimitValue: number | null;
   difficulty: HabitDifficulty;
   goalType: HabitGoalType;
   isActive: boolean;
@@ -235,6 +243,14 @@ export interface HabitInput {
   customDays?: number[];
   unit: HabitInputUnit;
   targetValue: number;
+  /** @exclusiveMinimum 0 */
+  minimumValue?: number;
+  /** @exclusiveMinimum 0 */
+  busyDayValue?: number;
+  /** @exclusiveMinimum 0 */
+  baselineValue?: number;
+  /** @exclusiveMinimum 0 */
+  successLimitValue?: number;
   difficulty: HabitInputDifficulty;
   goalType: HabitInputGoalType;
   milestones?: HabitMilestone[];
@@ -296,12 +312,50 @@ export interface HabitUpdate {
   customDays?: number[];
   unit?: HabitUpdateUnit;
   targetValue?: number;
+  /** @exclusiveMinimum 0 */
+  minimumValue?: number;
+  /** @exclusiveMinimum 0 */
+  busyDayValue?: number;
+  /** @exclusiveMinimum 0 */
+  baselineValue?: number;
+  /** @exclusiveMinimum 0 */
+  successLimitValue?: number;
   /** If provided with targetValue, update only when the stored target still equals this value */
   expectedTargetValue?: number;
+  /** Compare-and-set guard for minimumValue updates */
+  expectedMinimumValue?: number;
   difficulty?: HabitUpdateDifficulty;
   isActive?: boolean;
   milestones?: HabitMilestone[];
 }
+
+/**
+ * @nullable
+ */
+export type CheckinDifficulty = typeof CheckinDifficulty[keyof typeof CheckinDifficulty] | null;
+
+
+export const CheckinDifficulty = {
+  easy: 'easy',
+  normal: 'normal',
+  hard: 'hard',
+  very_hard: 'very_hard',
+} as const;
+
+/**
+ * @nullable
+ */
+export type CheckinMissedReason = typeof CheckinMissedReason[keyof typeof CheckinMissedReason] | null;
+
+
+export const CheckinMissedReason = {
+  too_difficult: 'too_difficult',
+  no_time: 'no_time',
+  forgot: 'forgot',
+  lost_motivation: 'lost_motivation',
+  unexpected: 'unexpected',
+  other: 'other',
+} as const;
 
 export interface Checkin {
   id: number;
@@ -314,13 +368,47 @@ export interface Checkin {
   note: string | null;
   /** @nullable */
   moodRating: number | null;
+  /** @nullable */
+  difficulty: CheckinDifficulty;
+  /** @nullable */
+  missedReason: CheckinMissedReason;
+  /** @nullable */
+  targetSnapshot: number | null;
+  /** @nullable */
+  minimumSnapshot: number | null;
+  /** @nullable */
+  successLimitSnapshot: number | null;
+  targetCompleted: boolean;
   coinsEarned: number;
   createdAt: string;
 }
 
+export type CheckinInputDifficulty = typeof CheckinInputDifficulty[keyof typeof CheckinInputDifficulty];
+
+
+export const CheckinInputDifficulty = {
+  easy: 'easy',
+  normal: 'normal',
+  hard: 'hard',
+  very_hard: 'very_hard',
+} as const;
+
+export type CheckinInputMissedReason = typeof CheckinInputMissedReason[keyof typeof CheckinInputMissedReason];
+
+
+export const CheckinInputMissedReason = {
+  too_difficult: 'too_difficult',
+  no_time: 'no_time',
+  forgot: 'forgot',
+  lost_motivation: 'lost_motivation',
+  unexpected: 'unexpected',
+  other: 'other',
+} as const;
+
 export interface CheckinInput {
   date: string;
-  completed: boolean;
+  /** Legacy compatibility; success is determined server-side when value is provided */
+  completed?: boolean;
   value?: number;
   note?: string;
   /**
@@ -328,6 +416,138 @@ export interface CheckinInput {
      * @maximum 5
      */
   moodRating?: number;
+  difficulty?: CheckinInputDifficulty;
+  missedReason?: CheckinInputMissedReason;
+}
+
+/**
+ * @nullable
+ */
+export type CheckinReflectionDifficulty = typeof CheckinReflectionDifficulty[keyof typeof CheckinReflectionDifficulty] | null;
+
+
+export const CheckinReflectionDifficulty = {
+  easy: 'easy',
+  normal: 'normal',
+  hard: 'hard',
+  very_hard: 'very_hard',
+} as const;
+
+/**
+ * @nullable
+ */
+export type CheckinReflectionMissedReason = typeof CheckinReflectionMissedReason[keyof typeof CheckinReflectionMissedReason] | null;
+
+
+export const CheckinReflectionMissedReason = {
+  too_difficult: 'too_difficult',
+  no_time: 'no_time',
+  forgot: 'forgot',
+  lost_motivation: 'lost_motivation',
+  unexpected: 'unexpected',
+  other: 'other',
+} as const;
+
+export interface CheckinReflection {
+  /** @nullable */
+  note?: string | null;
+  /**
+     * @minimum 1
+     * @maximum 5
+     * @nullable
+     */
+  moodRating?: number | null;
+  /** @nullable */
+  difficulty?: CheckinReflectionDifficulty;
+  /** @nullable */
+  missedReason?: CheckinReflectionMissedReason;
+}
+
+export type HabitAdaptationReason = typeof HabitAdaptationReason[keyof typeof HabitAdaptationReason];
+
+
+export const HabitAdaptationReason = {
+  repeated_hard: 'repeated_hard',
+  repeated_easy: 'repeated_easy',
+  missed_reasons: 'missed_reasons',
+  steady: 'steady',
+  no_history: 'no_history',
+} as const;
+
+/**
+ * @nullable
+ */
+export type HabitAdaptationMissedReason = typeof HabitAdaptationMissedReason[keyof typeof HabitAdaptationMissedReason] | null;
+
+
+export const HabitAdaptationMissedReason = {
+  too_difficult: 'too_difficult',
+  no_time: 'no_time',
+  forgot: 'forgot',
+  lost_motivation: 'lost_motivation',
+  unexpected: 'unexpected',
+  other: 'other',
+} as const;
+
+export interface HabitAdaptationPhrasing {
+  headline: string;
+  explanation: string;
+  next_step: string;
+  encouragement: string;
+}
+
+export interface HabitAdaptation {
+  habitId: number;
+  reason: HabitAdaptationReason;
+  suggestion: boolean;
+  expectedTargetValue: number;
+  expectedMinimumValue: number;
+  targetValue: number;
+  minimumValue: number;
+  /** @nullable */
+  busyDayValue: number | null;
+  /** @nullable */
+  missedReason: HabitAdaptationMissedReason;
+  phrasing: HabitAdaptationPhrasing;
+  coachMessage: string;
+  /** @minimum 0 */
+  missedDays: number;
+}
+
+export type HabitBuilderInputUnit = typeof HabitBuilderInputUnit[keyof typeof HabitBuilderInputUnit];
+
+
+export const HabitBuilderInputUnit = {
+  minutes: 'minutes',
+  count: 'count',
+  pages: 'pages',
+  custom: 'custom',
+} as const;
+
+export type HabitBuilderInputGoalType = typeof HabitBuilderInputGoalType[keyof typeof HabitBuilderInputGoalType];
+
+
+export const HabitBuilderInputGoalType = {
+  build: 'build',
+  quit: 'quit',
+} as const;
+
+export interface HabitBuilderInput {
+  /** @minLength 1 */
+  intent: string;
+  /** @exclusiveMinimum 0 */
+  requestedDuration: number;
+  unit: HabitBuilderInputUnit;
+  goalType?: HabitBuilderInputGoalType;
+}
+
+export interface HabitBuilderResult {
+  title: string;
+  targetValue: number;
+  minimumValue: number;
+  busyDayValue: number;
+  reason: string;
+  coachMessage: string;
 }
 
 export type CheckinResult = Checkin & {
@@ -671,6 +891,8 @@ export interface DashboardHabitToday {
 }
 
 export interface DashboardToday {
+  /** Today's calendar date in the user's saved timezone */
+  date?: string;
   activeHabitsCount: number;
   completedTodayCount: number;
   scheduledTodayCount: number;
@@ -837,8 +1059,11 @@ export interface AiCheckinFeedbackResult {
 
 export interface AiRelapseRecoveryInput {
   habitId: number;
-  /** @minimum 1 */
-  missedDays: number;
+  /**
+     * Legacy compatibility; server derives this from check-in history
+     * @minimum 0
+     */
+  missedDays?: number;
 }
 
 export interface AiRelapseRecoveryResult {
@@ -846,6 +1071,8 @@ export interface AiRelapseRecoveryResult {
   originalTargetValue: number;
   suggestedTargetValue: number;
   encouragement: string;
+  /** @minimum 0 */
+  missedDays: number;
 }
 
 export interface UploadUrlRequest {
