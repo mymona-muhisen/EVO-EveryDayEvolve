@@ -1,7 +1,7 @@
 import { GoogleGenAI } from "@google/genai";
 import type { AiTextProvider } from "./aiProvider";
 
-const MODEL = "gemini-2.5-flash";
+const MODEL = "gemini-3-flash-preview";
 
 /** Server-only adapter. The client is initialized lazily so missing keys use fallbacks. */
 export const geminiProvider: AiTextProvider = {
