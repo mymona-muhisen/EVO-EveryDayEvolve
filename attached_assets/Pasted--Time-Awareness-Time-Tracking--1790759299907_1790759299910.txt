@@ -1,0 +1,881 @@
+— ميزة اكتشاف أين يذهب وقتك
+Time Awareness / Time Tracking
+الفكرة
+
+المستخدم لا يبدأ بالقول:
+
+"أريد عادة جديدة."
+
+بل نريد أن نبدأ بسؤال أعمق:
+
+"كيف قضيت يومي فعلًا؟"
+
+لأن المستخدم قد يعتقد أن المشكلة هي عدم القراءة، بينما المشكلة الحقيقية مثلًا أنه يفقد ساعتين في Social Media.
+
+لذلك التجربة:
+
+Track my day
+      ↓
+Quick check-ins
+      ↓
+Build timeline
+      ↓
+Understand patterns
+      ↓
+AI insight
+      ↓
+Suggest what to change
+      ↓
+Suggest replacement
+1. نقطة الدخول
+
+من الـDashboard يوجد Card واضح:
+
+عنوان
+
+Where did your day go?
+
+أو بالعربية في النسخة العربية:
+
+وين راح يومك؟
+
+وتحته:
+
+سجّل يومك لفترة قصيرة، وسنساعدك على اكتشاف الأنماط التي قد لا تلاحظها بنفسك.
+
+زر رئيسي:
+
+ابدأ تتبع يومي
+
+وزر صغير:
+
+كيف يعمل؟
+
+2. شاشة شرح سريعة
+
+لا نريد Tutorial طويل.
+
+Modal / شاشة بسيطة:
+
+🕐 15 دقيقة تكفي
+
+كل 15 دقيقة سنسألك ماذا كنت تفعل.
+
+لا تحتاج إلى كتابة شيء.
+اختر فقط النشاط الأقرب لما كنت تفعله.
+
+ثم:
+
+15 min
+● ● ● ● ●
+
+وتحتها:
+
+يمكنك إيقاف التتبع أو تغييره إلى 30 دقيقة في أي وقت.
+
+Buttons:
+
+ابدأ الآن
+
+لاحقًا
+
+3. إعداد التتبع
+
+الشاشة:
+
+كيف تريد تتبع يومك؟
+الخيار الأساسي
+
+كل 15 دقيقة
+
+أدق صورة عن يومك.
+
+خيار آخر
+
+كل 30 دقيقة
+
+تتبع أخف وأقل إزعاجًا.
+
+ثم:
+
+هل تريد التتبع الآن؟
+
+زر:
+
+ابدأ يومي
+
+4. حالة Tracking
+
+هذه أهم شاشة في الميزة.
+
+يجب ألا تبدو مثل Stopwatch تقليدي.
+
+مثلاً:
+
+--------------------------------
+
+          Your day
+
+        10:42 AM
+
+      ● Tracking
+
+   Next check-in in
+        08:32
+
+--------------------------------
+
+        Today
+
+      1h 45m tracked
+
+   ███████░░░░░░░
+
+--------------------------------
+
+[ Pause tracking ]
+
+--------------------------------
+
+لكن في أسفل الشاشة يكون هناك نشاط حالي.
+
+مثلاً:
+
+What are you doing?
+
+إذا حان وقت الـcheck-in.
+
+5. Check-in
+
+هنا أهم قرار UX:
+
+لا نطلب من المستخدم الكتابة.
+
+بدل:
+
+ماذا فعلت خلال الـ15 دقيقة الماضية؟
+
+نعرض خيارات كبيرة:
+
+📚 Study
+
+💻 Work
+
+📱 Social Media
+
+🎮 Gaming
+
+🎬 Entertainment
+
+🏃 Exercise
+
+🍽 Eating
+
+😴 Rest
+
+🚗 Travel
+
+💬 Socializing
+
+✨ Personal
+
++ Something else
+
+المستخدم يضغط فقط.
+
+مثال
+
+المستخدم كان على Instagram.
+
+يضغط:
+
+📱 Social Media
+
+انتهى.
+
+6. إذا اختار "Something else"
+
+يفتح:
+
+ماذا كنت تفعل؟
+
+Input:
+
+____________________
+
+اقتراحات تلقائية:
+
+Reading
+Cooking
+Cleaning
+Shopping
+Walking
+
+ثم:
+
+حفظ
+
+7. لا نجبر المستخدم على الدقة
+
+هذه نقطة مهمة جدًا.
+
+لو المستخدم لم يتذكر:
+
+"ما بعرف"
+
+يجب أن يوجد:
+
+🤷 لا أتذكر
+
+ثم نسجل:
+
+category = UNKNOWN
+
+ولا نعاقبه.
+
+لأن هدفنا فهم سلوكه وليس إجباره على تقديم بيانات مثالية.
+
+8. التعديل
+
+بعد تسجيل النشاط يظهر:
+
+تم تسجيل 15 دقيقة من Social Media
+
+مع:
+
+تعديل
+
+لأنه ربما ضغط بالخطأ.
+
+9. Pause
+
+المستخدم يستطيع في أي وقت:
+
+إيقاف التتبع
+
+تظهر:
+
+هل تريد إيقاف التتبع مؤقتًا؟
+
+[ إيقاف مؤقت ]
+
+[ إلغاء ]
+
+وعند الإيقاف:
+
+Tracking paused
+
+Tracked today
+2h 15m
+
+[ Resume ]
+10. تغيير المدة
+
+من Settings الخاصة بالتتبع:
+
+Check-in interval
+
+○ 15 minutes
+○ 30 minutes
+
+لكن إذا كان المستخدم قد بدأ بـ15:
+
+يمكنك تغيير المدة، وسيطبق التغيير على التسجيلات القادمة فقط.
+
+لا نعيد بناء الماضي.
+
+11. نهاية اليوم
+
+هنا تبدأ التجربة الجميلة.
+
+عندما يختار المستخدم:
+
+Finish my day
+
+لا نعرض له جدولًا مملًا مباشرة.
+
+نقول:
+
+Your day is ready.
+
+ثم:
+
+دعنا نرى أين ذهب وقتك.
+
+Animation بسيطة.
+
+ثم ننتقل إلى:
+
+Your Day
+12. شاشة تحليل اليوم
+
+نقسمها إلى 3 مستويات.
+
+المستوى الأول — الرقم الكبير
+
+مثلاً:
+
+3h 42m
+
+ثم:
+
+على Social Media اليوم
+
+وتحتها:
+
+23% من وقتك المتتبع
+
+وهذا هو المثال الذي تحدثنا عنه سابقًا.
+
+13. Timeline
+
+نعرض اليوم بصريًا:
+
+08:00  ███ Study
+08:15  ███ Study
+08:30  ███ Study
+
+09:00  ██ Travel
+
+09:30  █████ Social
+09:45  █████ Social
+10:00  █████ Social
+
+...
+
+يمكن استخدام ألوان الفئات لكن بدون جعلها مرهقة.
+
+14. Categories
+
+مثلاً:
+
+Your day
+
+📱 Social Media      3h 42m
+📚 Study             2h 10m
+💻 Work              1h 35m
+🍽 Eating              45m
+🚗 Travel              40m
+🏃 Exercise            30m
+
+ثم:
+
+Top 3
+
+أكثر الأشياء التي أخذت وقتك.
+
+15. المفاجأة / Insight
+
+هنا يأتي دور AI.
+
+بدل أن نقول:
+
+Social Media = 3h 42m
+
+فقط، AI يحاول اكتشاف شيء له معنى.
+
+مثلاً:
+
+You spent more time on social media than you expected.
+
+ثم:
+
+Most of it happened between 8 PM and 11 PM.
+
+هذه المعلومة أقوى بكثير.
+
+16. AI لا يكتفي بالتلخيص
+
+نريد منه أن يبحث عن:
+
+Pattern
+
+مثلاً:
+
+Social media
+↓
+mostly evening
+↓
+after finishing work
+
+فيقول:
+
+يبدو أن استخدامك لوسائل التواصل يزداد بعد انتهاء يومك، خصوصًا عندما تنتقل من العمل إلى وقت الراحة.
+
+ثم:
+
+Opportunity
+
+قد تكون هذه أسهل نقطة لتجربة تغيير صغير.
+
+17. سؤال المستخدم
+
+هنا لا نقول:
+
+"يجب أن تقلل Social Media."
+
+بل:
+
+Would you like to explore reducing it?
+
+العربية:
+
+هل تريد تجربة تقليل هذا الوقت؟
+
+Buttons:
+
+نعم، لنجرّب
+
+ليس الآن
+
+18. إذا قال نعم
+
+AI لا يقول:
+
+استخدم الهاتف ساعتين أقل.
+
+بل:
+
+Suggested Habit
+
+🎯 استعد 20 دقيقة يوميًا
+
+ثم:
+
+بدلًا من محاولة حذف Social Media بالكامل، لنبدأ بتقليل 20 دقيقة فقط.
+
+19. Replacement System
+
+وهذه من أهم أفكار المشروع.
+
+نقول:
+
+ماذا تريد أن تفعل بهذه الـ20 دقيقة؟
+
+AI يقترح:
+
+📚 Read
+
+10–20 min
+
+إذا أردت بناء عادة القراءة.
+
+🚶 Walk
+
+20 min
+
+إذا كنت تريد الحركة.
+
+🎨 Create
+
+20 min
+
+إذا كنت تفضل شيئًا إبداعيًا.
+
+✍️ Journal
+
+10 min
+
+وهناك:
+
+أريد اختيار شيء آخر
+
+20. إذا اختار Reading
+
+هنا لا ننشئ عادة:
+
+Read 20 minutes.
+
+بل نمررها إلى AI Habit Builder.
+
+المستخدم يقول:
+
+أريد القراءة ساعة يوميًا.
+
+AI:
+
+هدف جميل، لكن بدل أن نبدأ بساعة، لنبدأ بـ10 دقائق.
+
+ثم:
+
+Your intention
+Read 60 min/day
+
+Your starting habit
+Read 10 min/day
+
+Minimum
+10 min
+
+Frequency
+Daily
+
+زر:
+
+ابدأ الرحلة
+
+21. AI Architecture لهذه الميزة
+
+لا نريد أن يكون AI مسؤولًا عن الحسابات.
+
+النظام يحسب:
+
+totalTrackedMinutes
+categoryMinutes
+percentage
+topCategories
+timeBlocks
+
+ثم نرسل هذه البيانات إلى AI.
+
+مثلاً:
+
+{
+  "trackedMinutes": 960,
+  "categories": {
+    "social_media": 222,
+    "study": 130,
+    "work": 95,
+    "exercise": 30
+  },
+  "timeBlocks": [
+    {
+      "start": "20:00",
+      "end": "20:15",
+      "category": "social_media"
+    }
+  ]
+}
+
+AI لا يحسب:
+
+222 ÷ 960
+
+النظام نفسه يحسبها.
+
+AI فقط يفسر:
+
+لماذا قد يكون هذا نمطًا مهمًا؟
+
+22. Prompt الخاص بـAI
+
+نريد شيئًا مثل:
+
+You are a supportive behavioral coach.
+
+Analyze the user's tracked day.
+
+Your job is NOT to judge the user.
+
+Identify:
+1. One meaningful pattern.
+2. One potential opportunity for improvement.
+3. A realistic small reduction if appropriate.
+4. 3 replacement activities.
+5. A short supportive explanation.
+
+Never shame the user.
+Never diagnose the user.
+Do not claim that a habit is clinically harmful.
+Do not invent information that is not present in the data.
+
+Prefer small realistic changes.
+
+Return structured JSON.
+
+ثم JSON:
+
+{
+  "headline": "...",
+  "observation": "...",
+  "pattern": "...",
+  "opportunity": "...",
+  "suggested_change": {
+    "minutes": 20,
+    "category": "social_media"
+  },
+  "replacements": [
+    {
+      "title": "Read",
+      "minutes": 20
+    },
+    {
+      "title": "Walk",
+      "minutes": 20
+    }
+  ]
+}
+23. إذا AI فشل
+
+التجربة لا تتوقف.
+
+نستخدم fallback.
+
+مثلاً:
+
+إذا:
+
+social_media > 120 minutes
+
+نعرض:
+
+لاحظنا أن وسائل التواصل أخذت جزءًا كبيرًا من وقتك اليوم. قد تكون 15–20 دقيقة هدفًا مناسبًا لتجربة تغيير صغير.
+
+ثم نعرض replacements ثابتة.
+
+24. إذا البيانات قليلة
+
+مثلاً المستخدم سجل فقط:
+
+Study 15m
+Food 15m
+Other 15m
+
+لا يجب أن يخترع AI تحليلًا.
+
+نقول:
+
+ما زلنا بحاجة إلى مزيد من الوقت لفهم يومك.
+
+ثم:
+
+استمر في التتبع
+
+25. إذا المستخدم سجل يومًا سيئًا جدًا
+
+مثلاً:
+
+Social Media 5h
+Gaming 3h
+Study 20m
+
+لا نقول:
+
+أنت أضعت يومك.
+
+بل:
+
+Your day tells us something useful.
+
+ثم:
+
+يبدو أن معظم وقتك ذهب إلى الترفيه اليوم. بدل محاولة تغيير كل شيء دفعة واحدة، يمكننا تجربة استعادة 20 دقيقة فقط غدًا.
+
+26. البيانات التي نحتاجها
+time_entries
+id
+user_id
+date
+start_time
+end_time
+duration_minutes
+category
+label
+source
+created_at
+source
+
+يمكن أن يكون:
+
+manual
+check_in
+future_auto
+
+وهذا مهم جدًا لأننا مستقبلًا إذا أضفنا Automatic App Tracking لن نضطر لتغيير قاعدة البيانات.
+
+27. حالات الواجهة التي يجب أن يبرمجها Replit
+
+لا يكفي تصميم الحالة الطبيعية.
+
+يجب وجود:
+
+Empty
+
+لم تبدأ تتبع يومك بعد.
+
+Tracking
+
+التتبع يعمل.
+
+Paused
+
+التتبع متوقف مؤقتًا.
+
+Check-in
+
+ماذا كنت تفعل؟
+
+Editing
+
+تعديل النشاط.
+
+Day incomplete
+
+لديك 6 ساعات فقط متتبعة.
+
+Analysis loading
+
+Animation:
+
+Looking at your day...
+
+AI success
+
+Insight.
+
+AI failure
+
+Fallback.
+
+No meaningful pattern
+
+Keep tracking — we're still learning your routine.
+
+Completed analysis
+
+Your day is ready.
+
+28. ما الذي نريد أن يشعر به المستخدم؟
+
+هذه الميزة ليست:
+
+Time Tracker
+
+بل:
+
+Mirror
+
+المستخدم ينظر إلى يومه ويرى نفسه.
+
+وهنا الفرق الأساسي في المنتج.
+
+29. الـCTA النهائي
+
+بعد التحليل:
+
+You discovered:
+3h 42m Social Media
+
+You could reclaim:
+20 min/day
+
+Try replacing it with:
+📚 Reading
+🚶 Walking
+🎨 Creating
+
+ثم:
+
+ابدأ عادة صغيرة
+
+وهنا ننتقل مباشرة إلى الميزة الثانية: AI Day Analysis → AI Habit Recommendation.
+
+30. Prompt جاهز لـReplit لهذه الميزة
+
+هذا هو النص الذي أعطيه للـAI Agent بعد أن نتفق على UX:
+
+Implement the Time Awareness / Time Tracking feature according to the following product specification.
+
+IMPORTANT:
+Do not redesign unrelated pages.
+Do not change the existing database architecture unless required.
+Do not remove existing functionality.
+Use the existing authentication and backend.
+
+USER FLOW:
+
+Dashboard
+→ "Where did your day go?"
+→ Start Tracking
+→ Choose 15 or 30 minute interval
+→ Tracking state
+→ Check-in notification
+→ User selects activity
+→ Entry is saved
+→ User can edit entries
+→ User can pause/resume tracking
+→ User finishes the day
+→ Day summary
+→ Timeline
+→ Category totals
+→ AI insight
+→ Suggested small reduction
+→ Replacement activities
+→ "Start a habit" CTA
+
+UX REQUIREMENTS:
+
+1. Default interval = 15 minutes.
+2. User can switch to 30 minutes.
+3. User can pause tracking at any time.
+4. User can resume tracking.
+5. Check-ins must be extremely fast.
+6. Do not require typing for normal check-ins.
+7. Provide predefined categories:
+   Study, Work, Social Media, Gaming, Entertainment,
+   Exercise, Eating, Rest, Travel, Socializing, Personal, Other.
+8. Provide "I don't remember" option.
+9. Allow editing an entry.
+10. Show daily timeline.
+11. Show total tracked time.
+12. Show category totals.
+13. Show percentages.
+14. Show top categories.
+15. Show useful time patterns when enough data exists.
+16. Do not shame the user.
+17. If there is insufficient data, do not invent insights.
+
+AI:
+
+Create a server-side AI analysis function.
+
+The application calculates:
+- total tracked minutes
+- category totals
+- percentages
+- time blocks
+- top categories
+
+Send these structured facts to the AI.
+
+The AI returns:
+- headline
+- observation
+- pattern
+- opportunity
+- suggested reduction
+- replacement activities
+
+Use structured JSON output.
+
+Do NOT allow the AI to calculate authoritative application state.
+
+If AI fails:
+- use a deterministic fallback
+- never break the user experience
+
+The AI should be supportive, non-judgmental, concise, and should suggest small realistic changes.
+
+After the AI recommendation, allow the user to:
+- accept the suggestion
+- reject it
+- choose another replacement
+- create their own habit
+
+IMPLEMENT ALL UI STATES:
+- empty
+- tracking
+- paused
+- check-in
+- editing
+- loading
+- AI loading
+- AI success
+- AI failure
+- insufficient data
+- completed analysis
+- error
+
+Before coding, inspect the existing project and report which existing components, API routes, and database tables can be reused.
+
+Then implement the feature without breaking the current application.
