@@ -13,6 +13,7 @@ import {
 import { requireAuth } from "../middlewares/requireAuth";
 import { ensureUser } from "../lib/userService";
 import { toDateOnly } from "../lib/dates";
+import { goalMilestones, phraseMilestones, checkinTone, recoveryTarget } from "../lib/aiRules";
 import {
   breakdownGoalMessages,
   dailyInsightMessage,
@@ -31,23 +32,13 @@ router.post("/ai/breakdown-goal", async (req, res): Promise<void> => {
     return;
   }
 
-  const { targetValue } = parsed.data;
-  const fractions = [0.25, 0.5, 0.75, 1];
-  const steps = fractions.map((f, i) => ({
-    targetValue: Math.max(1, Math.round(targetValue * f)),
-    order: i + 1,
-  }));
+  const steps = goalMilestones(parsed.data.targetValue);
 
   const { stepTexts, coachMessage } = await breakdownGoalMessages(parsed.data, steps);
 
   res.json(
     AiBreakdownGoalResponse.parse({
-      milestones: steps.map((s, i) => ({
-        title: stepTexts[i]?.title ?? `الخطوة ${i + 1}`,
-        description: stepTexts[i]?.description ?? "",
-        targetValue: s.targetValue,
-        order: s.order,
-      })),
+      milestones: phraseMilestones(steps, stepTexts),
       coachMessage,
     }),
   );
@@ -111,9 +102,7 @@ router.post("/ai/checkin-feedback", async (req, res): Promise<void> => {
   }
 
   const { completed, streak, value } = parsed.data;
-  let tone: "celebratory" | "encouraging" | "supportive" = "encouraging";
-  if (!completed) tone = "supportive";
-  else if (streak > 0 && (streak % 7 === 0 || streak >= 3)) tone = "celebratory";
+  const tone = checkinTone(completed, streak);
 
   const message = await checkinFeedbackMessage({ habitTitle: habit.title, completed, value, streak, tone });
 
@@ -137,7 +126,7 @@ router.post("/ai/relapse-recovery", async (req, res): Promise<void> => {
     return;
   }
 
-  const suggestedTargetValue = Math.max(1, Math.round(habit.targetValue * 0.5));
+  const suggestedTargetValue = recoveryTarget(habit.targetValue);
 
   const { message, encouragement } = await relapseRecoveryMessages({
     habitTitle: habit.title,

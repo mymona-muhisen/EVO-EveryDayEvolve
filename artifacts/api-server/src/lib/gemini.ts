@@ -1,7 +1,7 @@
 import { GoogleGenAI } from "@google/genai";
 import type { AiTextProvider } from "./aiProvider";
 
-const MODEL = "gemini-3-flash-preview";
+export const GEMINI_MODEL = "gemini-3-flash-preview";
 
 /** Server-only adapter. The client is initialized lazily so missing keys use fallbacks. */
 export const geminiProvider: AiTextProvider = {
@@ -11,7 +11,7 @@ export const geminiProvider: AiTextProvider = {
 
     const client = new GoogleGenAI({ apiKey });
     const response = await client.models.generateContent({
-      model: MODEL,
+      model: GEMINI_MODEL,
       contents: JSON.stringify(context),
       config: {
         systemInstruction: system,

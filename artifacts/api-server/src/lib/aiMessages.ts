@@ -4,18 +4,16 @@ import { geminiProvider } from "./gemini";
 
 // The route and rule engine only depend on these message functions. Swap the
 // provider here without changing their inputs, outputs, or deterministic math.
-const provider: AiTextProvider = geminiProvider;
-
-function logFallback(error: unknown): void {
+function logFallback(): void {
   // Never log SDK error objects: some include request details or credentials.
-  logger.warn({ reason: error instanceof Error ? error.name : "unknown" }, "AI phrasing unavailable; using Arabic fallback");
+  logger.warn({ reason: "generation_failed" }, "AI phrasing unavailable; using Arabic fallback");
 }
 
-async function safeComplete(system: string, context: object, fallback: string): Promise<string> {
+async function safeComplete(system: string, context: object, fallback: string, provider: AiTextProvider): Promise<string> {
   try {
     return await provider.generateText(system, context);
-  } catch (error) {
-    logFallback(error);
+  } catch {
+    logFallback();
     return fallback;
   }
 }
@@ -36,6 +34,7 @@ export async function breakdownGoalMessages(
     unit: string;
   },
   steps: BreakdownGoalStep[],
+  provider: AiTextProvider = geminiProvider,
 ): Promise<{ stepTexts: { title: string; description: string }[]; coachMessage: string }> {
   const fallbackStepTexts = steps.map((s, i) => ({
     title: `الخطوة ${i + 1}`,
@@ -64,8 +63,8 @@ export async function breakdownGoalMessages(
       stepTexts: parsed.steps as { title: string; description: string }[],
       coachMessage: parsed.coachMessage,
     };
-  } catch (error) {
-    logFallback(error);
+  } catch {
+    logFallback();
     return { stepTexts: fallbackStepTexts, coachMessage: fallbackCoach };
   }
 }
@@ -77,7 +76,7 @@ export async function dailyInsightMessage(facts: {
   highlightMetric: string;
   completionRateThisWeek: number;
   completionRatePrevWeek: number;
-}): Promise<string> {
+}, provider: AiTextProvider = geminiProvider): Promise<string> {
   const fallback =
     facts.trend === "up"
       ? "أداؤك يتحسن هذا الأسبوع، استمر على هذا المنوال!"
@@ -88,6 +87,7 @@ export async function dailyInsightMessage(facts: {
     "أنت مدرّب عادات ودود يتحدث العربية الفصحى الحديثة. ستتلقى مقاييس أداء أسبوعية محسوبة مسبقًا (لا تغيّر الأرقام). اكتب رسالة تحفيزية قصيرة (جملة أو جملتين) تعلق على الاتجاه العام دون اختلاق أرقام جديدة.",
     facts,
     fallback,
+    provider,
   );
 }
 
@@ -98,7 +98,7 @@ export async function checkinFeedbackMessage(facts: {
   value?: number;
   streak: number;
   tone: "celebratory" | "encouraging" | "supportive";
-}): Promise<string> {
+}, provider: AiTextProvider = geminiProvider): Promise<string> {
   const fallback =
     facts.tone === "celebratory"
       ? `رائع! أكملت "${facts.habitTitle}" وسلسلتك الآن ${facts.streak} يومًا متتاليًا!`
@@ -109,6 +109,7 @@ export async function checkinFeedbackMessage(facts: {
     `أنت مدرّب عادات يتحدث العربية الفصحى الحديثة. النبرة المطلوبة محددة مسبقًا: "${facts.tone}" (لا تغيّرها). اكتب جملة أو جملتين قصيرتين تعليقًا على تسجيل الحضور، بهذه النبرة تحديدًا.`,
     facts,
     fallback,
+    provider,
   );
 }
 
@@ -118,7 +119,7 @@ export async function relapseRecoveryMessages(facts: {
   missedDays: number;
   suggestedTargetValue: number;
   unit: string;
-}): Promise<{ message: string; encouragement: string }> {
+}, provider: AiTextProvider = geminiProvider): Promise<{ message: string; encouragement: string }> {
   const fallbackMessage = `لا بأس، مرّت ${facts.missedDays} أيام دون "${facts.habitTitle}". لنبدأ من جديد بهدف أصغر: ${facts.suggestedTargetValue} ${facts.unit}.`;
   const fallbackEncouragement = "كل بداية جديدة هي فرصة، التقدم الحقيقي هو الاستمرار وليس الكمال.";
 
@@ -135,8 +136,8 @@ export async function relapseRecoveryMessages(facts: {
       !("encouragement" in parsed) || typeof parsed.encouragement !== "string"
     ) throw new Error("Malformed relapse-recovery response");
     return { message: parsed.message, encouragement: parsed.encouragement };
-  } catch (error) {
-    logFallback(error);
+  } catch {
+    logFallback();
     return { message: fallbackMessage, encouragement: fallbackEncouragement };
   }
 }

@@ -7,4 +7,4 @@ Do not assume a model can generate content merely because Gemini's model listing
 
 **Why:** A previously configured flash model appeared in the live model listing but generation returned HTTP 404 saying it was no longer available. Updating to an available flash model restored real responses without changing the app's deterministic metrics.
 
-**How to apply:** When choosing or updating Gemini models in this project, test both plain-text and JSON generation with the same options used by the coach before relying on the model in authenticated routes. Avoid logging raw SDK error objects or credentials.
+**How to apply:** When choosing or updating Gemini models in this project, test both plain-text and JSON generation with the same options used by the coach before relying on the model in authenticated routes. Run the live probe explicitly rather than on every server startup, since generation consumes quota and can be rate-limited. Keep probe output to fixed outcomes and numeric HTTP status; avoid logging raw SDK error objects, prompts, responses, or credentials.
