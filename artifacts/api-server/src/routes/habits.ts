@@ -96,6 +96,11 @@ router.patch("/habits/:habitId", async (req, res): Promise<void> => {
     return;
   }
 
+  if (parsed.data.targetValue !== undefined && (!Number.isFinite(parsed.data.targetValue) || parsed.data.targetValue <= 0)) {
+    res.status(400).json({ error: "Target value must be positive" });
+    return;
+  }
+
   const [habit] = await db
     .update(habitsTable)
     .set(parsed.data)
