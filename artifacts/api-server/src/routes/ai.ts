@@ -18,7 +18,7 @@ import {
   dailyInsightMessage,
   checkinFeedbackMessage,
   relapseRecoveryMessages,
-} from "../lib/openai";
+} from "../lib/aiMessages";
 
 const router: IRouter = Router();
 router.use(requireAuth);

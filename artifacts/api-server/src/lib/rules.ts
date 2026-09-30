@@ -1,7 +1,7 @@
 /**
  * Deterministic rule engine for gamification math: XP/leveling, coin
- * rewards, and streak continuation. No AI involved — the OpenAI client in
- * lib/openai.ts only phrases messages around numbers computed here.
+ * rewards, and streak continuation. No AI involved — the text provider only
+ * phrases messages around numbers computed here.
  */
 
 export type Difficulty = "easy" | "medium" | "hard";
