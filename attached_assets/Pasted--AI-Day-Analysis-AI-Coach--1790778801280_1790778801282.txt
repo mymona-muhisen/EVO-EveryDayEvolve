@@ -1,0 +1,1132 @@
+لكن يجب أن نفصل داخل النظام بين شيئين:
+
+AI Day Analysis
+= ماذا يحدث في يومي؟
+
+AI Coach
+= ماذا أفعل بناءً على ما يحدث؟
+
+والـAI لا يجب أن يقرر كل شيء بنفسه.
+البيانات والحسابات والمنطق الرقمي من التطبيق، والتفسير والاقتراح والتواصل من AI.
+
+02 — AI Day Analysis + AI Coach
+الهدف
+
+بعد أن ينهي المستخدم جزءًا من تتبع يومه، لا نريده أن يرى:
+
+Social Media: 3h 42m
+
+فقط.
+
+نريد أن يخرج من الشاشة وهو يعرف:
+
+ماذا يحدث؟
+لماذا قد يكون مهمًا؟
+ما التغيير الصغير الذي يمكنني تجربته؟
+ماذا يمكنني أن أضع بدل الوقت الذي سأستعيده؟
+
+وهنا تبدأ رحلة الـAI:
+
+Time Data
+   ↓
+Calculate Facts
+   ↓
+Detect Patterns
+   ↓
+AI Interpretation
+   ↓
+AI Recommendation
+   ↓
+User Choice
+   ↓
+Habit Builder
+1. نقطة الدخول
+
+بعد شاشة Your Day التي بنيناها في الميزة السابقة، يظهر قسم:
+
+✨ Your Coach
+
+مثلاً:
+
+I noticed something about your day.
+
+ثم Card:
+
+You spent 3h 42m on social media today.
+
+Most of this happened between 8:00 PM and 11:00 PM.
+
+ثم:
+
+You could start by reclaiming just 20 minutes.
+
+زر:
+
+See what your coach suggests
+2. لا نفتح Chatbot مباشرة
+
+هذه نقطة UX مهمة.
+
+لا أريد أن تكون التجربة:
+
+🤖 Hello, how can I help you?
+
+لأننا لا نبني ChatGPT آخر.
+
+نريد أن يكون الـAI مبادرًا.
+
+هو يقول:
+
+"لاحظت هذا."
+
+ثم:
+
+"أعتقد أن هذه قد تكون فرصة جيدة."
+
+ثم المستخدم يقرر.
+
+3. التحليل على ثلاث طبقات
+Layer 1 — Facts
+
+هذه من التطبيق، وليست من AI.
+
+مثلاً:
+
+Tracked time = 11h 20m
+
+Social Media = 222 min
+Study = 130 min
+Work = 95 min
+Exercise = 30 min
+Rest = 80 min
+
+والتطبيق يحسب:
+
+Social Media %
+= 222 / 680 × 100
+= 32.6%
+
+الـAI لا يعيد حسابها.
+
+4. Layer 2 — Patterns
+
+هنا النظام يستخرج Patterns قبل إرسالها إلى AI.
+
+مثلاً:
+
+Top category = Social Media
+
+Peak period = 20:00–23:00
+
+Repeated blocks = 4
+
+Average session length = 18 min
+
+Previous days:
+Day 1 = 1h 40m
+Day 2 = 2h 15m
+Day 3 = 3h 05m
+Day 4 = 3h 42m
+
+ثم نرسل هذه facts إلى الـAI.
+
+5. Layer 3 — AI Interpretation
+
+هنا يبدأ دور Coach:
+
+"Your social media use is concentrated in the evening, especially after you've finished your main responsibilities."
+
+ثم:
+
+"Instead of trying to eliminate it, you could experiment with reclaiming 20 minutes during that window."
+
+لاحظي أننا لا نقول:
+
+"Social media is bad."
+
+نقول:
+
+"هذه فرصة يمكن تجربتها."
+
+6. أسلوب الـAI
+
+نريد الشخصية:
+
+Smart
+
+يفهم البيانات.
+
+Human
+
+يتحدث بشكل طبيعي.
+
+Direct
+
+يمكن أن يكون جريئًا عندما تكون البيانات واضحة.
+
+Supportive
+
+بدون لوم.
+
+Action-oriented
+
+لا يترك المستخدم مع Insight فقط.
+
+مثال جيد:
+
+You spent 3h 42m on social media today — mostly between 8 PM and 11 PM.
+
+You don't need to change your entire routine.
+
+Let's try taking back 20 minutes from that window.
+
+7. مستوى الجرأة
+
+بما أنك وافقتِ أن يكون الـAI أكثر جرأة، يمكن أن نستخدم مستويات:
+
+Gentle
+
+You might want to explore...
+
+Direct
+
+You are spending more time here than you planned.
+
+Strong
+
+This is currently your biggest time opportunity today.
+
+لكن لا نستخدم لغة:
+
+You're wasting your life.
+
+أو:
+
+You have no self-control.
+
+8. اختيار التغيير
+
+بعد Insight:
+
+Your coach suggests:
+🎯 Reclaim 20 minutes/day
+
+وتحتها:
+
+What would you like to do with that time?
+
+ثم:
+
+📚 Read
+🚶 Walk
+🎨 Create
+🧘 Relax
+💻 Learn
+✍️ Journal
+
+و:
+
+Something else
+
+9. AI لا يفرض Replacement
+
+مثلاً المستخدم يختار:
+
+Reading
+
+لكن لا نعتبر أن:
+
+Reading = 20 min
+
+أصبحت عادة نهائية.
+
+ننتقل إلى Habit Builder.
+
+10. AI Habit Builder
+
+المستخدم:
+
+أريد القراءة ساعة يوميًا.
+
+الـAI يفهم:
+
+Desired outcome = Reading
+Desired duration = 60 min
+
+ويقول:
+
+ساعة يوميًا قد تكون بداية ثقيلة.
+
+أقترح أن تبدأ بـ10 دقائق.
+
+ثم:
+
+Your first step
+
+Read for 10 minutes
+
+Minimum
+
+5 minutes
+
+وهنا الفرق مهم:
+
+Target ≠ Minimum
+
+مثلاً:
+
+Target = 10 min
+Minimum = 5 min
+
+إذا كان اليوم صعبًا جدًا، يستطيع المستخدم تنفيذ 5 دقائق وما زال يعتبر اليوم ناجحًا.
+
+11. كيف AI يقرر أن الهدف كبير؟
+
+في V1 لا نحتاج Model يتعلم ذلك.
+
+نضع قواعد.
+
+مثلاً:
+
+IF requested_duration >= 60 min
+AND habit is new
+THEN recommend smaller start
+
+IF frequency = daily
+AND target is high
+THEN recommend lower minimum
+
+IF user says "I haven't done this before"
+THEN start very small
+
+ثم AI يصيغ الاقتراح.
+
+12. المحادثة ليست طويلة
+
+نريد أن تكون:
+
+User
+
+I want to read 1 hour every day.
+
+AI
+
+Let's start with 10 minutes.
+
+User
+
+Okay.
+
+AI
+
+Great. Your minimum is 5 minutes. Your target is 10.
+
+ثم:
+
+Create 22-Day Journey
+
+13. AI يستطيع أيضًا رفض الاقتراح بلطف
+
+مثلاً المستخدم يقول:
+
+أريد أن أركض ساعة يوميًا من الغد.
+
+AI:
+
+إذا لم تكن تركض حاليًا، قد تكون ساعة يومية بداية كبيرة جدًا.
+
+ثم:
+
+What about 10 minutes for the first few days?
+
+ثم:
+
+Accept
+
+Edit
+
+14. AI يظل مساعدًا وليس صاحب القرار
+
+كل AI recommendation يجب أن يحتوي:
+
+Suggested
+
+وليس:
+
+Required
+
+مثلاً:
+
+Suggested minimum: 5 min
+
+والخيارات:
+
+Accept
+
+Adjust myself
+
+15. Daily Coach
+
+بعد أن تصبح لدى المستخدم عادة، يعود AI يوميًا.
+
+مثلاً:
+
+Morning
+
+Today's focus
+
+Your minimum:
+5 min reading
+
+ثم:
+
+Yesterday you found 10 minutes difficult, so we're keeping today's minimum small.
+
+هذا يشعر المستخدم أن النظام يتذكره.
+
+16. Post-check-in Coach
+
+بعد إكمال العادة:
+
+المستخدم يضغط:
+
+✅ Done
+
+تظهر:
+
+How did it feel?
+
+😊 Easy
+😐 Normal
+😣 Hard
+😞 Very Hard
+
+ثم AI يتدخل فقط إذا كان هناك شيء مفيد يقوله.
+
+مثلاً:
+
+"Nice. You said yesterday was difficult, but today you completed the full target."
+
+أو:
+
+"You completed your minimum. That's enough for today."
+
+17. إذا كان Hard
+
+مثلاً:
+
+😣 Hard
+
+AI:
+
+That's useful to know.
+
+ثم:
+
+Tomorrow we'll keep the minimum at 5 minutes instead of increasing the target.
+
+18. إذا كان Very Hard
+
+هنا لا ننتظر 3 أيام بالضرورة.
+
+يمكن أن يكون لدينا نظام:
+
+Very Hard once
+→ no automatic drastic change
+
+Very Hard twice
+→ flag for adaptation
+
+Very Hard 3 times
+→ reduce target
+
+بهذا لا يتفاعل النظام بشكل مبالغ فيه مع يوم سيئ واحد.
+
+19. إذا كان Easy
+
+إذا:
+
+Easy
+Easy
+Easy
+Easy
+
+يمكن أن يقترح:
+
+You've been handling this comfortably.
+
+Would you like to increase your target from 10 → 15 minutes?
+
+مع:
+
+Yes
+
+Keep it
+
+دائمًا المستخدم يقرر.
+
+20. Failure Coach
+
+بعد missed day:
+
+We missed yesterday. That's okay.
+
+ثم:
+
+What got in the way?
+😫 Too difficult
+🕐 No time
+😴 Forgot
+😕 Lost motivation
+⚡ Something unexpected
+✍️ Other
+
+المستخدم يختار.
+
+21. AI يفسر سبب الانتكاسة
+Too difficult
+
+Your minimum may still be too large for your current routine.
+
+No time
+
+You may need a smaller version for busy days.
+
+Forgot
+
+Your habit may need a stronger cue.
+
+Lost motivation
+
+Your current routine may rely too much on motivation. Let's make the action easier to start.
+
+ثم يقترح التعديل.
+
+22. AI يستطيع تغيير "شكل" العادة
+
+ليس فقط الرقم.
+
+مثلاً:
+
+المستخدم:
+
+Forgot.
+
+AI:
+
+Instead of doing it at 8 PM, let's connect it to something you already do.
+
+مثلاً:
+
+After your morning coffee → read 5 minutes.
+
+وهنا يدخل مفهوم Habit Stacking في التطبيق.
+
+المستخدم لا يحتاج معرفة المصطلح.
+
+23. AI يستطيع اقتراح Cue
+
+إذا كان الوقت مناسبًا:
+
+After breakfast
+
+أو:
+
+Before opening Instagram
+
+أو:
+
+After brushing your teeth
+
+لكن لا نخترع روتينًا للمستخدم.
+
+نستخدم فقط العادات/الأنشطة التي نعرفها من بياناته أو التي صرح بها.
+
+24. AI Daily Insight لا يجب أن يظهر كل يوم بنفس الشكل
+
+حتى لا تصبح التجربة مملة.
+
+أنواع Insights:
+
+Observation
+
+You spent 2h 40m on...
+
+Pattern
+
+Most of it happened after...
+
+Progress
+
+You reclaimed 35 minutes compared with yesterday.
+
+Consistency
+
+You've completed your minimum 6 days in a row.
+
+Adaptation
+
+Today's minimum was lowered because the last two days felt difficult.
+
+Encouragement
+
+You kept going even on a hard day.
+
+25. أهم قاعدة
+
+لا نستخدم AI لمجرد استخدام AI.
+
+إذا لا يوجد Insight مفيد:
+
+No major changes today.
+
+Your routine looks fairly consistent.
+
+بدل اختراع نص مختلف كل يوم.
+
+26. Context الذي يراه AI
+
+يجب ألا نرسل قاعدة البيانات كاملة.
+
+نرسل Context نظيفًا.
+
+مثلاً:
+
+{
+  "user": {
+    "age_group": "young_adult",
+    "interests": ["reading", "walking"]
+  },
+  "today": {
+    "tracked_minutes": 680,
+    "categories": [
+      {
+        "name": "social_media",
+        "minutes": 222,
+        "percentage": 32.6
+      },
+      {
+        "name": "study",
+        "minutes": 130,
+        "percentage": 19.1
+      }
+    ],
+    "peak_time_blocks": [
+      {
+        "start": "20:00",
+        "end": "23:00",
+        "category": "social_media"
+      }
+    ]
+  },
+  "current_habit": {
+    "name": "reading",
+    "target": 10,
+    "minimum": 5,
+    "unit": "minutes"
+  },
+  "recent_history": {
+    "completion_rate": 0.83,
+    "recent_difficulty": [
+      "normal",
+      "hard",
+      "hard"
+    ]
+  }
+}
+27. وما الذي لا يرى AI؟
+
+لا نرسل:
+
+Passwords
+Auth tokens
+Internal IDs غير الضرورية
+معلومات شخصية لا يحتاجها
+بيانات اجتماعية لا علاقة لها بالاقتراح
+
+قاعدة:
+
+Minimum necessary context.
+
+28. الـAI Response
+
+أريد أن يكون Structured JSON.
+
+مثلاً:
+
+{
+  "type": "pattern",
+  "headline": "Your evenings are your biggest opportunity",
+  "observation": "Most of your social media time happens between 8 PM and 11 PM.",
+  "suggestion": {
+    "title": "Reclaim 20 minutes",
+    "minutes": 20
+  },
+  "replacement_options": [
+    {
+      "title": "Read",
+      "minutes": 20
+    },
+    {
+      "title": "Walk",
+      "minutes": 20
+    },
+    {
+      "title": "Create",
+      "minutes": 20
+    }
+  ],
+  "coach_message": "You don't need to change everything at once."
+}
+
+ثم الـFrontend يقرر أين يعرض كل field.
+
+29. لا نعرض JSON للمستخدم
+
+بالطبع 😄.
+
+الواجهة تحول الرد إلى:
+
+Your coach noticed something
+
+معظم استخدامك لوسائل التواصل يحدث بين 8 و11 مساءً.
+
+A small change
+
+استعد 20 دقيقة فقط من هذا الوقت.
+
+What would you rather do?
+
+[📚 Read]
+[🚶 Walk]
+[🎨 Create]
+
+30. AI Loading State
+
+لا نريد:
+
+Loading...
+
+فقط.
+
+يمكن:
+
+Looking at your day...
+
+ثم:
+
+Finding patterns...
+
+ثم:
+
+Building a small next step...
+
+لكن هذه مجرد Animation؛ لا ندعي أن النموذج يقوم فعليًا بهذه المراحل المنفصلة.
+
+31. AI Error State
+
+إذا فشل Gemini:
+
+لا تظهر:
+
+API Error 500
+
+للمستخدم.
+
+بل:
+
+Your coach is taking a short break.
+
+ثم نعرض Fallback.
+
+مثلاً:
+
+لاحظنا أن وقت وسائل التواصل كان مرتفعًا اليوم. يمكنك تجربة تقليل 15–20 دقيقة غدًا.
+
+والزر:
+
+Continue anyway
+
+32. AI Rate Limit
+
+لأننا في Hackathon ولا نريد استنزاف الـAPI:
+
+لا نستدعي AI في كل ضغطة.
+
+استدعاء AI عند:
+انتهاء تحليل اليوم
+إنشاء عادة
+تغيير مهم في العادة
+missed-day reflection
+عند الحاجة إلى Coach message
+لا نستدعي AI عند:
+زيادة coins
+تحديث streak/consistency
+تحريك الشخصية
+حساب اليوم
+فتح صفحة
+كل Check-in بسيط
+33. Cache
+
+إذا حلل المستخدم نفس اليوم ولم تتغير البيانات:
+
+لا نطلب AI مرة أخرى.
+
+مثلاً:
+
+dayAnalysisHash
+
+إذا لم تتغير البيانات:
+
+استخدم التحليل الموجود.
+
+وهذا يقلل التكلفة والـlatency.
+
+34. AI + Rules Architecture
+
+هذا هو التصميم الذي أريده فعليًا:
+
+             USER DATA
+                 │
+                 ▼
+        Deterministic Engine
+                 │
+        ┌────────┴────────┐
+        │                 │
+    Calculations       Rules
+        │                 │
+        └────────┬────────┘
+                 ▼
+            AI SERVICE
+                 │
+          Gemini / Provider
+                 │
+                 ▼
+        Structured Response
+                 │
+                 ▼
+              UI
+35. مثال كامل من أول ثانية إلى آخر ثانية
+
+المستخدم أنهى يومه.
+
+النظام:
+
+Your day is ready.
+
+الشاشة:
+
+3h 42m
+
+📱 Social Media
+
+معظم الوقت كان بين 8 و11 مساءً.
+
+AI:
+
+Your evenings seem to be your biggest opportunity.
+
+لا تحتاج إلى تغيير روتينك بالكامل.
+
+لنجرّب استعادة 20 دقيقة فقط.
+
+المستخدم:
+
+Let's try
+
+AI:
+
+ماذا تريد أن تفعل بهذه الـ20 دقيقة؟
+
+📚 Read
+🚶 Walk
+🎨 Create
+✍️ Something else
+
+المستخدم:
+
+Read
+
+AI:
+
+كيف تريد أن تبدأ؟
+
+ثم المستخدم يقول:
+
+أريد القراءة ساعة.
+
+AI:
+
+لنبدأ بـ10 دقائق.
+
+TARGET
+10 min
+
+MINIMUM
+5 min
+
+FREQUENCY
+Daily
+المستخدم:
+
+Start journey
+
+النظام:
+
+🗺️
+
+Day 1 / 22
+
+🧍 الشخصية تبدأ الرحلة.
+
+36. Acceptance Criteria
+
+الميزة تعتبر مكتملة عندما:
+
+ يمكن تحليل بيانات اليوم الحقيقية.
+ يتم حساب الأرقام خارج AI.
+ AI يحصل على context مناسب فقط.
+ AI يقدم Insight حقيقيًا أو fallback.
+ AI يستطيع اقتراح تقليل سلوك معين.
+ AI يستطيع اقتراح replacement habits.
+ المستخدم يمكنه قبول/رفض الاقتراح.
+ المستخدم يستطيع إنشاء عادة بنفسه.
+ AI يحول هدفًا كبيرًا إلى بداية أصغر.
+ المستخدم يرى Minimum وTarget بوضوح.
+ AI لا يستطيع تغيير بيانات التطبيق مباشرة.
+ Failure feedback يدخل في التكيف.
+ AI لا يسبب انهيار التطبيق عند الفشل.
+ الاستدعاءات غير الضرورية للـAI ممنوعة.
+ الردود Structured وvalidated.
+ التجربة العربية RTL بالكامل.
+37. Prompt كامل لـReplit
+
+وهذا هو الجزء الذي يمكنك نسخه مباشرة إلى Replit Agent:
+
+Implement Feature 02: AI Day Analysis + AI Coach.
+
+IMPORTANT:
+Do not redesign unrelated features.
+Do not replace the existing authentication/database architecture.
+Do not break the current time tracking implementation.
+Inspect the existing project first and reuse the current services/components/routes.
+
+PRODUCT GOAL:
+
+The AI should not behave like a generic chatbot.
+
+It should:
+1. Understand the user's tracked day.
+2. Identify meaningful patterns.
+3. Suggest one realistic small change.
+4. Suggest replacement activities for reclaimed time.
+5. Help the user turn a large goal into a small habit.
+6. Adapt the habit based on completion and difficulty.
+7. Learn from missed-day reasons.
+8. Communicate naturally in Arabic.
+9. Always allow the user to accept, reject, or edit AI suggestions.
+
+IMPORTANT ARCHITECTURE:
+
+The application is responsible for:
+- calculating time totals
+- percentages
+- category totals
+- consistency
+- day numbers
+- coin calculations
+- reward unlocks
+- target calculations
+- deterministic adaptation rules
+
+The AI is responsible for:
+- interpretation
+- pattern explanation
+- recommendations
+- replacement suggestions
+- habit decomposition
+- coaching language
+- failure feedback
+
+Do not let the LLM become the source of truth for numeric application state.
+
+AI FLOW:
+
+A) DAY ANALYSIS
+
+Input:
+- total tracked minutes
+- category totals
+- category percentages
+- peak time blocks
+- previous-day comparison if available
+- current habits
+- user interests if available
+
+Output JSON:
+
+{
+  "type": "pattern | progress | opportunity | consistency | no_major_change",
+  "headline": "...",
+  "observation": "...",
+  "pattern": "...",
+  "suggested_change": {
+    "minutes": 20,
+    "category": "social_media"
+  },
+  "replacement_options": [
+    {
+      "title": "...",
+      "minutes": 20,
+      "reason": "..."
+    }
+  ],
+  "coach_message": "..."
+}
+
+B) HABIT BUILDER
+
+When the user enters a large goal such as:
+"I want to read for 1 hour every day."
+
+Return:
+
+{
+  "habit_name": "Reading",
+  "target": 10,
+  "minimum": 5,
+  "unit": "minutes",
+  "frequency": "daily",
+  "reason": "...",
+  "coach_message": "..."
+}
+
+The AI should be allowed to recommend a smaller starting action.
+
+Never force the user to accept the recommendation.
+
+C) ADAPTATION
+
+Use deterministic rules first.
+
+Example:
+- repeated Hard/Very Hard ratings -> reduce target
+- repeated Easy ratings -> suggest small increase
+- missed day -> ask why
+- Too difficult -> reduce next minimum
+- No time -> offer smaller version
+- Forgot -> suggest cue/reminder adjustment
+- Lost motivation -> reduce friction / simplify
+
+AI only explains the adjustment naturally.
+
+D) FAILURE COACH
+
+Input:
+- missed-day reason
+- recent completion history
+- difficulty history
+- current target/minimum
+
+Return:
+{
+  "interpretation": "...",
+  "next_step": "...",
+  "recommended_adjustment": "...",
+  "coach_message": "..."
+}
+
+UX:
+
+1. Dashboard shows a "Your Coach" section after enough data exists.
+2. Do not open a generic chatbot.
+3. AI should proactively surface one meaningful insight.
+4. Show a concise insight card.
+5. Allow:
+   - Accept
+   - Not now
+   - Choose another replacement
+   - Create my own habit
+6. If user selects a replacement, continue directly to habit creation.
+7. Show target and minimum separately.
+8. After habit completion, show difficulty options:
+   - Easy
+   - Normal
+   - Hard
+   - Very hard
+9. After missed day, show reason options:
+   - Too difficult
+   - No time
+   - Forgot
+   - Lost motivation
+   - Unexpected event
+   - Other
+10. Use failure information for later adaptation.
+
+LANGUAGE:
+
+The application is Arabic-first and RTL.
+
+All user-facing AI messages must be in natural Arabic.
+
+Avoid:
+- shame
+- guilt
+- diagnosis
+- medical claims
+- exaggerated claims
+- statements that imply 22 days scientifically creates a habit
+
+Use supportive but direct language.
+
+AI SAFETY/QUALITY:
+
+- Never invent user behavior.
+- Never invent time data.
+- Do not infer private information not present in provided context.
+- If data is insufficient, say so.
+- Do not expose API keys.
+- Validate structured AI output.
+- If AI fails, use deterministic fallback messages.
+
+PERFORMANCE:
+
+- Do not call the AI API on every page load.
+- Cache day analysis when the underlying data has not changed.
+- Only call the AI when meaningful new information exists.
+- Keep AI responses concise.
+
+LOADING STATES:
+
+Use:
+"نراجع يومك..."
+"نبحث عن نمط واضح..."
+"نجهز لك خطوة صغيرة..."
+
+ERROR STATE:
+
+Do not expose technical errors.
+
+Show:
+"مدربك يحتاج لحظة، لكن ما زال بإمكاننا الاستمرار."
+
+Then use deterministic fallback.
+
+IMPLEMENT:
+
+1. Inspect current AI/backend implementation.
+2. Inspect existing time tracking and habit APIs.
+3. Reuse current data structures.
+4. Add the AI service if missing.
+5. Add validation for AI JSON.
+6. Add dashboard coach UI.
+7. Add habit-builder AI UI.
+8. Add failure-coach flow.
+9. Connect AI results to the existing habit/journey system.
+10. Test real Gemini API requests.
+11. Test AI failure fallback.
+12. Test insufficient-data state.
+13. Test Arabic RTL rendering.
+14. Do not implement new unrelated features.
+
+Before editing, provide a short list of the current files/services that will be changed.
