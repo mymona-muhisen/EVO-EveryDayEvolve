@@ -318,6 +318,26 @@ paths:
               schema: { $ref: "#/components/schemas/TimeEntriesSummary" }
 
   /time-entries/{timeEntryId}:
+    patch:
+      operationId: updateTimeEntry
+      tags: [timeEntries]
+      summary: Correct an existing time entry
+      parameters:
+        - name: timeEntryId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TimeEntryUpdate" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TimeEntry" }
     delete:
       operationId: deleteTimeEntry
       tags: [timeEntries]
@@ -335,6 +355,89 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
+
+  /time-tracking/session:
+    get:
+      operationId: getTrackingSession
+      tags: [timeEntries]
+      summary: Get the current day's tracking state
+      parameters:
+        - name: date
+          in: query
+          required: true
+          schema: { type: string, format: date }
+      responses:
+        "200":
+          description: Session or null
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TrackingSessionResult" }
+    post:
+      operationId: changeTrackingSession
+      tags: [timeEntries]
+      summary: Start, pause, resume, finish, or change the next check-in interval
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TrackingSessionInput" }
+      responses:
+        "200":
+          description: Current session
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TrackingSessionResult" }
+
+  /time-tracking/check-in:
+    post:
+      operationId: createTrackingCheckin
+      tags: [timeEntries]
+      summary: Categorize the most recent tracking interval
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TrackingCheckinInput" }
+      responses:
+        "201":
+          description: Recorded interval
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TimeEntry" }
+
+  /time-tracking/day:
+    get:
+      operationId: getTrackedDay
+      tags: [timeEntries]
+      summary: Timeline and deterministic category totals for a day
+      parameters:
+        - name: date
+          in: query
+          required: true
+          schema: { type: string, format: date }
+      responses:
+        "200":
+          description: Tracked day
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TrackedDay" }
+
+  /time-tracking/analysis:
+    get:
+      operationId: getTrackedDayAnalysis
+      tags: [timeEntries]
+      summary: Supportive analysis of a completed or in-progress tracked day
+      parameters:
+        - name: date
+          in: query
+          required: true
+          schema: { type: string, format: date }
+      responses:
+        "200":
+          description: Day analysis with deterministic fallback
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TrackedDayAnalysis" }
 
   /memories:
     get:
@@ -1067,7 +1170,7 @@ components:
 
     TimeEntry:
       type: object
-      required: [id, habitId, label, durationMinutes, date, note, createdAt]
+      required: [id, habitId, label, durationMinutes, date, note, category, source, startTime, endTime, createdAt]
       properties:
         id: { type: integer }
         habitId: { type: ["integer", "null"] }
@@ -1075,7 +1178,14 @@ components:
         durationMinutes: { type: integer }
         date: { type: string, format: date }
         note: { type: ["string", "null"] }
+        category: { $ref: "#/components/schemas/TimeCategory" }
+        source: { type: string, enum: [manual, check_in, future_auto] }
+        startTime: { type: ["string", "null"], format: date-time }
+        endTime: { type: ["string", "null"], format: date-time }
         createdAt: { type: string, format: date-time }
+    TimeCategory:
+      type: string
+      enum: [study, work, social_media, gaming, entertainment, exercise, eating, rest, travel, socializing, personal, other, unknown]
     TimeEntryInput:
       type: object
       required: [label, durationMinutes, date]
@@ -1085,6 +1195,96 @@ components:
         durationMinutes: { type: integer, minimum: 1 }
         date: { type: string, format: date }
         note: { type: string }
+        category: { $ref: "#/components/schemas/TimeCategory" }
+    TimeEntryUpdate:
+      type: object
+      properties:
+        label: { type: string, minLength: 1 }
+        category: { $ref: "#/components/schemas/TimeCategory" }
+        durationMinutes: { type: integer, minimum: 1, maximum: 1440 }
+        note: { type: string }
+    TrackingSession:
+      type: object
+      required: [date, status, intervalMinutes, startedAt, lastCheckinAt, nextCheckinAt, finishedAt]
+      properties:
+        date: { type: string, format: date }
+        status: { type: string, enum: [active, paused, finished] }
+        intervalMinutes: { type: integer, enum: [15, 30] }
+        startedAt: { type: string, format: date-time }
+        lastCheckinAt: { type: ["string", "null"], format: date-time }
+        nextCheckinAt: { type: ["string", "null"], format: date-time }
+        finishedAt: { type: ["string", "null"], format: date-time }
+    TrackingSessionResult:
+      type: object
+      required: [session]
+      properties:
+        session:
+          anyOf:
+            - { $ref: "#/components/schemas/TrackingSession" }
+            - { type: "null" }
+    TrackingSessionInput:
+      type: object
+      required: [date, action]
+      properties:
+        date: { type: string, format: date }
+        action: { type: string, enum: [start, pause, resume, finish, interval] }
+        intervalMinutes: { type: integer, enum: [15, 30] }
+    TrackingCheckinInput:
+      type: object
+      required: [date, category]
+      properties:
+        date: { type: string, format: date }
+        category: { $ref: "#/components/schemas/TimeCategory" }
+        label: { type: string, maxLength: 100 }
+    CategoryMinutes:
+      type: object
+      required: [category, minutes, percentage]
+      properties:
+        category: { $ref: "#/components/schemas/TimeCategory" }
+        minutes: { type: integer }
+        percentage: { type: integer }
+    TrackedDay:
+      type: object
+      required: [date, totalMinutes, categories, topCategories, entries]
+      properties:
+        date: { type: string, format: date }
+        totalMinutes: { type: integer }
+        categories:
+          type: array
+          items: { $ref: "#/components/schemas/CategoryMinutes" }
+        topCategories:
+          type: array
+          items: { $ref: "#/components/schemas/CategoryMinutes" }
+        entries:
+          type: array
+          items: { $ref: "#/components/schemas/TimeEntry" }
+    ReplacementActivity:
+      type: object
+      required: [title, minutes, category]
+      properties:
+        title: { type: string }
+        minutes: { type: integer }
+        category: { $ref: "#/components/schemas/TimeCategory" }
+    TrackedDayAnalysis:
+      type: object
+      required: [status, headline, observation, pattern, opportunity, suggestedChange, replacements]
+      properties:
+        status: { type: string, enum: [ready, insufficient] }
+        headline: { type: string }
+        observation: { type: string }
+        pattern: { type: string }
+        opportunity: { type: string }
+        suggestedChange:
+          anyOf:
+            - type: object
+              required: [minutes, category]
+              properties:
+                minutes: { type: integer }
+                category: { $ref: "#/components/schemas/TimeCategory" }
+            - { type: "null" }
+        replacements:
+          type: array
+          items: { $ref: "#/components/schemas/ReplacementActivity" }
     TimeEntriesSummary:
       type: object
       required: [date, totalMinutes, byHabit]

@@ -411,6 +411,10 @@ export const ListTimeEntriesResponseItem = zod.object({
   "durationMinutes": zod.number().int(),
   "date": zod.coerce.date(),
   "note": zod.string().nullable(),
+  "category": zod.enum(['study', 'work', 'social_media', 'gaming', 'entertainment', 'exercise', 'eating', 'rest', 'travel', 'socializing', 'personal', 'other', 'unknown']),
+  "source": zod.enum(['manual', 'check_in', 'future_auto']),
+  "startTime": zod.coerce.date().nullable(),
+  "endTime": zod.coerce.date().nullable(),
   "createdAt": zod.coerce.date()
 })
 export const ListTimeEntriesResponse = zod.array(ListTimeEntriesResponseItem)
@@ -428,7 +432,8 @@ export const CreateTimeEntryBody = zod.object({
   "label": zod.string().min(1),
   "durationMinutes": zod.number().int().min(1),
   "date": zod.coerce.date(),
-  "note": zod.string().optional()
+  "note": zod.string().optional(),
+  "category": zod.enum(['study', 'work', 'social_media', 'gaming', 'entertainment', 'exercise', 'eating', 'rest', 'travel', 'socializing', 'personal', 'other', 'unknown']).optional()
 })
 
 export const CreateTimeEntryResponse = zod.object({
@@ -438,6 +443,10 @@ export const CreateTimeEntryResponse = zod.object({
   "durationMinutes": zod.number().int(),
   "date": zod.coerce.date(),
   "note": zod.string().nullable(),
+  "category": zod.enum(['study', 'work', 'social_media', 'gaming', 'entertainment', 'exercise', 'eating', 'rest', 'travel', 'socializing', 'personal', 'other', 'unknown']),
+  "source": zod.enum(['manual', 'check_in', 'future_auto']),
+  "startTime": zod.coerce.date().nullable(),
+  "endTime": zod.coerce.date().nullable(),
   "createdAt": zod.coerce.date()
 })
 
@@ -461,6 +470,40 @@ export const GetTimeEntriesSummaryResponse = zod.object({
 
 
 /**
+ * @summary Correct an existing time entry
+ */
+export const UpdateTimeEntryParams = zod.object({
+  "timeEntryId": zod.coerce.number().int()
+})
+
+
+export const updateTimeEntryBodyDurationMinutesMax = 1440;
+
+
+
+export const UpdateTimeEntryBody = zod.object({
+  "label": zod.string().min(1).optional(),
+  "category": zod.enum(['study', 'work', 'social_media', 'gaming', 'entertainment', 'exercise', 'eating', 'rest', 'travel', 'socializing', 'personal', 'other', 'unknown']).optional(),
+  "durationMinutes": zod.number().int().min(1).max(updateTimeEntryBodyDurationMinutesMax).optional(),
+  "note": zod.string().optional()
+})
+
+export const UpdateTimeEntryResponse = zod.object({
+  "id": zod.number().int(),
+  "habitId": zod.number().int().nullable(),
+  "label": zod.string(),
+  "durationMinutes": zod.number().int(),
+  "date": zod.coerce.date(),
+  "note": zod.string().nullable(),
+  "category": zod.enum(['study', 'work', 'social_media', 'gaming', 'entertainment', 'exercise', 'eating', 'rest', 'travel', 'socializing', 'personal', 'other', 'unknown']),
+  "source": zod.enum(['manual', 'check_in', 'future_auto']),
+  "startTime": zod.coerce.date().nullable(),
+  "endTime": zod.coerce.date().nullable(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
  * @summary Delete a time entry
  */
 export const DeleteTimeEntryParams = zod.object({
@@ -468,6 +511,137 @@ export const DeleteTimeEntryParams = zod.object({
 })
 
 export const DeleteTimeEntryResponse = zod.void()
+
+
+/**
+ * @summary Get the current day's tracking state
+ */
+export const GetTrackingSessionQueryParams = zod.object({
+  "date": zod.date()
+})
+
+export const GetTrackingSessionResponse = zod.object({
+  "session": zod.union([zod.object({
+  "date": zod.coerce.date(),
+  "status": zod.enum(['active', 'paused', 'finished']),
+  "intervalMinutes": zod.union([zod.literal(15),zod.literal(30)]),
+  "startedAt": zod.coerce.date(),
+  "lastCheckinAt": zod.coerce.date().nullable(),
+  "nextCheckinAt": zod.coerce.date().nullable(),
+  "finishedAt": zod.coerce.date().nullable()
+}),zod.null()])
+})
+
+
+/**
+ * @summary Start, pause, resume, finish, or change the next check-in interval
+ */
+export const ChangeTrackingSessionBody = zod.object({
+  "date": zod.coerce.date(),
+  "action": zod.enum(['start', 'pause', 'resume', 'finish', 'interval']),
+  "intervalMinutes": zod.union([zod.literal(15),zod.literal(30)]).optional()
+})
+
+export const ChangeTrackingSessionResponse = zod.object({
+  "session": zod.union([zod.object({
+  "date": zod.coerce.date(),
+  "status": zod.enum(['active', 'paused', 'finished']),
+  "intervalMinutes": zod.union([zod.literal(15),zod.literal(30)]),
+  "startedAt": zod.coerce.date(),
+  "lastCheckinAt": zod.coerce.date().nullable(),
+  "nextCheckinAt": zod.coerce.date().nullable(),
+  "finishedAt": zod.coerce.date().nullable()
+}),zod.null()])
+})
+
+
+/**
+ * @summary Categorize the most recent tracking interval
+ */
+export const createTrackingCheckinBodyLabelMax = 100;
+
+
+
+export const CreateTrackingCheckinBody = zod.object({
+  "date": zod.coerce.date(),
+  "category": zod.enum(['study', 'work', 'social_media', 'gaming', 'entertainment', 'exercise', 'eating', 'rest', 'travel', 'socializing', 'personal', 'other', 'unknown']),
+  "label": zod.string().max(createTrackingCheckinBodyLabelMax).optional()
+})
+
+export const CreateTrackingCheckinResponse = zod.object({
+  "id": zod.number().int(),
+  "habitId": zod.number().int().nullable(),
+  "label": zod.string(),
+  "durationMinutes": zod.number().int(),
+  "date": zod.coerce.date(),
+  "note": zod.string().nullable(),
+  "category": zod.enum(['study', 'work', 'social_media', 'gaming', 'entertainment', 'exercise', 'eating', 'rest', 'travel', 'socializing', 'personal', 'other', 'unknown']),
+  "source": zod.enum(['manual', 'check_in', 'future_auto']),
+  "startTime": zod.coerce.date().nullable(),
+  "endTime": zod.coerce.date().nullable(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Timeline and deterministic category totals for a day
+ */
+export const GetTrackedDayQueryParams = zod.object({
+  "date": zod.date()
+})
+
+export const GetTrackedDayResponse = zod.object({
+  "date": zod.coerce.date(),
+  "totalMinutes": zod.number().int(),
+  "categories": zod.array(zod.object({
+  "category": zod.enum(['study', 'work', 'social_media', 'gaming', 'entertainment', 'exercise', 'eating', 'rest', 'travel', 'socializing', 'personal', 'other', 'unknown']),
+  "minutes": zod.number().int(),
+  "percentage": zod.number().int()
+})),
+  "topCategories": zod.array(zod.object({
+  "category": zod.enum(['study', 'work', 'social_media', 'gaming', 'entertainment', 'exercise', 'eating', 'rest', 'travel', 'socializing', 'personal', 'other', 'unknown']),
+  "minutes": zod.number().int(),
+  "percentage": zod.number().int()
+})),
+  "entries": zod.array(zod.object({
+  "id": zod.number().int(),
+  "habitId": zod.number().int().nullable(),
+  "label": zod.string(),
+  "durationMinutes": zod.number().int(),
+  "date": zod.coerce.date(),
+  "note": zod.string().nullable(),
+  "category": zod.enum(['study', 'work', 'social_media', 'gaming', 'entertainment', 'exercise', 'eating', 'rest', 'travel', 'socializing', 'personal', 'other', 'unknown']),
+  "source": zod.enum(['manual', 'check_in', 'future_auto']),
+  "startTime": zod.coerce.date().nullable(),
+  "endTime": zod.coerce.date().nullable(),
+  "createdAt": zod.coerce.date()
+}))
+})
+
+
+/**
+ * @summary Supportive analysis of a completed or in-progress tracked day
+ */
+export const GetTrackedDayAnalysisQueryParams = zod.object({
+  "date": zod.date()
+})
+
+export const GetTrackedDayAnalysisResponse = zod.object({
+  "status": zod.enum(['ready', 'insufficient']),
+  "headline": zod.string(),
+  "observation": zod.string(),
+  "pattern": zod.string(),
+  "opportunity": zod.string(),
+  "suggestedChange": zod.union([zod.object({
+  "minutes": zod.number().int(),
+  "category": zod.enum(['study', 'work', 'social_media', 'gaming', 'entertainment', 'exercise', 'eating', 'rest', 'travel', 'socializing', 'personal', 'other', 'unknown'])
+}),zod.null()]),
+  "replacements": zod.array(zod.object({
+  "title": zod.string(),
+  "minutes": zod.number().int(),
+  "category": zod.enum(['study', 'work', 'social_media', 'gaming', 'entertainment', 'exercise', 'eating', 'rest', 'travel', 'socializing', 'personal', 'other', 'unknown'])
+}))
+})
 
 
 /**

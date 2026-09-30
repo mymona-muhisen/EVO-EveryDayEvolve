@@ -2,6 +2,7 @@ export * from "./users";
 export * from "./habits";
 export * from "./checkins";
 export * from "./timeEntries";
+export * from "./trackingSessions";
 export * from "./memories";
 export * from "./rewards";
 export * from "./wallet";

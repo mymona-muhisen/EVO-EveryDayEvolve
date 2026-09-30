@@ -340,6 +340,34 @@ export interface RecoverStreakResult {
   coinsSpent: number;
 }
 
+export type TimeEntrySource = typeof TimeEntrySource[keyof typeof TimeEntrySource];
+
+
+export const TimeEntrySource = {
+  manual: 'manual',
+  check_in: 'check_in',
+  future_auto: 'future_auto',
+} as const;
+
+export type TimeCategory = typeof TimeCategory[keyof typeof TimeCategory];
+
+
+export const TimeCategory = {
+  study: 'study',
+  work: 'work',
+  social_media: 'social_media',
+  gaming: 'gaming',
+  entertainment: 'entertainment',
+  exercise: 'exercise',
+  eating: 'eating',
+  rest: 'rest',
+  travel: 'travel',
+  socializing: 'socializing',
+  personal: 'personal',
+  other: 'other',
+  unknown: 'unknown',
+} as const;
+
 export interface TimeEntry {
   id: number;
   /** @nullable */
@@ -349,6 +377,12 @@ export interface TimeEntry {
   date: string;
   /** @nullable */
   note: string | null;
+  category: TimeCategory;
+  source: TimeEntrySource;
+  /** @nullable */
+  startTime: string | null;
+  /** @nullable */
+  endTime: string | null;
   createdAt: string;
 }
 
@@ -360,6 +394,128 @@ export interface TimeEntryInput {
   durationMinutes: number;
   date: string;
   note?: string;
+  category?: TimeCategory;
+}
+
+export interface TimeEntryUpdate {
+  /** @minLength 1 */
+  label?: string;
+  category?: TimeCategory;
+  /**
+     * @minimum 1
+     * @maximum 1440
+     */
+  durationMinutes?: number;
+  note?: string;
+}
+
+export type TrackingSessionStatus = typeof TrackingSessionStatus[keyof typeof TrackingSessionStatus];
+
+
+export const TrackingSessionStatus = {
+  active: 'active',
+  paused: 'paused',
+  finished: 'finished',
+} as const;
+
+export type TrackingSessionIntervalMinutes = typeof TrackingSessionIntervalMinutes[keyof typeof TrackingSessionIntervalMinutes];
+
+
+export const TrackingSessionIntervalMinutes = {
+  NUMBER_15: 15,
+  NUMBER_30: 30,
+} as const;
+
+export interface TrackingSession {
+  date: string;
+  status: TrackingSessionStatus;
+  intervalMinutes: TrackingSessionIntervalMinutes;
+  startedAt: string;
+  /** @nullable */
+  lastCheckinAt: string | null;
+  /** @nullable */
+  nextCheckinAt: string | null;
+  /** @nullable */
+  finishedAt: string | null;
+}
+
+export interface TrackingSessionResult {
+  session: TrackingSession | null;
+}
+
+export type TrackingSessionInputAction = typeof TrackingSessionInputAction[keyof typeof TrackingSessionInputAction];
+
+
+export const TrackingSessionInputAction = {
+  start: 'start',
+  pause: 'pause',
+  resume: 'resume',
+  finish: 'finish',
+  interval: 'interval',
+} as const;
+
+export type TrackingSessionInputIntervalMinutes = typeof TrackingSessionInputIntervalMinutes[keyof typeof TrackingSessionInputIntervalMinutes];
+
+
+export const TrackingSessionInputIntervalMinutes = {
+  NUMBER_15: 15,
+  NUMBER_30: 30,
+} as const;
+
+export interface TrackingSessionInput {
+  date: string;
+  action: TrackingSessionInputAction;
+  intervalMinutes?: TrackingSessionInputIntervalMinutes;
+}
+
+export interface TrackingCheckinInput {
+  date: string;
+  category: TimeCategory;
+  /** @maxLength 100 */
+  label?: string;
+}
+
+export interface CategoryMinutes {
+  category: TimeCategory;
+  minutes: number;
+  percentage: number;
+}
+
+export interface TrackedDay {
+  date: string;
+  totalMinutes: number;
+  categories: CategoryMinutes[];
+  topCategories: CategoryMinutes[];
+  entries: TimeEntry[];
+}
+
+export interface ReplacementActivity {
+  title: string;
+  minutes: number;
+  category: TimeCategory;
+}
+
+export type TrackedDayAnalysisStatus = typeof TrackedDayAnalysisStatus[keyof typeof TrackedDayAnalysisStatus];
+
+
+export const TrackedDayAnalysisStatus = {
+  ready: 'ready',
+  insufficient: 'insufficient',
+} as const;
+
+export type TrackedDayAnalysisSuggestedChange = {
+  minutes: number;
+  category: TimeCategory;
+} | null;
+
+export interface TrackedDayAnalysis {
+  status: TrackedDayAnalysisStatus;
+  headline: string;
+  observation: string;
+  pattern: string;
+  opportunity: string;
+  suggestedChange: TrackedDayAnalysisSuggestedChange;
+  replacements: ReplacementActivity[];
 }
 
 export type TimeEntriesSummaryByHabitItem = {
@@ -734,6 +890,18 @@ habitId?: number;
 };
 
 export type GetTimeEntriesSummaryParams = {
+date: string;
+};
+
+export type GetTrackingSessionParams = {
+date: string;
+};
+
+export type GetTrackedDayParams = {
+date: string;
+};
+
+export type GetTrackedDayAnalysisParams = {
 date: string;
 };
 

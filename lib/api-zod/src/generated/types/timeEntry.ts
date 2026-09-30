@@ -5,6 +5,8 @@
  * Habit Journey API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { TimeCategory } from './timeCategory';
+import type { TimeEntrySource } from './timeEntrySource';
 
 export interface TimeEntry {
   id: number;
@@ -15,5 +17,11 @@ export interface TimeEntry {
   date: Date;
   /** @nullable */
   note: string | null;
+  category: TimeCategory;
+  source: TimeEntrySource;
+  /** @nullable */
+  startTime: Date | null;
+  /** @nullable */
+  endTime: Date | null;
   createdAt: Date;
 }

@@ -9,6 +9,9 @@ import {
   GetTimeEntriesSummaryQueryParams,
   GetTimeEntriesSummaryResponse,
   DeleteTimeEntryParams,
+  UpdateTimeEntryParams,
+  UpdateTimeEntryBody,
+  UpdateTimeEntryResponse,
 } from "@workspace/api-zod";
 import { requireAuth } from "../middlewares/requireAuth";
 import { ensureUser } from "../lib/userService";
@@ -57,10 +60,32 @@ router.post("/time-entries", async (req, res): Promise<void> => {
       durationMinutes: parsed.data.durationMinutes,
       date: toDateOnly(parsed.data.date),
       note: parsed.data.note ?? null,
+      category: parsed.data.category ?? "other",
+      source: "manual",
     })
     .returning();
 
   res.status(201).json(CreateTimeEntryResponse.parse(entry));
+});
+
+router.patch("/time-entries/:timeEntryId", async (req, res): Promise<void> => {
+  const params = UpdateTimeEntryParams.safeParse(req.params);
+  const parsed = UpdateTimeEntryBody.safeParse(req.body);
+  if (!params.success || !parsed.success || !Object.keys(parsed.data).length) {
+    res.status(400).json({ error: "Invalid time entry update" });
+    return;
+  }
+  const [current] = await db.select().from(timeEntriesTable)
+    .where(and(eq(timeEntriesTable.id, params.data.timeEntryId), eq(timeEntriesTable.userId, req.userId!)));
+  if (!current) { res.status(404).json({ error: "Time entry not found" }); return; }
+  if (parsed.data.durationMinutes !== undefined && current.source === "check_in") {
+    res.status(400).json({ error: "Check-in duration cannot be edited; correct its activity instead" });
+    return;
+  }
+  const [updated] = await db.update(timeEntriesTable).set(parsed.data)
+    .where(and(eq(timeEntriesTable.id, params.data.timeEntryId), eq(timeEntriesTable.userId, req.userId!)))
+    .returning();
+  res.json(UpdateTimeEntryResponse.parse(updated));
 });
 
 router.get("/time-entries/summary", async (req, res): Promise<void> => {

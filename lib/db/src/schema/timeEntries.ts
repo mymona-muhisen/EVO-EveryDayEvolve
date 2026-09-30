@@ -14,6 +14,10 @@ export const timeEntriesTable = pgTable("time_entries", {
   durationMinutes: integer("duration_minutes").notNull(),
   date: date("date", { mode: "string" }).notNull(),
   note: text("note"),
+  category: text("category").notNull().default("other"),
+  source: text("source").notNull().default("manual"),
+  startTime: timestamp("start_time", { withTimezone: true }),
+  endTime: timestamp("end_time", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

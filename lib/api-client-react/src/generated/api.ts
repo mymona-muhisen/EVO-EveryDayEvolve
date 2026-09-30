@@ -37,6 +37,9 @@ import type {
   Error,
   GetDashboardCalendarParams,
   GetTimeEntriesSummaryParams,
+  GetTrackedDayAnalysisParams,
+  GetTrackedDayParams,
+  GetTrackingSessionParams,
   Group,
   GroupDetail,
   GroupInput,
@@ -64,6 +67,12 @@ import type {
   TimeEntriesSummary,
   TimeEntry,
   TimeEntryInput,
+  TimeEntryUpdate,
+  TrackedDay,
+  TrackedDayAnalysis,
+  TrackingCheckinInput,
+  TrackingSessionInput,
+  TrackingSessionResult,
   UploadUrlRequest,
   UploadUrlResponse,
   User,
@@ -1256,6 +1265,95 @@ export function useGetTimeEntriesSummary<TData = Awaited<ReturnType<typeof getTi
 
 
 
+export const getUpdateTimeEntryUrl = (timeEntryId: number,) => {
+
+
+
+
+  return `/api/time-entries/${timeEntryId}`
+}
+
+/**
+ * @summary Correct an existing time entry
+ */
+export const updateTimeEntry = async (timeEntryId: number,
+    timeEntryUpdate: TimeEntryUpdate, options?: Parameters<typeof customFetch>[1]): Promise<TimeEntry> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<TimeEntry>(getUpdateTimeEntryUrl(timeEntryId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(timeEntryUpdate)
+  }
+);}
+
+
+
+
+
+export const getUpdateTimeEntryMutationKey = () => ['updateTimeEntry'] as const;
+
+export const getUpdateTimeEntryMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateTimeEntry>>, TError,UpdateTimeEntryMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateTimeEntry>>, TError,UpdateTimeEntryMutationVariables, TContext> => {
+
+const mutationKey = getUpdateTimeEntryMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateTimeEntry>>, UpdateTimeEntryMutationVariables> = (props) => {
+          const {timeEntryId,data} = props ?? {};
+
+          return  updateTimeEntry(timeEntryId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateTimeEntryMutationResult = NonNullable<Awaited<ReturnType<typeof updateTimeEntry>>>
+    export type UpdateTimeEntryMutationBody = BodyType<TimeEntryUpdate>
+    export type UpdateTimeEntryMutationError = ErrorType<unknown>
+    export type UpdateTimeEntryMutationVariables = {timeEntryId: number;data: BodyType<TimeEntryUpdate>}
+
+    /**
+ * @summary Correct an existing time entry
+ */
+export const useUpdateTimeEntry = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateTimeEntry>>, TError,UpdateTimeEntryMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateTimeEntry>>,
+        TError,
+        UpdateTimeEntryMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdateTimeEntryMutationOptions(options));
+    }
+
 export const getDeleteTimeEntryUrl = (timeEntryId: number,) => {
 
 
@@ -1329,6 +1427,434 @@ export const useDeleteTimeEntry = <TError = ErrorType<Error>,
       > => {
       return useMutation(getDeleteTimeEntryMutationOptions(options));
     }
+
+export const getGetTrackingSessionUrl = (params: GetTrackingSessionParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/time-tracking/session?${stringifiedParams}` : `/api/time-tracking/session`
+}
+
+/**
+ * @summary Get the current day's tracking state
+ */
+export const getTrackingSession = async (params: GetTrackingSessionParams, options?: Parameters<typeof customFetch>[1]): Promise<TrackingSessionResult> => {
+
+  return customFetch<TrackingSessionResult>(getGetTrackingSessionUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetTrackingSessionQueryKey = (params?: GetTrackingSessionParams,) => {
+    return [
+    `/api/time-tracking/session`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetTrackingSessionQueryOptions = <TData = Awaited<ReturnType<typeof getTrackingSession>>, TError = ErrorType<unknown>>(params: GetTrackingSessionParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTrackingSession>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetTrackingSessionQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getTrackingSession>>> = ({ signal }) => getTrackingSession(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getTrackingSession>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetTrackingSessionQueryResult = NonNullable<Awaited<ReturnType<typeof getTrackingSession>>>
+export type GetTrackingSessionQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get the current day's tracking state
+ */
+
+export function useGetTrackingSession<TData = Awaited<ReturnType<typeof getTrackingSession>>, TError = ErrorType<unknown>>(
+ params: GetTrackingSessionParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTrackingSession>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetTrackingSessionQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getChangeTrackingSessionUrl = () => {
+
+
+
+
+  return `/api/time-tracking/session`
+}
+
+/**
+ * @summary Start, pause, resume, finish, or change the next check-in interval
+ */
+export const changeTrackingSession = async (trackingSessionInput: TrackingSessionInput, options?: Parameters<typeof customFetch>[1]): Promise<TrackingSessionResult> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<TrackingSessionResult>(getChangeTrackingSessionUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(trackingSessionInput)
+  }
+);}
+
+
+
+
+
+export const getChangeTrackingSessionMutationKey = () => ['changeTrackingSession'] as const;
+
+export const getChangeTrackingSessionMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof changeTrackingSession>>, TError,ChangeTrackingSessionMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof changeTrackingSession>>, TError,ChangeTrackingSessionMutationVariables, TContext> => {
+
+const mutationKey = getChangeTrackingSessionMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof changeTrackingSession>>, ChangeTrackingSessionMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  changeTrackingSession(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ChangeTrackingSessionMutationResult = NonNullable<Awaited<ReturnType<typeof changeTrackingSession>>>
+    export type ChangeTrackingSessionMutationBody = BodyType<TrackingSessionInput>
+    export type ChangeTrackingSessionMutationError = ErrorType<unknown>
+    export type ChangeTrackingSessionMutationVariables = {data: BodyType<TrackingSessionInput>}
+
+    /**
+ * @summary Start, pause, resume, finish, or change the next check-in interval
+ */
+export const useChangeTrackingSession = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof changeTrackingSession>>, TError,ChangeTrackingSessionMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof changeTrackingSession>>,
+        TError,
+        ChangeTrackingSessionMutationVariables,
+        TContext
+      > => {
+      return useMutation(getChangeTrackingSessionMutationOptions(options));
+    }
+
+export const getCreateTrackingCheckinUrl = () => {
+
+
+
+
+  return `/api/time-tracking/check-in`
+}
+
+/**
+ * @summary Categorize the most recent tracking interval
+ */
+export const createTrackingCheckin = async (trackingCheckinInput: TrackingCheckinInput, options?: Parameters<typeof customFetch>[1]): Promise<TimeEntry> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<TimeEntry>(getCreateTrackingCheckinUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(trackingCheckinInput)
+  }
+);}
+
+
+
+
+
+export const getCreateTrackingCheckinMutationKey = () => ['createTrackingCheckin'] as const;
+
+export const getCreateTrackingCheckinMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createTrackingCheckin>>, TError,CreateTrackingCheckinMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createTrackingCheckin>>, TError,CreateTrackingCheckinMutationVariables, TContext> => {
+
+const mutationKey = getCreateTrackingCheckinMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createTrackingCheckin>>, CreateTrackingCheckinMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  createTrackingCheckin(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateTrackingCheckinMutationResult = NonNullable<Awaited<ReturnType<typeof createTrackingCheckin>>>
+    export type CreateTrackingCheckinMutationBody = BodyType<TrackingCheckinInput>
+    export type CreateTrackingCheckinMutationError = ErrorType<unknown>
+    export type CreateTrackingCheckinMutationVariables = {data: BodyType<TrackingCheckinInput>}
+
+    /**
+ * @summary Categorize the most recent tracking interval
+ */
+export const useCreateTrackingCheckin = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createTrackingCheckin>>, TError,CreateTrackingCheckinMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createTrackingCheckin>>,
+        TError,
+        CreateTrackingCheckinMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateTrackingCheckinMutationOptions(options));
+    }
+
+export const getGetTrackedDayUrl = (params: GetTrackedDayParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/time-tracking/day?${stringifiedParams}` : `/api/time-tracking/day`
+}
+
+/**
+ * @summary Timeline and deterministic category totals for a day
+ */
+export const getTrackedDay = async (params: GetTrackedDayParams, options?: Parameters<typeof customFetch>[1]): Promise<TrackedDay> => {
+
+  return customFetch<TrackedDay>(getGetTrackedDayUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetTrackedDayQueryKey = (params?: GetTrackedDayParams,) => {
+    return [
+    `/api/time-tracking/day`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetTrackedDayQueryOptions = <TData = Awaited<ReturnType<typeof getTrackedDay>>, TError = ErrorType<unknown>>(params: GetTrackedDayParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTrackedDay>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetTrackedDayQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getTrackedDay>>> = ({ signal }) => getTrackedDay(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getTrackedDay>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetTrackedDayQueryResult = NonNullable<Awaited<ReturnType<typeof getTrackedDay>>>
+export type GetTrackedDayQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Timeline and deterministic category totals for a day
+ */
+
+export function useGetTrackedDay<TData = Awaited<ReturnType<typeof getTrackedDay>>, TError = ErrorType<unknown>>(
+ params: GetTrackedDayParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTrackedDay>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetTrackedDayQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetTrackedDayAnalysisUrl = (params: GetTrackedDayAnalysisParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/time-tracking/analysis?${stringifiedParams}` : `/api/time-tracking/analysis`
+}
+
+/**
+ * @summary Supportive analysis of a completed or in-progress tracked day
+ */
+export const getTrackedDayAnalysis = async (params: GetTrackedDayAnalysisParams, options?: Parameters<typeof customFetch>[1]): Promise<TrackedDayAnalysis> => {
+
+  return customFetch<TrackedDayAnalysis>(getGetTrackedDayAnalysisUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetTrackedDayAnalysisQueryKey = (params?: GetTrackedDayAnalysisParams,) => {
+    return [
+    `/api/time-tracking/analysis`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetTrackedDayAnalysisQueryOptions = <TData = Awaited<ReturnType<typeof getTrackedDayAnalysis>>, TError = ErrorType<unknown>>(params: GetTrackedDayAnalysisParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTrackedDayAnalysis>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetTrackedDayAnalysisQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getTrackedDayAnalysis>>> = ({ signal }) => getTrackedDayAnalysis(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getTrackedDayAnalysis>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetTrackedDayAnalysisQueryResult = NonNullable<Awaited<ReturnType<typeof getTrackedDayAnalysis>>>
+export type GetTrackedDayAnalysisQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Supportive analysis of a completed or in-progress tracked day
+ */
+
+export function useGetTrackedDayAnalysis<TData = Awaited<ReturnType<typeof getTrackedDayAnalysis>>, TError = ErrorType<unknown>>(
+ params: GetTrackedDayAnalysisParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTrackedDayAnalysis>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetTrackedDayAnalysisQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getListMemoriesUrl = (params?: ListMemoriesParams,) => {
   const normalizedParams = new URLSearchParams();

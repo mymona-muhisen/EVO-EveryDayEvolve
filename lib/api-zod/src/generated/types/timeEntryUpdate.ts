@@ -7,13 +7,14 @@
  */
 import type { TimeCategory } from './timeCategory';
 
-export interface TimeEntryInput {
-  habitId?: number;
+export interface TimeEntryUpdate {
   /** @minLength 1 */
-  label: string;
-  /** @minimum 1 */
-  durationMinutes: number;
-  date: Date;
-  note?: string;
+  label?: string;
   category?: TimeCategory;
+  /**
+     * @minimum 1
+     * @maximum 1440
+     */
+  durationMinutes?: number;
+  note?: string;
 }
