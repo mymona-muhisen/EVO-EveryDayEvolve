@@ -4,3 +4,4 @@
 - [Orval Zod query-param dates aren't coerced](orval-zod-date-query-params.md) — date-typed query params generate plain `z.date()`, not `.coerce.date()`; pre-convert strings before `.safeParse()`.
 - [E2E-testing time-gated game state](e2e-testing-time-gated-state.md) — Playwright can't wait real calendar days; seed streak/date fields directly via [DB] steps to reach those states.
 - [Gemini model listings can include retired generators](gemini-model-availability.md) — a listed model may return 404 on generation; probe generation before trusting listings.
+- [Isolated API test bundling](isolated-api-test-bundling.md) — bundle workspace libraries for Node test runners; externalizing them can expose extensionless ESM imports.
