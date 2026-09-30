@@ -135,7 +135,7 @@ router.post("/ai/relapse-recovery", async (req, res): Promise<void> => {
     unit: habit.unit,
   });
 
-  res.json(AiRelapseRecoveryResponse.parse({ message, suggestedTargetValue, encouragement }));
+  res.json(AiRelapseRecoveryResponse.parse({ message, originalTargetValue: habit.targetValue, suggestedTargetValue, encouragement }));
 });
 
 export default router;

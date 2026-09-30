@@ -96,18 +96,35 @@ router.patch("/habits/:habitId", async (req, res): Promise<void> => {
     return;
   }
 
-  if (parsed.data.targetValue !== undefined && (!Number.isFinite(parsed.data.targetValue) || parsed.data.targetValue <= 0)) {
+  const { expectedTargetValue, ...changes } = parsed.data;
+  if (changes.targetValue !== undefined && (!Number.isFinite(changes.targetValue) || changes.targetValue <= 0)) {
     res.status(400).json({ error: "Target value must be positive" });
+    return;
+  }
+  if (expectedTargetValue !== undefined && (changes.targetValue === undefined || !Number.isFinite(expectedTargetValue) || expectedTargetValue <= 0)) {
+    res.status(400).json({ error: "Expected target value requires a target update and must be positive" });
     return;
   }
 
   const [habit] = await db
     .update(habitsTable)
-    .set(parsed.data)
-    .where(and(eq(habitsTable.id, params.data.habitId), eq(habitsTable.userId, req.userId!)))
+    .set(changes)
+    .where(and(
+      eq(habitsTable.id, params.data.habitId),
+      eq(habitsTable.userId, req.userId!),
+      ...(expectedTargetValue === undefined ? [] : [eq(habitsTable.targetValue, expectedTargetValue)]),
+    ))
     .returning();
 
   if (!habit) {
+    if (expectedTargetValue !== undefined) {
+      const [existing] = await db.select({ id: habitsTable.id }).from(habitsTable)
+        .where(and(eq(habitsTable.id, params.data.habitId), eq(habitsTable.userId, req.userId!)));
+      if (existing) {
+        res.status(409).json({ error: "Habit target changed since the suggestion was made; request a new suggestion" });
+        return;
+      }
+    }
     res.status(404).json({ error: "Habit not found" });
     return;
   }

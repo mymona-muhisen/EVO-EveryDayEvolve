@@ -296,6 +296,8 @@ export interface HabitUpdate {
   customDays?: number[];
   unit?: HabitUpdateUnit;
   targetValue?: number;
+  /** If provided with targetValue, update only when the stored target still equals this value */
+  expectedTargetValue?: number;
   difficulty?: HabitUpdateDifficulty;
   isActive?: boolean;
   milestones?: HabitMilestone[];
@@ -685,6 +687,7 @@ export interface AiRelapseRecoveryInput {
 
 export interface AiRelapseRecoveryResult {
   message: string;
+  originalTargetValue: number;
   suggestedTargetValue: number;
   encouragement: string;
 }

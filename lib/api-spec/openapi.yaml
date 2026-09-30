@@ -153,6 +153,11 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Habit" }
+        "409":
+          description: The habit target has changed since the expected target value was read; request a new suggestion
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
         "404":
           description: Not found
           content:
@@ -1014,6 +1019,9 @@ components:
           items: { type: integer, minimum: 0, maximum: 6 }
         unit: { type: string, enum: [minutes, count, pages, custom] }
         targetValue: { type: number }
+        expectedTargetValue:
+          type: number
+          description: If provided with targetValue, update only when the stored target still equals this value
         difficulty: { type: string, enum: [easy, medium, hard] }
         isActive: { type: boolean }
         milestones:
@@ -1350,9 +1358,10 @@ components:
         missedDays: { type: integer, minimum: 1 }
     AiRelapseRecoveryResult:
       type: object
-      required: [message, suggestedTargetValue, encouragement]
+      required: [message, originalTargetValue, suggestedTargetValue, encouragement]
       properties:
         message: { type: string }
+        originalTargetValue: { type: number }
         suggestedTargetValue: { type: number }
         encouragement: { type: string }
 

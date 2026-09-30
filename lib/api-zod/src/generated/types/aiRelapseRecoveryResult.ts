@@ -8,6 +8,7 @@
 
 export interface AiRelapseRecoveryResult {
   message: string;
+  originalTargetValue: number;
   suggestedTargetValue: number;
   encouragement: string;
 }

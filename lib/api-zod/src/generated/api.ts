@@ -220,6 +220,7 @@ export const UpdateHabitBody = zod.object({
   "customDays": zod.array(zod.number().int().min(updateHabitBodyCustomDaysItemMin).max(updateHabitBodyCustomDaysItemMax)).optional(),
   "unit": zod.enum(['minutes', 'count', 'pages', 'custom']).optional(),
   "targetValue": zod.number().optional(),
+  "expectedTargetValue": zod.number().optional().describe('If provided with targetValue, update only when the stored target still equals this value'),
   "difficulty": zod.enum(['easy', 'medium', 'hard']).optional(),
   "isActive": zod.boolean().optional(),
   "milestones": zod.array(zod.object({
@@ -981,6 +982,7 @@ export const AiRelapseRecoveryBody = zod.object({
 
 export const AiRelapseRecoveryResponse = zod.object({
   "message": zod.string(),
+  "originalTargetValue": zod.number(),
   "suggestedTargetValue": zod.number(),
   "encouragement": zod.string()
 })

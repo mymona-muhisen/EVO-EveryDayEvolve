@@ -43,7 +43,7 @@ export function HabitDetailPage(){
   const requestRecovery=()=>{
     setRecoveryOffer(null);setRecoveryDecision(null);
     relapse.mutate({data:{habitId:id,missedDays:1}},{
-      onSuccess:r=>setRecoveryOffer({current:h.targetValue,suggested:r.suggestedTargetValue,message:r.message}),
+      onSuccess:r=>setRecoveryOffer({current:r.originalTargetValue,suggested:r.suggestedTargetValue,message:r.message}),
       onError:()=>toast.error('تعذّر طلب اقتراح المدرّب، حاول مجددًا'),
     });
   };
@@ -54,7 +54,7 @@ export function HabitDetailPage(){
       toast.error('تغيّر الهدف منذ طلب الاقتراح. اطلب اقتراحًا جديدًا.');
       return;
     }
-    updateTarget.mutate({habitId:id,data:{targetValue:recoveryOffer.suggested}},{
+    updateTarget.mutate({habitId:id,data:{targetValue:recoveryOffer.suggested,expectedTargetValue:recoveryOffer.current}},{
       onSuccess:updated=>{
         qc.setQueryData(getGetHabitQueryKey(id),updated);
         qc.invalidateQueries({queryKey:getListHabitsQueryKey()});
@@ -64,7 +64,20 @@ export function HabitDetailPage(){
         setRecoveryDecision(`تم تطبيق هدف العودة: ${updated.targetValue} ${updated.unit==='minutes'?'دقيقة':updated.unit==='pages'?'صفحة':'مرّة'}.`);
         toast.success('تم تحديث هدف العادة');
       },
-      onError:()=>toast.error('تعذّر تحديث الهدف. لم يتغيّر هدف العادة، حاول مجددًا.'),
+      onError:async error=>{
+        if(error && typeof error==='object' && 'status' in error && error.status===409){
+          setRecoveryOffer(null);
+          toast.info('تغيّر الهدف من مكان آخر. نطلب اقتراحًا جديدًا بناءً على الهدف الحالي.');
+          const latest=await habit.refetch();
+          if(latest.isError || !latest.data){
+            toast.error('تعذّر تحميل الهدف الحالي. حاول طلب اقتراح جديد.');
+            return;
+          }
+          requestRecovery();
+          return;
+        }
+        toast.error('تعذّر تحديث الهدف. لم يتغيّر هدف العادة، حاول مجددًا.');
+      },
     });
   };
   return <><Link href="/habits" className="text-sm muted flex items-center gap-2 mb-6 hover:text-[#245448]">العودة إلى عاداتي <ArrowLeft size={15}/></Link><PageHead overline={categories[h.category]} title={`${h.emoji} ${h.title}`} desc={h.goalType==='quit'?'كل يوم تبقى فيه على الطريق هو خطوة تستحق الاحتفاء.':'كل مرة تعود فيها، تتقدّم خطوة جديدة.'}/>
