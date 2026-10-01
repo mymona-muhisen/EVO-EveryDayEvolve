@@ -18,6 +18,16 @@ import type { HabitDayUnit } from './habitDayUnit';
 export interface HabitDay {
   date: Date;
   dayNumber: number;
+  /**
+     * Saved habit_days row ID; null for legacy/synthetic days without a saved snapshot
+     * @nullable
+     */
+  habitDayId?: number | null;
+  /**
+     * Owner's private memory ID for this day
+     * @nullable
+     */
+  memoryId?: number | null;
   scheduled: boolean;
   /** @nullable */
   title?: string | null;

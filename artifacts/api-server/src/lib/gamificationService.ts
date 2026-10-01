@@ -39,7 +39,9 @@ export async function grantRewards(
     .select()
     .from(usersTable)
     .where(eq(usersTable.id, userId))
-    .for("update");
+    // IDs are immutable here. NO KEY UPDATE still excludes balance writers,
+    // while allowing other users' notification FK key-share checks.
+    .for("no key update");
   if (!user) throw new Error(`User ${userId} not found`);
 
   const xpGained = opts.xp ?? 0;

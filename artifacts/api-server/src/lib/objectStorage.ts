@@ -2,7 +2,12 @@ import { randomUUID } from 'crypto';
 import { Readable } from 'stream';
 import { File, Storage } from '@google-cloud/storage';
 import { and, eq } from 'drizzle-orm';
-import { db, objectUploadsTable } from '@workspace/db';
+import {
+  db,
+  journeyRewardsTable,
+  memoriesTable,
+  objectUploadsTable,
+} from '@workspace/db';
 
 import {
   canAccessObject,
@@ -227,6 +232,125 @@ export class ObjectStorageService {
 
     await setObjectAclPolicy(objectFile, aclPolicy);
     return normalizedPath;
+  }
+
+  async getOwnedPrivateObjectEntity(rawPath: string, authenticatedUserId: string) {
+    const normalizedPath = this.normalizeObjectEntityPath(rawPath);
+    if (!normalizedPath.startsWith('/objects/')
+      || normalizedPath.includes('?')
+      || normalizedPath.includes('#')
+      || normalizedPath.includes('\\')
+      || normalizedPath.split('/').some((part) => part === '.' || part === '..')) {
+      throw new ObjectAclOwnershipError('Photo must be a normalized private object path');
+    }
+
+    // Existence and ACL/provenance metadata are checked before image bytes are
+    // streamed or upload MIME/size metadata is trusted for validation.
+    const objectFile = await this.getObjectEntityFile(normalizedPath);
+    const existingPolicy = await getObjectAclPolicy(objectFile);
+    if (existingPolicy) {
+      if (existingPolicy.owner !== authenticatedUserId || existingPolicy.visibility !== 'private') {
+        throw new ObjectAclOwnershipError();
+      }
+    } else {
+      const [upload] = await db.select({ objectPath: objectUploadsTable.objectPath })
+        .from(objectUploadsTable).where(and(
+          eq(objectUploadsTable.objectPath, normalizedPath),
+          eq(objectUploadsTable.userId, authenticatedUserId),
+        )).limit(1);
+      if (!upload) throw new ObjectAclOwnershipError();
+    }
+
+    return {
+      objectPath: normalizedPath,
+      objectFile,
+      metadata: (await objectFile.getMetadata())[0],
+    };
+  }
+
+  async writePrivateDerivedObject(
+    authenticatedUserId: string,
+    contents: Buffer,
+    contentType: string,
+  ): Promise<string> {
+    const objectId = randomUUID();
+    const objectPath = `/objects/memory-images/${objectId}.webp`;
+    const objectFile = await this.getObjectEntityFileForWrite(objectPath);
+    let saved = false;
+    try {
+      await objectFile.save(contents, {
+        resumable: false,
+        metadata: { contentType },
+      });
+      saved = true;
+      await setObjectAclPolicy(objectFile, {
+        owner: authenticatedUserId,
+        visibility: 'private',
+      });
+      await db.insert(objectUploadsTable).values({
+        objectPath,
+        userId: authenticatedUserId,
+      });
+      return objectPath;
+    } catch (error) {
+      if (saved) {
+        try {
+          await objectFile.delete({ ignoreNotFound: true });
+        } catch {
+          // Preserve the original save/ACL/provenance error; the unique output
+          // path can be removed by the storage orphan cleanup job if necessary.
+        }
+      }
+      throw error;
+    }
+  }
+
+  async deleteDerivedObjectIfUnreferenced(
+    objectPath: string,
+    authenticatedUserId: string,
+  ): Promise<boolean> {
+    if (!objectPath.startsWith('/objects/memory-images/')
+      || objectPath.includes('?')
+      || objectPath.includes('#')
+      || objectPath.includes('\\')
+      || objectPath.split('/').some((part) => part === '.' || part === '..')) {
+      return false;
+    }
+
+    const [memory, reward, provenance] = await Promise.all([
+      db.select({ id: memoriesTable.id }).from(memoriesTable)
+        .where(eq(memoriesTable.photoObjectPath, objectPath)).limit(1),
+      db.select({ id: journeyRewardsTable.id }).from(journeyRewardsTable)
+        .where(eq(journeyRewardsTable.imageUrl, objectPath)).limit(1),
+      db.select({ objectPath: objectUploadsTable.objectPath }).from(objectUploadsTable)
+        .where(and(
+          eq(objectUploadsTable.objectPath, objectPath),
+          eq(objectUploadsTable.userId, authenticatedUserId),
+        )).limit(1),
+    ]);
+    if (memory.length || reward.length || !provenance.length) return false;
+
+    const objectFile = await this.getObjectEntityFile(objectPath);
+    const policy = await getObjectAclPolicy(objectFile);
+    if (policy?.owner !== authenticatedUserId || policy.visibility !== 'private') return false;
+
+    await objectFile.delete({ ignoreNotFound: true });
+    await db.delete(objectUploadsTable).where(and(
+      eq(objectUploadsTable.objectPath, objectPath),
+      eq(objectUploadsTable.userId, authenticatedUserId),
+    ));
+    return true;
+  }
+
+  private async getObjectEntityFileForWrite(objectPath: string): Promise<File> {
+    if (!objectPath.startsWith('/objects/memory-images/')) {
+      throw new ObjectAclOwnershipError('Derived photo path is invalid');
+    }
+    const privateObjectDir = this.getPrivateObjectDir();
+    const objectName = objectPath.slice('/objects/'.length);
+    const fullPath = `${privateObjectDir.replace(/\/+$/, '')}/${objectName}`;
+    const { bucketName, objectName: storageObjectName } = parseObjectPath(fullPath);
+    return objectStorageClient.bucket(bucketName).file(storageObjectName);
   }
 
   async canAccessObjectEntity({

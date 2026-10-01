@@ -49,7 +49,8 @@ async function setup() {
     `CREATE TYPE ${quote("coin_transaction_reason")} AS ENUM ('checkin', 'streak_bonus', 'streak_recovery', 'reward_redemption', 'item_purchase', 'challenge_bonus', 'manual')`,
     `CREATE TYPE ${quote("character_item_slot")} AS ENUM ('outfit', 'hat', 'accessory', 'pet', 'background')`,
     `CREATE TABLE ${quote("users")} (
-      id text PRIMARY KEY, display_name text NOT NULL, avatar_emoji text NOT NULL DEFAULT '🌱',
+      id text PRIMARY KEY, username text UNIQUE,
+      display_name text NOT NULL, avatar_emoji text NOT NULL DEFAULT '🌱',
       level integer NOT NULL DEFAULT 1, xp integer NOT NULL DEFAULT 0, coins integer NOT NULL DEFAULT 0,
       motivation_style ${quote("motivation_style")} NOT NULL DEFAULT 'encouraging',
       primary_goal_category ${quote("goal_category")}, onboarding_completed boolean NOT NULL DEFAULT false,

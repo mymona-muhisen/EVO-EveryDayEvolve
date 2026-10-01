@@ -17,6 +17,8 @@ import groupsRouter from "./groups";
 import aiRouter from "./ai";
 import dailyRouter from "./daily";
 import decorationsRouter from "./decorations";
+import socialFriendsRouter from "./social-friends";
+import socialCirclesRouter from "./social-circles";
 
 const router: IRouter = Router();
 
@@ -38,5 +40,7 @@ router.use(groupsRouter);
 router.use(aiRouter);
 router.use(dailyRouter);
 router.use(decorationsRouter);
+router.use(socialFriendsRouter);
+router.use(socialCirclesRouter);
 
 export default router;

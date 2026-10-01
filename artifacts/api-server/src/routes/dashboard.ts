@@ -8,6 +8,7 @@ import {
   GetDashboardTodayResponse,
   GetDashboardCalendarQueryParams,
   GetDashboardCalendarResponse,
+  GetDashboardHomeResponse,
 } from "@workspace/api-zod";
 import { requireAuth } from "../middlewares/requireAuth";
 import { ensureUser } from "../lib/userService";
@@ -16,9 +17,22 @@ import { suggestedJourneyStartDate, todayInTimezone } from "../lib/dates";
 import { DashboardSnapshotError, getDashboardHabitsToday } from "../lib/dashboardService";
 import { synchronizeJourneyCompletion } from "../lib/journeyRewardService";
 import { HABIT_JOURNEY_LENGTH } from "../lib/habitJourney";
+import { getDashboardHome } from "../lib/dashboardHomeService";
 
 const router: IRouter = Router();
 router.use(requireAuth);
+
+router.get("/dashboard", async (req, res): Promise<void> => {
+  try {
+    const dashboard = await getDashboardHome(req.userId!, new Date(), (section, error) => {
+      req.log.error({ section, error }, "Dashboard section query failed");
+    });
+    res.json(GetDashboardHomeResponse.parse(dashboard));
+  } catch {
+    req.log.error({ section: "profile" }, "Dashboard profile query failed");
+    res.status(500).json({ error: "Dashboard unavailable" });
+  }
+});
 
 async function journeyRewardCards(userId: string, now: Date) {
   const rows = await db.select({

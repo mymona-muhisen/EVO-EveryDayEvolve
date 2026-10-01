@@ -1,0 +1,668 @@
+Implement Feature 10:
+DASHBOARD + HOME EXPERIENCE
+
+IMPORTANT:
+Do not redesign the entire application.
+Do not remove existing features.
+Do not rebuild working functionality from scratch.
+
+First inspect:
+- current Dashboard
+- current profile API
+- current habit APIs
+- current journey API
+- current reward API
+- current character/wallet API
+- current time tracking API
+- current AI/day analysis implementation
+- existing navigation
+
+Reuse existing components and APIs wherever possible.
+
+==================================================
+PRODUCT GOAL
+==================================================
+
+The Dashboard is the user's intelligent daily home.
+
+It should answer immediately:
+
+1. What is happening today?
+2. What should I do now?
+3. How am I progressing?
+4. What am I working toward?
+
+It must NOT become a dense analytics page.
+
+The primary experience is:
+TODAY'S ACTION → PROGRESS → AI INSIGHT → JOURNEY → REWARD
+
+==================================================
+1. STATE-AWARE DASHBOARD
+==================================================
+
+Dashboard content and primary CTA must adapt to the user's state.
+
+STATE A:
+New user / no tracking:
+Show:
+- greeting
+- "Let's understand your day"
+- Start Tracking CTA
+
+STATE B:
+Tracking active:
+Show:
+- tracked time
+- tracking status
+- next check-in
+- Pause/Resume
+
+STATE C:
+Day analysis available:
+Show:
+- top time insight
+- AI Coach card
+- current habit
+
+STATE D:
+Habit not started:
+Primary CTA:
+Start today's habit
+
+STATE E:
+Habit in progress:
+Primary CTA:
+Continue today's habit
+
+STATE F:
+Minimum reached:
+Show:
+Minimum reached
+Continue / Finish for today
+
+STATE G:
+Target completed:
+Show:
+Target complete
+Journey progress
+XP/Coins feedback
+
+STATE H:
+Missed previous day:
+Show missed-day reflection first
+Ask why
+Allow adaptation flow
+
+STATE I:
+Journey completed:
+Show:
+Journey complete
+Reward unlocked
+Character celebration
+Start another journey
+
+==================================================
+2. HEADER
+==================================================
+
+Desktop:
+Logo
+Greeting
+Coin balance
+Character shortcut
+
+Mobile:
+Compact header
+Greeting
+Character shortcut
+
+Keep header lightweight.
+
+==================================================
+3. GREETING
+==================================================
+
+Use contextual time-based greeting.
+
+Arabic RTL:
+صباح الخير
+مساء الخير
+مساء/ليلة هادئة as appropriate
+
+Do not call AI just to generate greeting.
+
+==================================================
+4. HERO / YOUR DAY
+==================================================
+
+If no tracking:
+"Let's see where your day goes."
+
+If tracking:
+Show:
+- tracked minutes
+- interval
+- active/paused state
+- next check-in
+
+If day analysis exists:
+Show concise time insight.
+
+Do not duplicate the entire Time page.
+
+CTA should adapt to current state.
+
+==================================================
+5. TODAY'S FOCUS
+==================================================
+
+This is the primary habit card.
+
+Show:
+- habit name
+- target
+- minimum
+- actual progress
+- progress bar
+- journey day
+- consistency
+
+Primary action:
+- Start
+- Continue
+- Complete
+depending on state
+
+Minimum must be clearly visible.
+
+Example:
+Target: 10 min
+Minimum: 5 min
+
+Explain:
+"Even on a difficult day, the minimum keeps your journey moving."
+
+==================================================
+6. MULTIPLE HABITS
+==================================================
+
+If user has several active habits:
+show ONE primary "Today's Focus" habit.
+
+Then show a compact list of other habits.
+
+Do NOT show multiple large habit cards.
+
+Preferred priority:
+1. active/incomplete priority habit
+2. earliest relevant habit
+3. incomplete habit requiring action
+
+Keep logic deterministic.
+
+==================================================
+7. JOURNEY PREVIEW
+==================================================
+
+Do not render the full map on Dashboard.
+
+Show a compact Journey Preview:
+
+- habit
+- current day / 22
+- small visual route
+- character position
+- consistency
+
+CTA:
+"Open Journey"
+
+Journey details remain on the Journey page.
+
+==================================================
+8. REWARD PREVIEW
+==================================================
+
+Show:
+- reward title
+- optional image
+- journey day
+- days remaining
+- simple progress bar
+
+Do not confuse:
+journey day
+consistency
+reward progress
+
+Do not implement payment.
+
+==================================================
+9. CHARACTER WIDGET
+==================================================
+
+Show:
+- global user character
+- level
+- XP progress
+- coin balance
+
+CTA:
+"Customize"
+
+Do not duplicate the entire Character page.
+
+Use the same character state/appearance as Journey.
+
+==================================================
+10. AI COACH CARD
+==================================================
+
+Do NOT create a generic chatbot.
+
+Show an inline contextual card:
+
+"Your Coach"
+
+Example:
+"لاحظت أن معظم وقت وسائل التواصل لديك يتركز بين 8 و11 مساءً."
+
+Then:
+"قد تكون استعادة 20 دقيقة فرصة جيدة لتجربة تغيير صغير."
+
+Actions:
+- جرّب هذا التغيير
+- ليس الآن
+
+The AI card should use the latest cached day analysis.
+
+Do NOT call Gemini on every Dashboard load.
+
+If no useful insight:
+show a calm message such as:
+"لا توجد ملاحظة كبيرة اليوم."
+
+Do not invent insights.
+
+==================================================
+11. TIME SUMMARY
+==================================================
+
+Show compact:
+- tracked time
+- top categories
+- top distraction/opportunity if available
+
+Example:
+Social Media 3h 42m
+Study 2h 10m
+Work 1h 35m
+
+CTA:
+"View full day"
+
+Do not place a large chart on Dashboard.
+
+==================================================
+12. SOCIAL WIDGET
+==================================================
+
+If Friends exists:
+show small:
+"Your People"
+
+Each:
+- character/avatar
+- visible journey progress
+- Cheer action
+
+Do not show:
+- missed days
+- failure reasons
+- private time data
+- private rewards
+- private Memories
+
+If no friends:
+"You don't have to do this alone."
+CTA:
+"Find Friends"
+
+Keep social secondary.
+
+==================================================
+13. MEMORY WIDGET
+==================================================
+
+If a Memory exists for today:
+show a small memory card.
+
+If no Memory:
+do not create a large empty card.
+
+Memory is optional and must never be treated as proof.
+
+==================================================
+14. NAVIGATION
+==================================================
+
+Desktop:
+- Home
+- My Time
+- Habits
+- Journey
+- Character
+- Rewards
+- Friends if implemented
+
+Mobile:
+Use compact bottom navigation with no more than about 5 primary items.
+
+Place secondary sections inside appropriate pages.
+
+==================================================
+15. DASHBOARD DATA API
+==================================================
+
+Prefer an existing consolidated:
+GET /api/dashboard
+
+Return the data required by Dashboard when practical:
+
+- profile
+- active/priority habit
+- today's habit day
+- today's progress
+- consistency
+- active journey
+- journey progress
+- reward
+- character
+- XP
+- coins
+- compact time summary
+- latest cached AI insight
+- compact friend data
+- today's memory if available
+
+Do not trigger AI from dashboard API.
+
+Do not create multiple redundant requests if a consolidated endpoint already exists or can safely be extended.
+
+==================================================
+16. AI CACHE
+==================================================
+
+Dashboard must NOT call AI on every refresh.
+
+Use latest stored/cached day analysis.
+
+If analysis is stale:
+show existing result and an appropriate action such as:
+"Refresh today's insight"
+
+Do not automatically call Gemini just because the dashboard opened.
+
+==================================================
+17. PARTIAL FAILURE
+==================================================
+
+Dashboard should continue working if a secondary service fails.
+
+Examples:
+
+AI fails:
+show fallback Coach message.
+
+Friends fails:
+hide social content or show retry.
+
+Memory fails:
+do not break habit.
+
+Time summary fails:
+show compact retry state.
+
+Do not let one feature break the whole dashboard.
+
+==================================================
+18. NEW USER
+==================================================
+
+New user should not see empty cards everywhere.
+
+Instead show a guided first state:
+
+1. Understand your day
+2. Track a small part of your day
+3. Get your first insight
+4. Create your first habit
+
+Primary CTA:
+"Start tracking"
+
+==================================================
+19. NO ACTIVE HABIT
+==================================================
+
+If the user has analyzed time but no habit:
+
+Show:
+"You found an opportunity."
+
+Then:
+"Turn it into a small habit."
+
+CTA:
+"Explore suggestion"
+
+==================================================
+20. MISSED DAY
+==================================================
+
+If previous day was missed:
+prioritize:
+
+"Yesterday didn't go as planned."
+
+Then:
+"What got in the way?"
+
+Options:
+- Too difficult
+- No time
+- Forgot
+- Lost motivation
+- Unexpected event
+- Other
+
+Do not show a punitive streak reset.
+
+After reason:
+connect to existing Adaptive Habit Engine.
+
+==================================================
+21. JOURNEY COMPLETION
+==================================================
+
+After Day 22 completion:
+
+Hero:
+"Your journey is complete."
+
+Show:
+- 22 days
+- successful days
+- XP
+- Coins
+- reward
+- character celebration
+
+CTA:
+- View Journey
+- Start another journey
+
+==================================================
+22. VISUAL HIERARCHY
+==================================================
+
+Priority:
+
+TIER 1:
+Today's Focus / current action
+
+TIER 2:
+Journey + reward
+
+TIER 3:
+AI insight
+
+TIER 4:
+Time / Character / Social / Memory summaries
+
+Do not make all cards equal visual weight.
+
+==================================================
+23. RESPONSIVE
+==================================================
+
+Test:
+375px
+390px
+414px
+tablet
+desktop
+
+Mobile should prioritize:
+
+1. Today's Focus
+2. Start/Complete action
+3. Journey preview
+4. Reward
+5. AI Coach
+6. Time/Social/Character summaries
+
+Avoid horizontal scrolling.
+
+Arabic RTL everywhere.
+
+==================================================
+24. ACCESSIBILITY
+==================================================
+
+- clear button labels
+- readable text
+- adequate touch targets
+- keyboard access on desktop
+- aria labels for icons
+- do not use color alone for status
+- meaningful loading/error messages
+
+==================================================
+25. PERFORMANCE
+==================================================
+
+- minimize network requests
+- reuse dashboard data
+- do not call AI unnecessarily
+- lazy-load non-critical sections
+- optimize character/map previews
+- avoid heavy animations
+
+==================================================
+26. UI STATES
+==================================================
+
+Implement:
+
+- first-time user
+- no tracking
+- tracking active
+- tracking paused
+- analysis available
+- analysis unavailable
+- no habit
+- habit not started
+- habit in progress
+- minimum reached
+- target complete
+- missed day
+- adaptation required
+- journey complete
+- no friends
+- no memory
+- loading
+- partial failure
+- full API failure
+
+==================================================
+27. TESTING
+==================================================
+
+Test:
+
+1. New user.
+2. No time data.
+3. Tracking active.
+4. Tracking paused.
+5. Time analysis available.
+6. AI insight available.
+7. AI unavailable.
+8. No active habit.
+9. One active habit.
+10. Multiple habits.
+11. Habit in progress.
+12. Minimum reached.
+13. Target reached.
+14. Missed day.
+15. Failure reason.
+16. Adaptation.
+17. Journey progress.
+18. Reward progress.
+19. Character update.
+20. Coin display.
+21. Friend widget.
+22. Memory widget.
+23. Journey completion.
+24. Refresh.
+25. Logout/login.
+26. Mobile RTL.
+27. Partial API failure.
+28. Slow AI response.
+29. Dashboard should never trigger duplicate reward/coin operations.
+
+==================================================
+28. ACCEPTANCE CRITERIA
+==================================================
+
+Feature is DONE when:
+
+- [ ] User understands the dashboard immediately.
+- [ ] Today's primary action is obvious.
+- [ ] Target and minimum are visible.
+- [ ] Current habit progress is visible.
+- [ ] Journey preview is visible.
+- [ ] Reward preview is visible.
+- [ ] Character/XP/Coins are visible without overwhelming the UI.
+- [ ] AI Coach appears contextually.
+- [ ] Time summary is compact.
+- [ ] Social is secondary.
+- [ ] Memories are secondary.
+- [ ] Dashboard adapts to user state.
+- [ ] AI is not called on every dashboard load.
+- [ ] Partial failures do not break Dashboard.
+- [ ] Mobile RTL is polished.
+- [ ] Existing features remain intact.
+
+Before editing:
+1. Inspect current Dashboard component.
+2. Inspect current /api/dashboard or equivalent.
+3. Inspect current AI analysis storage.
+4. Inspect current Habit state.
+5. Inspect Journey state.
+6. Inspect Reward state.
+7. Inspect Character/wallet state.
+8. Report reusable components/files.
+9. Then implement incrementally.
+10. Test every major state before finalizing.

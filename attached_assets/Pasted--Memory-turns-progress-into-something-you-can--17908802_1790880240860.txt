@@ -1,0 +1,1321 @@
+هذه الميزة برأيي يجب ألا تكون "ميزة رفع صور" فقط، بل:
+
+Memory turns progress into something you can remember.
+
+المستخدم لا يرى بعد 22 يومًا مجرد:
+
+19 / 22 successful days
+
+بل يستطيع الرجوع إلى الرحلة ورؤية:
+
+ماذا كنت أفعل؟ أين كنت؟ وكيف كنت أشعر؟
+
+والأجمل أن الـMemory مرتبطة باليوم والمحطة على الخريطة، وليس بألبوم منفصل عن التجربة.
+
+1. الفكرة الأساسية
+Complete Habit
+      ↓
+Optional Capture
+      ↓
+Photo / Memory
+      ↓
+Attach to Journey Day
+      ↓
+Appears on Map
+      ↓
+View later
+      ↓
+Optionally Share
+2. متى تظهر Memory؟
+
+لا أريد أن نجعل إضافة الصورة إجبارية.
+
+بعد إكمال العادة:
+
+✅ Day 7 complete
+
++20 XP
++10 Coins
+
+How did it feel?
+😊 😐 😣 😞
+
+--------------------------------
+
+📸 Capture this moment
+
+Add a photo from today.
+
+[ Add Memory ]
+
+[ Maybe later ]
+
+هذا التوقيت مهم جدًا.
+
+المستخدم للتو قام بالسلوك، وبالتالي الصورة تصبح توثيقًا للحظة فعلية وليست مهمة إضافية.
+
+3. لماذا لا نطلب الصورة قبل إكمال العادة؟
+
+لأننا لا نريد أن تصبح:
+
+الصورة = إثبات النجاح.
+
+هدف المنتج هو بناء العادة، وليس مراقبة المستخدم.
+
+لذلك:
+
+Habit completion
+→ success
+
+Memory
+→ optional additional layer
+4. هل الصورة دليل على التنفيذ؟
+
+لا نحاول في V1 أن نقول:
+
+"الصورة تثبت أنك فعلت العادة."
+
+بل:
+
+"هذه ذكرى مرتبطة بيوم قمت فيه بالعادة."
+
+وهذا أكثر واقعية وآمانًا.
+
+لا نبني Computer Vision أو AI للتحقق من الصورة.
+
+5. أنواع الـMemory
+
+في V1 أفضّل:
+
+📸 Photo Memory
+
+الصورة هي الأساس.
+
+وممكن إضافة:
+
+✍️ Caption
+
+مثلاً:
+
+أول مرة أمشي صباحًا بدل المساء.
+
+لكن الـCaption اختياري.
+
+6. شاشة Add Memory
+
+عند الضغط:
+
+Capture this moment
+خيار 1
+
+Take a photo
+
+إذا كان الجهاز يدعم Camera input.
+
+خيار 2
+
+Choose from gallery
+
+ثم:
+
+Preview.
+
+7. Image Preview
+
+بعد اختيار الصورة:
+
+┌─────────────────────┐
+│                     │
+│       IMAGE         │
+│                     │
+└─────────────────────┘
+
+Day 7 · Reading
+
+[ Add caption ]
+[ Save Memory ]
+8. Crop / Editing
+
+في V1:
+
+لا نحتاج محرر صور.
+
+يكفي:
+
+preview
+basic crop إن كان سهلًا
+rotate إن كانت المكتبة موجودة
+
+الأولوية هي:
+
+Upload → Save → Display
+
+9. Caption
+
+حقل:
+
+What do you want to remember?
+
+مثلاً:
+
+"كنت متعبًا لكنني خرجت للمشي."
+
+يمكن أن يكون:
+
+فارغًا
+جملة قصيرة
+
+ويجب تحديد حد معقول لطول النص.
+
+10. بعد الحفظ
+
+تظهر:
+
+Memory saved 📸
+
+ثم:
+
+Day 7 now has a memory.
+
+والخريطة تتحدث.
+
+11. Memory على الخريطة
+
+هذه أهم نقطة.
+
+عند Day 7:
+
+        🧍
+       ●
+     Day 7
+       📸
+
+أو تظهر thumbnail صغيرة بالقرب من المحطة.
+
+وعند الضغط عليها:
+
+Day 7
+
+📸 [photo]
+
+Reading · 10 min
+
+"كنت متعبًا لكنني خرجت للمشي."
+
+😊 Normal
+12. لا نضع صورًا كبيرة على كل الخريطة
+
+إذا أصبح لدى المستخدم 20 صورة:
+
+الخريطة ستتحول إلى Gallery مزدحمة.
+
+لذلك:
+
+Normal node
+
+نقطة عادية.
+
+Node with Memory
+
+Thumbnail صغير أو camera marker.
+
+وعند الضغط يظهر الـMemory Card.
+
+13. Memory Gallery
+
+بالإضافة إلى الخريطة، نحتاج مكانًا يرى المستخدم فيه كل Memories.
+
+مثلاً في Profile:
+
+My Memories
+┌───────┐ ┌───────┐
+│  📸   │ │  📸   │
+│ Day 2 │ │ Day 5 │
+└───────┘ └───────┘
+
+┌───────┐ ┌───────┐
+│  📸   │ │  📸   │
+│ Day 7 │ │ Day 12│
+└───────┘ └───────┘
+
+ولكن لا نحتاج صفحة اجتماعية مستقلة للصور.
+
+14. Memory مرتبطة بـJourney
+
+المهم جدًا:
+
+لا نخزن:
+
+user photo
+
+فقط.
+
+نخزن:
+
+User
+↓
+Memory
+↓
+Journey
+↓
+Habit Day
+
+مثلاً:
+
+Memory
+  journey_id = Reading Journey
+  habit_day_id = Day 7
+
+وبذلك الصورة تعرف مكانها الصحيح في القصة.
+
+15. هل Memory يمكن أن تنتقل بين الرحلات؟
+
+لا.
+
+الصورة تخص:
+
+هذه اللحظة في هذه الرحلة.
+
+إذا أراد المستخدم نفس الصورة في مكان آخر، يمكن رفعها مرة أخرى.
+
+لا نريد نظام tagging معقد.
+
+16. Memory Timeline
+
+ممكن عرض:
+
+Your Journey Memories
+
+مثلاً:
+
+Day 1
+📸
+
+Day 4
+📸
+
+Day 7
+📸
+
+Day 12
+📸
+
+وهذا يجعل الخريطة والألبوم متوافقين.
+
+17. هل نسمح بـMemory بدون إكمال Habit؟
+
+أنا أفضل:
+
+V1:
+
+Memory مرتبطة بيوم Habit فقط.
+
+يعني المستخدم لا يملك "Instagram" داخل التطبيق.
+
+هذا يبقي الميزة مرتبطة بهدف المنتج.
+
+18. هل يستطيع وضع أكثر من صورة في اليوم؟
+
+V1:
+
+صورة واحدة لكل Habit Day.
+
+وهذا يكفي.
+
+لاحقًا يمكن:
+
+1–3 photos.
+
+لكن لا نحتاج ذلك الآن.
+
+19. هل يستطيع حذفها؟
+
+نعم.
+
+من Memory:
+
+⋯
+
+Delete memory
+
+Confirmation:
+
+حذف هذه الذاكرة؟
+
+Delete
+
+Cancel
+
+20. هل نستطيع تعديل الـCaption؟
+
+نعم.
+
+Edit memory
+
+ثم:
+
+Save
+
+ولا نحتاج إعادة رفع الصورة.
+
+21. مشاركة Memory مع الأصدقاء
+
+هذه النقطة نربطها بالـSocial الذي تحدثنا عنه.
+
+المستخدم يضغط:
+
+Share
+
+ثم:
+
+Who can see this?
+
+○ Only me
+○ Friends
+○ Selected people
+○ Public
+
+لكن بما أن Social قد تكون P1 في الهاكاثون، يمكن في V1 أن يكون:
+
+Private
+Shared
+
+والبنية تسمح بالتوسع.
+
+22. Default Privacy
+
+Private by default.
+
+هذه قاعدة أريدها من البداية.
+
+لأن الصورة قد تحتوي:
+
+أماكن
+أشخاص
+منزل
+معلومات شخصية
+
+ولا نريد نشرها تلقائيًا.
+
+23. مشاركة مع أشخاص محددين
+
+عندما يصبح Friends موجودًا:
+
+Share with:
+
+☑ Sarah
+☐ Ahmad
+☐ Lina
+
+ثم:
+
+Save visibility
+
+لكن هذا يمكن أن يكون جزءًا من Social Sprint، وليس ضروريًا لتشغيل Memories الأساسية.
+
+24. Memory في Profile العام
+
+إذا المستخدم شارك:
+
+يظهر:
+
+Journey Memories
+
+فقط الصور التي سمح بمشاركتها.
+
+أما الخاصة:
+
+لا تظهر إطلاقًا للآخرين.
+
+25. هل تظهر Memory في Dashboard؟
+
+ليس دائمًا.
+
+يمكن بعد إضافة الصورة أن تظهر Card صغيرة:
+
+📸 A memory from today's journey
+
+ثم تختفي لاحقًا.
+
+لا نريد Dashboard تتحول إلى Gallery.
+
+26. Memory + Character
+
+هذه علاقة جميلة:
+
+المستخدم أنجز:
+
+Day 10
+
+يأخذ:
+
++XP
++Coins
++Memory
+
+لكن لا نريد Memory تعطي Coins تلقائيًا في V1 إذا كنا قررنا أن الاقتصاد الأساسي مرتبط بالالتزام فقط.
+
+هناك تناقض بسيط هنا مع فكرتنا السابقة أن Memory قد تعطي Bonus. وبما أننا حددنا أن V1 يجب أن تكون اقتصادية وبسيطة، أقترح:
+
+V1
+
+Memory لا تعطي Coins أساسية.
+
+P1
+
+يمكن إضافة:
+
+📸 Memory Bonus +5 Coins
+
+إذا أردنا زيادة التفاعل.
+
+بهذا يبقى السلوك الأساسي هو مصدر العملة.
+
+27. Memory + AI
+
+لا نحتاج AI لتحليل الصورة في V1.
+
+لكن AI يمكن أن يساعد في:
+
+Caption suggestion
+
+مثلاً الصورة مرفقة فقط.
+
+AI يمكن أن يقترح:
+
+"A quiet evening walk."
+
+ولكن هذا اختياري.
+
+والصورة لا ترسل إلى AI إلا إذا قررنا ذلك صراحة.
+
+أنا شخصيًا أؤجل هذه الوظيفة حتى لا نزيد التكلفة والتعقيد.
+
+28. Memory + Daily Reflection
+
+يمكن أن نجمع الاثنين:
+
+How did it feel?
+
+😐 Normal
+
+ثم:
+
+Capture this moment.
+
+📸
+
+هكذا يصبح اليوم:
+
+Habit
++
+Difficulty
++
+Memory
+29. Memory Detail Screen
+
+مثلاً:
+
+Day 7
+Reading
+
+10 min
+
+Difficulty
+
+😐 Normal
+
+Memory
+
+[Photo]
+
+"أخيرًا خلصت أول 10 دقائق بدون ما أفتح الهاتف."
+
+Journey
+
+Day 7 / 22
+
+هذا يحول الـMemory إلى جزء من قصة اليوم.
+
+30. Memory على Final Journey
+
+عند إكمال الرحلة:
+
+Memories collected
+
+مثلاً:
+
+7 memories
+
+ثم:
+
+View Journey Memories
+
+وهذا يجعل Completion Screen أكثر عاطفية.
+
+31. Journey Recap
+
+هذه إضافة جميلة جدًا ويمكن تنفيذها ببساطة.
+
+بعد Day 22:
+
+Your Journey in Memories
+Day 1 📸
+Day 5 📸
+Day 7 📸
+Day 12 📸
+Day 18 📸
+Day 22 📸
+
+ثم:
+
+22 days. One journey. Your moments.
+
+لكن إذا كان الوقت ضيقًا جدًا، Gallery بسيطة تكفي.
+
+32. Memory Upload
+
+إذا كان لدينا Supabase Storage أو storage موجود أصلًا:
+
+memory-images/
+   userId/
+      journeyId/
+         dayId/
+            image.jpg
+
+لكن لا نحتاج الالتزام بهذا المسار حرفيًا إذا كان Storage الحالي منظمًا بشكل جيد.
+
+33. Security
+
+الـMemory يجب ألا تُعتبر عامة بمجرد وجود URL.
+
+يجب أن نطبق:
+
+authentication
+ownership check
+private-by-default
+authorization على القراءة
+authorization على الحذف
+validation للملف
+34. Image Validation
+
+في V1:
+
+السماح بـ:
+
+JPG / JPEG
+PNG
+WebP
+
+وضع:
+
+Max file size
+Max dimensions optional
+
+إذا كانت الصورة ضخمة:
+
+Optimize/compress before storing.
+
+35. File Naming
+
+لا نستخدم اسم الملف الأصلي كهوية.
+
+استخدم ID آمن/UUID.
+
+مثلاً:
+
+memory_8f4c...webp
+36. هل الصورة تحفظ Original؟
+
+لا حاجة.
+
+الأفضل:
+
+Optimize image
+
+وحفظ نسخة مناسبة للعرض.
+
+هذا مهم للـPerformance خصوصًا على الخريطة.
+
+37. Thumbnail
+
+لأن الخريطة تحتاج صورة صغيرة:
+
+نحتاج:
+
+thumbnail_url
+image_url
+
+إذا البنية الحالية تسمح.
+
+أو نستخدم object-fit: cover على نفس الصورة في V1.
+
+38. Loading
+
+عند الرفع:
+
+Saving your memory...
+
+ولا نعرض الصورة على الخريطة قبل نجاح الحفظ.
+
+39. Upload Failure
+
+إذا فشل:
+
+We couldn't save your memory.
+
+Buttons:
+
+Try again
+
+Cancel
+
+ولا نخسر الـHabit completion.
+
+هذه قاعدة مهمة:
+
+Memory failure must never break Habit completion.
+
+40. إذا المستخدم لم يرفع صورة
+
+اليوم يبقى:
+
+Completed
+
+ولا يوجد:
+
+Missing Memory
+
+41. إذا المستخدم حذف Memory
+
+اليوم يبقى:
+
+Completed
+
+ويتم حذف الصورة فقط.
+
+42. Memory State
+
+يمكن أن تكون:
+
+uploading
+saved
+failed
+deleted
+
+لكن DB يمكن أن تبسطها.
+
+43. Data Model
+memories
+
+id
+user_id
+journey_id
+habit_day_id
+image_url
+thumbnail_url
+caption
+visibility
+created_at
+updated_at
+
+visibility:
+
+private
+friends
+selected
+public
+
+لكن إذا Social غير جاهز:
+
+نستخدم فقط:
+
+private
+shared
+
+أو نجعل enum قابلًا للتوسع.
+
+44. Relationship
+User
+ └── Journey
+      └── Habit Day
+           └── Memory
+
+وهذا هو الهيكل الذي أفضله.
+
+45. هل Memory تؤثر على Journey؟
+
+لا.
+
+هي طبقة فوق التقدم.
+
+Habit completion
+→ Journey moves
+
+Memory
+→ Journey remembers
+
+الفرق مهم جدًا.
+
+46. تجربة اليوم كاملة
+
+مثلاً:
+
+المستخدم يكمل:
+
+📚 Read 10 min
+
+ثم:
+
+✅ Target complete
+
+ثم:
+
+How did it feel?
+
+😊 Easy
+
+ثم:
+
+📸 Capture this moment?
+
+Add Memory
+
+يلتقط صورة.
+
+ثم:
+
+Memory saved.
+
+ثم:
+
+Day 7 / 22
+
+والشخصية تتحرك.
+
+ثم تظهر thumbnail على Day 7.
+
+هذه التجربة قصيرة جدًا لكنها تعطي قيمة عاطفية كبيرة.
+
+47. تجربة فتح Memory لاحقًا
+
+المستخدم يفتح الخريطة بعد أسبوع:
+
+يضغط Day 7.
+
+تظهر:
+
+📸 Your Memory
+
+الصورة.
+
+"أول أسبوع."
+
+ثم:
+
+Reading — 10 min
+Difficulty: Easy
+
+وهذا يجعل المستخدم يرى:
+
+تطوري كقصة، وليس كإحصائية.
+
+48. Social Share
+
+عندما نضيف الأصدقاء:
+
+يظهر زر:
+
+Share this memory
+
+ثم:
+
+مشاركة مع:
+
+Friends / Selected people / Public
+
+ولا نشارك الـTime Tracking أو المعلومات الحساسة معها تلقائيًا.
+
+49. Notification إلى الصديق
+
+إذا Shared:
+
+📸 Mymona added a memory to Day 7 of her journey.
+
+والصديق يمكن أن يضغط:
+
+Celebrate 🎉
+
+لكن هذا يدخل ضمن Feature 09 — Social.
+
+50. Acceptance Criteria
+
+الميزة مكتملة عندما:
+
+ يمكن إضافة صورة بعد إكمال العادة.
+ الصورة اختيارية.
+ يمكن التقاط صورة أو اختيارها من الجهاز.
+ يمكن إضافة Caption اختياري.
+ Memory مرتبطة بـHabit Day محددة.
+ Memory مرتبطة بـJourney محددة.
+ تظهر علامة Memory على الخريطة.
+ الضغط على العلامة يفتح Memory.
+ توجد Memories Gallery بسيطة.
+ يمكن تعديل Caption.
+ يمكن حذف Memory.
+ Private by default.
+ بنية Visibility جاهزة للتوسع.
+ رفع الصورة لا يؤثر على إكمال العادة.
+ فشل الرفع لا يكسر التطبيق.
+ الصور optimized.
+ يتم حفظ ownership.
+ مستخدم لا يستطيع قراءة Memory مستخدم آخر.
+ Memory لا تمنح Coins تلقائيًا في V1.
+ لا يستخدم AI لتحليل الصورة في V1.
+ Mobile RTL يعمل.
+51. Prompt جاهز لـReplit
+Implement Feature 08:
+MEMORIES 📸
+
+IMPORTANT:
+Do not redesign unrelated features.
+Do not remove Habit, Daily Experience, Journey, Character, XP, Coins, or Reward functionality.
+Inspect the existing image storage and memory implementation first.
+Reuse the existing storage/API/components wherever possible.
+
+==================================================
+1. PRODUCT GOAL
+==================================================
+
+A Memory is an optional photo attached to a specific completed habit day.
+
+It should transform progress into something the user can remember later.
+
+Concept:
+Habit completion
+→ optional Memory
+→ attach to Journey Day
+→ show on map
+→ view later
+→ optionally share in future social features
+
+Memory is NOT proof of habit completion.
+
+The habit can be completed without a Memory.
+
+==================================================
+2. ENTRY POINT
+==================================================
+
+After successful habit completion, show:
+
+"Capture this moment"
+
+Options:
+- Add Memory
+- Maybe later
+
+Do not force a photo.
+
+Do not make the user upload a photo before completion.
+
+==================================================
+3. ADD MEMORY
+==================================================
+
+Allow:
+- take photo where browser/device supports it
+- choose image from gallery/file picker
+
+Supported:
+- JPG/JPEG
+- PNG
+- WebP
+
+Add:
+- image preview
+- optional caption
+
+Caption placeholder:
+"What do you want to remember?"
+
+Keep caption short.
+
+==================================================
+4. MEMORY DATA
+==================================================
+
+Reuse existing memories table if available.
+
+Preferred:
+
+id
+user_id
+journey_id
+habit_day_id
+image_url
+thumbnail_url if supported
+caption
+visibility
+created_at
+updated_at
+
+Relationship:
+
+User
+→ Journey
+→ Habit Day
+→ Memory
+
+One Memory per Habit Day in V1.
+
+==================================================
+5. PRIVACY
+==================================================
+
+Private by default.
+
+Do not expose Memories publicly by default.
+
+If social functionality already exists, support:
+- private
+- friends
+- selected users
+- public
+
+If social is not yet implemented, keep the model extensible but only activate private behavior.
+
+A user must only be able to access their own private memories.
+
+==================================================
+6. MAP INTEGRATION
+==================================================
+
+If a Habit Day has a Memory:
+show a small memory indicator/thumbnail on its Journey node.
+
+Do not place full-size images all over the map.
+
+On clicking the memory indicator:
+open Memory detail.
+
+Memory detail shows:
+- Day
+- Habit
+- image
+- caption
+- difficulty if available
+- journey context
+
+==================================================
+7. MEMORY GALLERY
+==================================================
+
+Add a simple Memories section to Profile or the existing journey/profile area.
+
+Grid:
+- image
+- day number
+- habit/journey context
+
+Click:
+open detail.
+
+Do not build a social photo feed.
+
+==================================================
+8. EDIT / DELETE
+==================================================
+
+Allow:
+- edit caption
+- delete memory
+
+Delete confirmation required.
+
+Deleting a Memory must NOT:
+- undo habit completion
+- remove coins
+- remove XP
+- move journey backwards
+
+It only removes the Memory.
+
+==================================================
+9. STORAGE
+==================================================
+
+Reuse the existing image storage service.
+
+If possible:
+- optimize/compress image
+- restrict maximum file size
+- generate thumbnail where practical
+
+Never use the original filename as a security identifier.
+
+Use a unique server-generated identifier.
+
+==================================================
+10. UPLOAD UX
+==================================================
+
+States:
+
+- selecting
+- preview
+- uploading
+- saved
+- failed
+
+Uploading message:
+"Saving your memory..."
+
+Success:
+"Memory saved."
+
+Failure:
+"We couldn't save your memory."
+
+Buttons:
+- Try again
+- Cancel
+
+IMPORTANT:
+Memory upload failure must never break habit completion.
+
+==================================================
+11. MEMORY + HABIT
+==================================================
+
+Memory is an additional layer.
+
+Relationship:
+
+Habit completion
+→ Journey progresses
+
+Memory
+→ Journey remembers
+
+Do NOT require Memory for:
+- success
+- XP
+- Coins
+- Journey progression
+- Reward progress
+
+==================================================
+12. MEMORY + DIFFICULTY
+==================================================
+
+If the habit was completed:
+show the stored difficulty with the Memory detail.
+
+Example:
+
+Day 7
+Reading
+10 minutes
+😊 Easy
+📸 Memory
+
+Do not create a new difficulty record.
+
+==================================================
+13. COINS
+==================================================
+
+Do not award Coins for adding a Memory in V1.
+
+Primary Coin source remains successful habit completion.
+
+Keep the architecture extensible for a future Memory bonus.
+
+==================================================
+14. AI
+==================================================
+
+Do NOT use AI for image analysis in V1.
+
+Do NOT send images to the AI provider.
+
+Optional future feature:
+AI caption suggestions.
+
+Do not implement unless explicitly requested.
+
+==================================================
+15. JOURNEY COMPATIBILITY
+==================================================
+
+Each Memory must reference:
+- journey
+- habit day
+
+A Memory belongs to the Journey in which the habit was performed.
+
+Do not allow ambiguous/global habit memories in V1.
+
+==================================================
+16. COMPLETION SCREEN
+==================================================
+
+After adding a Memory:
+show a small confirmation.
+
+Example:
+"Memory saved to Day 7."
+
+Do not redirect the user away from the completion experience unnecessarily.
+
+==================================================
+17. JOURNEY RECAP
+==================================================
+
+If easy to implement:
+on completed Journey show:
+"Your Journey Memories"
+
+and a simple grid/timeline of saved memories.
+
+If this risks the core V1, keep it as a later enhancement.
+
+==================================================
+18. SOCIAL COMPATIBILITY
+==================================================
+
+Prepare visibility field for future:
+private
+friends
+selected
+public
+
+If Friends is already available:
+allow user to share explicitly.
+
+Never auto-share.
+
+Do not expose private Memories through friend profile APIs.
+
+==================================================
+19. SECURITY
+==================================================
+
+Server-side ownership checks for:
+- upload
+- read
+- update
+- delete
+
+Do not trust:
+- user_id from client
+- journey_id without ownership verification
+- habit_day_id without ownership verification
+
+Validate uploaded file:
+- MIME type
+- file size
+- ownership
+
+==================================================
+20. RESPONSIVE
+==================================================
+
+Test:
+- 375px
+- 390px
+- 414px
+- tablet
+- desktop
+
+Mobile:
+- camera/gallery flow must be easy
+- upload button large
+- preview readable
+- no horizontal scrolling
+
+All UI is Arabic RTL.
+
+==================================================
+21. UI STATES
+==================================================
+
+Implement:
+- no memory
+- add memory
+- image picker
+- camera if supported
+- preview
+- uploading
+- saved
+- failed
+- memory detail
+- edit caption
+- delete confirmation
+- memory gallery
+- private/shared display
+
+==================================================
+22. TESTING
+==================================================
+
+Test:
+
+1. Complete habit.
+2. Add Memory.
+3. Add caption.
+4. Save.
+5. Verify Memory linked to correct journey/day.
+6. Verify Memory appears on map.
+7. Open Memory.
+8. Edit caption.
+9. Delete Memory.
+10. Verify habit remains completed.
+11. Verify coins remain unchanged after deletion.
+12. Complete another habit without Memory.
+13. Verify it works.
+14. Upload invalid file.
+15. Upload oversized file.
+16. Simulate upload failure.
+17. Verify habit completion is unaffected.
+18. Refresh.
+19. Logout/login.
+20. Verify private Memory persists.
+21. Verify another user cannot access it.
+22. Test mobile RTL.
+23. Test image without caption.
+24. Test image with caption.
+
+==================================================
+23. ACCEPTANCE CRITERIA
+==================================================
+
+DONE when:
+
+- [ ] User can add an optional photo after habit completion.
+- [ ] Photo is linked to one Journey Day.
+- [ ] Caption is optional.
+- [ ] Memory appears on the corresponding map node.
+- [ ] Memory detail works.
+- [ ] Memories gallery works.
+- [ ] Caption can be edited.
+- [ ] Memory can be deleted.
+- [ ] Delete does not affect habit/journey/reward.
+- [ ] Private by default.
+- [ ] Ownership checks work.
+- [ ] Invalid uploads are rejected.
+- [ ] Upload failure does not break the app.
+- [ ] Mobile RTL works.
+- [ ] No AI image analysis is implemented.
+- [ ] No Coins are awarded for Memory in V1.
+- [ ] Existing functionality remains intact.
+
+Before editing:
+1. Inspect current image storage.
+2. Inspect current memories API.
+3. Inspect Journey/Habit Day relationships.
+4. Inspect current map node rendering.
+5. Reuse existing implementation.
+
+Then implement and test end-to-end.

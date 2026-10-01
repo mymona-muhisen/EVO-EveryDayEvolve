@@ -5,12 +5,29 @@
  * Habit Journey API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { MemoryInputVisibility } from './memoryInputVisibility';
 
 export interface MemoryInput {
-  habitId?: number;
-  /** @minLength 1 */
-  note: string;
-  /** objectPath returned by POST /storage/uploads/request-url */
-  photoObjectPath?: string;
+  /** Habit and current journey identity; ownership is checked by the server */
+  habitId: number;
   date: Date;
+  /**
+     * Private objectPath returned by POST /storage/uploads/request-url; ownership and file content are checked by the server
+     * @minLength 1
+     */
+  photoObjectPath: string;
+  /**
+     * @maxLength 300
+     * @nullable
+     */
+  caption?: string | null;
+  /**
+     * Deprecated caption alias for legacy clients; ignored when caption is also supplied
+     * @deprecated
+     * @maxLength 300
+     * @nullable
+     */
+  note?: string | null;
+  /** Only private is accepted in V1; other enum values are reserved and rejected by the server */
+  visibility?: MemoryInputVisibility;
 }

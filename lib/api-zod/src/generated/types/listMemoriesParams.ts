@@ -7,5 +7,12 @@
  */
 
 export type ListMemoriesParams = {
+/**
+ * Filter by habit; the current journey identity is the habit ID.
+ */
 habitId?: number;
+/**
+ * Current journey identity (the owning habit ID). If habitId is also supplied, both filters must match.
+ */
+journeyId?: number;
 };

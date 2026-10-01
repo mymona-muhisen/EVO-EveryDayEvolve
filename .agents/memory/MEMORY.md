@@ -13,3 +13,6 @@
 - [Journey map verification](journey-map-verification.md) — measure nodes, characters, and action hit targets on first entry/reload at both map ends, including fixed navigation.
 - [Reference catalog publishing](reference-catalog-publishing.md) — schema publishing does not copy migration seed rows; seed reference catalogs idempotently without changing existing prices or ownership.
 - [Private upload ownership](private-upload-ownership.md) — knowing an object path never permits adoption; enforce ownership/provenance across every ACL-writing endpoint.
+- [Browser errors without stacks](browser-errors-without-stacks.md) — an unknown runtime overlay may omit the browser event message; inspect it before assuming a thrown application exception.
+- [Legacy memory association](legacy-memory-policy.md) — habit/date alone does not prove an old memory's saved-day link; preserve full old notes until explicitly edited.
+- [Social consent boundaries](social-consent-boundaries.md) — no retrospective announcements; group/challenge scopes stay separate, and social reads must not lock rewarded check-ins.

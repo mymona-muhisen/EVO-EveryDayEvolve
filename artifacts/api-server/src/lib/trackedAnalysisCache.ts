@@ -8,8 +8,7 @@ import { analyzeTrackedDay, getTrackedDay } from "./trackedDay";
 
 const pending = new Map<string, Promise<ReturnType<typeof GetTrackedDayAnalysisResponse.parse>>>();
 
-/** The hash includes only inputs that can change the analysis, never user credentials. */
-export async function getCachedTrackedAnalysis(userId: string, date: string, timezone: string, interest: string | null) {
+async function readAnalysisInputs(userId: string, date: string, timezone: string, interest: string | null) {
   const earliest = new Date(`${date}T12:00:00Z`);
   earliest.setUTCDate(earliest.getUTCDate() - 7);
   const from = earliest.toISOString().slice(0, 10);
@@ -40,6 +39,22 @@ export async function getCachedTrackedAnalysis(userId: string, date: string, tim
       source: e.source, start: e.startTime?.toISOString(), end: e.endTime?.toISOString(),
     })), context,
   })).digest("hex");
+  return { day, context, hash };
+}
+
+/** Pure lookup inputs for dashboard staleness; this performs reads only and never generates analysis. */
+export async function getCurrentTrackedAnalysisHash(
+  userId: string,
+  date: string,
+  timezone: string,
+  interest: string | null,
+) {
+  return (await readAnalysisInputs(userId, date, timezone, interest)).hash;
+}
+
+/** The hash includes only inputs that can change the analysis, never user credentials. */
+export async function getCachedTrackedAnalysis(userId: string, date: string, timezone: string, interest: string | null) {
+  const { day, context, hash } = await readAnalysisInputs(userId, date, timezone, interest);
   const key = `${userId}:${date}:${hash}`;
   const existing = pending.get(key);
   if (existing) return existing;

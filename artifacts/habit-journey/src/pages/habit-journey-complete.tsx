@@ -3,6 +3,7 @@ import { Link, useParams } from 'wouter';
 import { useQueryClient } from '@tanstack/react-query';
 import { useClaimJourneyReward, useGetHabit, useGetHabitJourney, getGetHabitJourneyQueryKey, getGetHabitQueryKey } from '@workspace/api-client-react';
 import { PageHead, Empty, Loading, ErrorBlock } from '@/components/journey-ui';
+import { JourneyMemories } from '@/components/memory/memory';
 import { RewardThumb, refreshRewards } from '@/components/reward/real-reward';
 import { base, classifyDay } from '@/lib/journey-map';
 import { CharacterAvatar } from '@/components/character/character-avatar';
@@ -60,6 +61,7 @@ export function HabitJourneyCompletePage() {
         {claim.isError && <p role="alert" data-testid="text-claim-error" className="text-sm text-[#b96355]">تعذّر تسجيل الاستلام. مكافأتك ما زالت مفتوحة؛ حاول مرة أخرى.</p>}</div>}
       {rr.status === 'claimed' && <div className="mt-3" role="status" data-testid="text-reward-claimed"><p className="font-bold">تم استلام المكافأة.</p><p className="text-sm muted">استمتع بها، فقد استحققت هذه اللحظة.</p></div>}
     </div> : <div className="panel rounded-2xl p-4 mb-4 text-sm" data-testid="text-no-reward">هذه الرحلة بلا مكافأة حقيقية مرتبطة، وإنجازك محفوظ.</div>}
+    <JourneyMemories habitId={id} />
     <div className="flex flex-wrap gap-2"><Link href="/habits?new=1" data-testid="link-start-another" className="btn btn-coral">ابدأ رحلة أخرى</Link>{back}</div>
   </div>;
 }

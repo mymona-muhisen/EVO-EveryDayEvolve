@@ -1,45 +1,79 @@
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { Link } from 'wouter';
-import { useGetDashboardToday, useGetDashboardCalendar, useGetTrackingSession, useGetTrackedDayAnalysis, useAiDailyInsight, getGetTrackingSessionQueryKey, getGetTrackedDayAnalysisQueryKey, type User } from '@workspace/api-client-react';
-import { ArrowLeft, Coins, Flame, Clock3, Sparkles, Plus } from 'lucide-react';
-import { DailyHomeList } from '@/components/daily/home-list';
-import { CharacterSummary } from '@/components/character/character-summary';
+import { Plus, Coins } from 'lucide-react';
+import { useGetDashboardHome, getGetDashboardHomeQueryKey, type User } from '@workspace/api-client-react';
 import { HabitPlanForm } from '@/components/habit-plan-form';
-import { DashboardRewards } from '@/components/reward/real-reward';
-import { Loading, ErrorBlock, SectionTitle, Modal, dateToday as localDateToday } from '@/components/journey-ui';
+import { Loading, ErrorBlock, Modal } from '@/components/journey-ui';
+import { useDashboardFreshness } from '@/hooks/use-dashboard-freshness';
+import { dayKey } from '@/lib/daily';
+import {
+  Retry, greetingText, FocusSection, OtherHabits, JourneyPreview, RewardPreview, CompletionHero,
+  GuidedStart, Opportunity, MissedDayReflection,
+} from '@/components/dashboard/dashboard-sections';
 
-export function HomePage({user}: {user:User}) {
-  const today = useGetDashboardToday();
-  const dateToday=()=>today.data?.date?.slice(0,10)??localDateToday(user.timezone);
-  const month = dateToday().slice(0,7);
-  const calendar = useGetDashboardCalendar({month});
-  const insight = useAiDailyInsight();
-  const tracked=useGetTrackingSession({date:dateToday()},{query:{queryKey:getGetTrackingSessionQueryKey({date:dateToday()})}});
-  const dayAnalysis=useGetTrackedDayAnalysis({date:dateToday()},{query:{enabled:tracked.data?.session?.status==='finished',queryKey:getGetTrackedDayAnalysisQueryKey({date:dateToday()}),staleTime:1000*60*20}});
+const LazyTime = lazy(() => import('@/components/dashboard/dashboard-secondary').then(m => ({ default: m.TimeCard })));
+const Secondary = lazy(() => import('@/components/dashboard/dashboard-secondary'));
+type Seed = { title: string; minutes: number; category: 'productivity'; emoji: string; intent?: string };
 
-  const [createOpen,setCreateOpen]=useState(false),[coachSeed,setCoachSeed]=useState<string|null>(null);
-  const [coachDecision,setCoachDecision]=useState<'open'|'try'|'later'>('open');
-  if(today.isLoading) return <Loading/>; if(today.isError) return <ErrorBlock retry={()=>today.refetch()}/>;
-  const d=today.data; if(!d) return null; const percent=d.scheduledTodayCount?Math.round(d.completedTodayCount/d.scheduledTodayCount*100):0;
-  return <div>
-    <div className="grid lg:grid-cols-[1.38fr_.62fr] gap-5 mb-10">
-      <div className="relative min-h-[310px] md:min-h-[350px] rounded-[28px] overflow-hidden bg-[#dce5cb] flex items-center"><img src={`${import.meta.env.BASE_URL}journey-landscape.png`} className="absolute inset-0 w-full h-full object-cover" alt="طريق رحلتك بين الجبال"/><div className="absolute inset-0 bg-gradient-to-l from-[#e8e8d1] via-[#e8e8d1aa] to-transparent"/><div className="relative z-10 p-7 md:p-11 max-w-[490px]"><div className="eyebrow mb-3">فصل جديد من رحلتك</div><h1 className="text-3xl md:text-[42px] leading-[1.4] font-black mb-3">صباح الخير، {user.displayName.split(' ')[0]}.</h1><p className="text-[#4b6c5d] leading-8 mb-6">اليوم ليس عن الكمال، بل عن الخطوة القادمة. هل أنت مستعد؟</p><Link href="/journey" className="btn">استكشف طريقك <ArrowLeft size={17}/></Link></div></div>
-      <div className="rounded-[28px] bg-[#214e43] text-[#fff9e9] p-7 flex flex-col justify-between relative overflow-hidden"><div className="absolute -left-8 -top-12 w-48 h-48 border-[35px] border-[#ffffff0d] rounded-full"/><div className="relative"><span className="text-[#d5b37d] text-sm font-bold">محطة اليوم</span><div className="text-[60px] leading-none font-black mt-4" style={{fontFamily:'Cairo'}}>{d.completedTodayCount}<span className="text-[#9db8a6] text-3xl"> / {d.scheduledTodayCount}</span></div><p className="text-[#c9ddd0] mt-1">خطوات أتممتها اليوم</p></div><div className="relative"><div className="h-2 rounded-full bg-[#426b5e] mt-7 overflow-hidden"><div className="h-full rounded-full bg-[#eab879] transition-all duration-700" style={{width:`${percent}%`}}/></div><div className="flex justify-between mt-3 text-xs text-[#c9ddd0]"><span>تقدّم اليوم</span><span>{percent}%</span></div></div></div>
-    </div>
-    <div className="grid lg:grid-cols-[1.55fr_.85fr] gap-8">
-      <div className="min-w-0">
-        <SectionTitle label="خطوات صغيرة، أثر كبير" title="عادات اليوم" action={<div className="flex flex-wrap items-center gap-x-3 gap-y-2"><button data-testid="button-create-habit" className="btn btn-light !py-2" onClick={()=>{setCoachSeed(null);setCreateOpen(true)}}><Plus size={16}/> عادة جديدة</button><Link href="/habits" className="text-sm font-bold text-[#23604e] flex items-center gap-1">كل العادات <ArrowLeft size={16}/></Link></div>}/>
-        <DailyHomeList date={dateToday()}/>
-        <div className="grid sm:grid-cols-3 gap-3 mt-6">{[{icon:Flame,value:d.activeHabitsCount,label:'عادة نشطة'}, {icon:Coins,value:d.coins,label:'عملة في محفظتك'}, {icon:Clock3,value:d.timeTrackedMinutesToday,label:'دقيقة استثمرتها اليوم'}].map((x,i)=><div key={i} className="panel rounded-2xl p-5"><x.icon size={18} className="text-[#bc7555] mb-4"/><div className="text-2xl font-black">{x.value}</div><div className="text-xs muted mt-1">{x.label}</div></div>)}</div>
+export function HomePage({ user }: { user: User }) {
+  useDashboardFreshness();
+  const q = useGetDashboardHome({ query: { queryKey: getGetDashboardHomeQueryKey(), refetchOnMount: 'always', refetchOnWindowFocus: true, staleTime: 15000, refetchInterval: 30000 } });
+  const [createOpen, setCreateOpen] = useState(false), [seed, setSeed] = useState<Seed | undefined>();
+  if (q.isLoading) return <div aria-busy="true" aria-label="تحميل الصفحة الرئيسية"><Loading /></div>;
+  const d = q.data;
+  if (!d) return <ErrorBlock retry={() => q.refetch()} />;
+  const retry = () => q.refetch();
+  const open = (s?: Seed) => { setSeed(s); setCreateOpen(true); };
+  const opp = d.coach?.analysis?.status === 'ready' ? d.coach.analysis.opportunity : null;
+  const seedFrom = (text: string, minutes: number) => ({ title: '', minutes: minutes > 0 ? minutes : 5, category: 'productivity' as const, emoji: '🌱', intent: text });
+  const name = (d.profile.displayName || user.displayName).split(' ')[0];
+  const habitsDown = d.sectionStatus.habits === 'unavailable';
+  const completion = d.completion ?? (d.journey?.status === 'completed'
+    ? { journey: d.journey, reward: d.reward?.habitId === d.journey.habitId ? d.reward : null }
+    : null);
+  const complete = !!completion;
+  const focusDone = !!d.focus && !!completion && completion.journey.habitId === d.focus.habit.id
+    && d.focus.execution.checkin?.completed === true;
+  const stamp = q.dataUpdatedAt;
+  const hasPlan = !!d.focus || !!d.missedDay || !!d.journey || complete || d.otherHabits.length > 0;
+  const noHabit = !habitsDown && !hasPlan;
+  const showPlan = !habitsDown && hasPlan && !d.focus && !complete;
+  const ts = d.time?.session?.status as string | undefined;
+  const trackingPrimary = noHabit && d.state !== 'new_user' && !!ts && ts !== 'finished';
+
+  return <div className="max-w-6xl mx-auto min-w-0">
+    <header className="flex flex-wrap items-end justify-between gap-3 mb-5">
+      <div><div className="eyebrow">مساحتك</div><h1 className="text-2xl md:text-4xl font-black leading-[1.4]" data-testid="text-greeting">{greetingText(d.greeting)}، {name}.</h1></div>
+      <div className="flex items-center gap-2">
+        <span className="badge !text-sm"><Coins size={14} aria-hidden="true" />{d.profile.coins} عملة</span>
+        <button type="button" className="btn btn-light min-h-11" data-testid="button-create-habit" onClick={() => open()}><Plus size={16} aria-hidden="true" /> عادة جديدة</button>
       </div>
-       <aside className="space-y-6 min-w-0">
-         <DashboardRewards cards={d.realRewards}/>
-         <div className="rounded-[22px] bg-[#dce8d7] border border-[#c2d4be] p-6 relative overflow-hidden"><div className="absolute -left-10 -top-12 w-40 h-40 border-[25px] border-[#c6d9c1] rounded-full pointer-events-none"/><div className="relative"><div className="eyebrow">مرآة يومك</div><h2 className="text-2xl font-black mt-2">وين راح يومك؟</h2><p className="text-sm text-[#557162] leading-7 mt-2">سجّل يومك لفترة قصيرة، وسنساعدك على اكتشاف أنماط قد لا تلاحظها بنفسك.</p><Link data-testid="link-start-time-tracking" href="/time" className="btn mt-5">ابدأ تتبع يومي <ArrowLeft size={16}/></Link><Link data-testid="link-how-time-works" href="/time#how" className="block text-sm underline underline-offset-4 mt-3 text-[#245448]">كيف يعمل؟</Link></div></div>
-         <div className="paper rounded-[22px] p-6"><div className="flex items-center gap-2 eyebrow"><Sparkles size={16}/> رسالة من مدرّبك</div>{dayAnalysis.data?.status==='ready'?<><p className="text-lg font-semibold leading-[1.9] mt-4">{dayAnalysis.data.headline}</p><p className="muted text-sm leading-7 mt-2">{dayAnalysis.data.opportunity}</p><button data-testid="button-coach-create-habit" className="btn btn-light mt-3" onClick={()=>{setCoachSeed(dayAnalysis.data!.opportunity);setCreateOpen(true)}}>حوّلها إلى عادة صغيرة</button>{dayAnalysis.data.replacements.length>0&&<>{coachDecision==='open'?<div className="flex gap-2 mt-4"><button className="btn btn-light" onClick={()=>setCoachDecision('try')}>سأجرّب</button><button className="text-sm underline" onClick={()=>setCoachDecision('later')}>ليس الآن</button></div>:coachDecision==='try'?<p role="status" className="text-sm mt-4">يمكنك اختيار تجربة صغيرة من <Link href="/time" className="underline font-bold">مرآة يومك</Link>. القرار لك.</p>:<p role="status" className="text-sm muted mt-4">لا بأس. الملاحظة وحدها خطوة.</p>}</>}</>:insight.isLoading?<div className="mt-5"><div className="skeleton h-4 w-2/3 mb-3"/><div className="skeleton h-4 w-full mb-3"/><div className="skeleton h-4 w-4/5"/></div>:insight.isError?<div className="mt-4 text-sm muted">المدرّب يستريح قليلًا. <button className="underline" onClick={()=>insight.refetch()}>حاول مجددًا</button></div>:<><p className="text-lg font-semibold leading-[1.9] mt-4">«{insight.data?.message}»</p><span className="badge mt-4">{insight.data?.highlightMetric}</span></>}</div>
-        <div className="paper rounded-[22px] p-6"><SectionTitle label="لمحة عن مسيرتك" title="الأيام الأخيرة"/>{calendar.isLoading?<div className="skeleton h-24"/>:<div className="grid grid-cols-7 gap-2">{(calendar.data||[]).slice(-28).map(day=><div key={day.date} title={`${day.date}: ${day.completedCount} من ${day.scheduledCount}`} className={`aspect-square rounded-[8px] ${day.completedCount===0?'bg-[#eee9dc]':day.completedCount>=day.scheduledCount?'bg-[#387b60]':'bg-[#b2c9a7]'}`}/>)}</div>}<div className="text-xs muted mt-4">كل مربع يحفظ يومًا من طريقك.</div></div>
-        <CharacterSummary />
+    </header>
+
+    <div className="grid lg:grid-cols-[1.5fr_.9fr] gap-5">
+      <div className="space-y-5 min-w-0">
+        {q.isError && <Retry what="تحديث الصفحة؛ نعرض آخر حالة محفوظة" onRetry={retry} />}
+        {habitsDown && <Retry what="عاداتك" onRetry={retry} />}
+        {d.missedDay && <MissedDayReflection key={`${d.missedDay.habit.id}:${dayKey(d.missedDay.execution.date)}`} d={d} item={d.missedDay} />}
+        {d.focus && !focusDone && <FocusSection key={`${d.focus.habit.id}:${dayKey(d.focus.execution.date)}`} d={d} focus={d.focus} stamp={stamp} onRefetch={retry} />}
+        {completion && <CompletionHero d={{ ...d, journey: completion.journey, reward: completion.reward }} compact={!!d.focus && !focusDone} onAnother={() => open()} />}
+        {showPlan && <section className="paper rounded-[26px] p-6" data-testid="section-plan-day">
+          <div className="eyebrow">خطتك محفوظة</div>
+          <h2 className="text-2xl font-black">{d.journey?.status === 'upcoming' ? 'رحلتك تبدأ قريبًا' : d.journey?.status === 'expired' ? 'وصلت رحلتك إلى نهاية أيامها' : 'اليوم راحة في خطتك'}</h2>
+          <p className="muted text-sm leading-7 mt-2">{d.journey?.status === 'expired' ? 'راجع أيام رحلتك وما سجّلته فيها، ثم اختر خطوتك القادمة. مرور الأيام وحده لا يفتح المكافأة.' : 'لا توجد خطوة مقرّرة للتنفيذ اليوم. الراحة ليست يومًا فائتًا، ولا تحتاج إلى التعويض عنها.'}</p>
+          <Link href={d.journey ? `/habits/${d.journey.habitId}/journey` : '/habits'} className="btn btn-light min-h-11 mt-4">راجع خطتك</Link>
+        </section>}
+        {trackingPrimary && <Suspense fallback={<div className="skeleton h-40" />}><LazyTime d={d} onRetry={retry} primary /></Suspense>}
+        {noHabit && (d.state === 'new_user' ? <GuidedStart /> : opp ? <Opportunity d={d} onExplore={() => open(seedFrom(opp, d.coach?.analysis?.suggestedChange?.minutes ?? 0))} /> : <section className={`paper rounded-[26px] ${trackingPrimary ? 'p-4' : 'p-6'}`} data-testid="section-no-habit"><h2 className="text-2xl font-black">لا عادة نشطة اليوم</h2><p className="muted mt-2 text-sm">ابدأ بخطوة صغيرة، أو افهم يومك أولًا.</p><div className="flex flex-wrap gap-2 mt-4"><button type="button" className="btn min-h-11" onClick={() => open()}>أنشئ عادة</button><Link href="/time" className="btn btn-light min-h-11" data-testid="link-start-tracking">ابدأ التتبع</Link></div></section>)}
+        <OtherHabits items={d.otherHabits} />
+        <div className="grid md:grid-cols-2 gap-5"><JourneyPreview d={d} /><RewardPreview d={d} /></div>
+        {d.sectionStatus.journey === 'unavailable' && <Retry what="الرحلة" onRetry={retry} />}
+        {d.sectionStatus.reward === 'unavailable' && <Retry what="المكافأة" onRetry={retry} />}
+      </div>
+      <aside className="space-y-4 min-w-0">
+        <Suspense fallback={<div className="skeleton h-32" aria-label="تحميل" />}><Secondary hideTime={trackingPrimary} d={d} onSeed={(t, m) => open(seedFrom(t, m))} onRetry={retry} /></Suspense>
       </aside>
     </div>
-    {createOpen&&<Modal title="عادة جديدة على الطريق" onClose={()=>setCreateOpen(false)}><HabitPlanForm seed={coachSeed?{title:'',minutes:20,category:'productivity',emoji:'🌱',intent:coachSeed}:undefined} onSaved={()=>setCreateOpen(false)}/></Modal>}
+    {createOpen && <Modal title="عادة جديدة على الطريق" onClose={() => setCreateOpen(false)}><HabitPlanForm seed={seed} onSaved={() => setCreateOpen(false)} /></Modal>}
   </div>;
 }

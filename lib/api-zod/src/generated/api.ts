@@ -508,6 +508,8 @@ export const GetHabitJourneyResponse = zod.object({
   "days": zod.array(zod.object({
   "date": zod.coerce.date(),
   "dayNumber": zod.number().int(),
+  "habitDayId": zod.number().int().nullish().describe('Saved habit_days row ID; null for legacy/synthetic days without a saved snapshot'),
+  "memoryId": zod.number().int().nullish().describe('Owner\'s private memory ID for this day'),
   "scheduled": zod.boolean(),
   "title": zod.string().nullish(),
   "targetValue": zod.number(),
@@ -649,6 +651,8 @@ export const StartHabitJourneyResponse = zod.object({
   "days": zod.array(zod.object({
   "date": zod.coerce.date(),
   "dayNumber": zod.number().int(),
+  "habitDayId": zod.number().int().nullish().describe('Saved habit_days row ID; null for legacy/synthetic days without a saved snapshot'),
+  "memoryId": zod.number().int().nullish().describe('Owner\'s private memory ID for this day'),
   "scheduled": zod.boolean(),
   "title": zod.string().nullish(),
   "targetValue": zod.number(),
@@ -720,6 +724,8 @@ export const GetDailyHabitDayResponse = zod.object({
   "habitId": zod.number().int(),
   "date": zod.coerce.date(),
   "dayNumber": zod.number().int(),
+  "habitDayId": zod.number().int().nullish().describe('Saved habit_days row ID when a saved plan snapshot exists'),
+  "memoryId": zod.number().int().nullish().describe('Owner\'s private memory ID for this day'),
   "scheduled": zod.boolean(),
   "eligible": zod.boolean(),
   "planRevision": zod.number().int().min(getDailyHabitDayResponsePlanRevisionMin),
@@ -823,6 +829,8 @@ export const ChangeDailyHabitExecutionResponse = zod.object({
   "habitId": zod.number().int(),
   "date": zod.coerce.date(),
   "dayNumber": zod.number().int(),
+  "habitDayId": zod.number().int().nullish().describe('Saved habit_days row ID when a saved plan snapshot exists'),
+  "memoryId": zod.number().int().nullish().describe('Owner\'s private memory ID for this day'),
   "scheduled": zod.boolean(),
   "eligible": zod.boolean(),
   "planRevision": zod.number().int().min(changeDailyHabitExecutionResponseExecutionPlanRevisionMin),
@@ -926,6 +934,8 @@ export const SaveDailyHabitReflectionResponse = zod.object({
   "habitId": zod.number().int(),
   "date": zod.coerce.date(),
   "dayNumber": zod.number().int(),
+  "habitDayId": zod.number().int().nullish().describe('Saved habit_days row ID when a saved plan snapshot exists'),
+  "memoryId": zod.number().int().nullish().describe('Owner\'s private memory ID for this day'),
   "scheduled": zod.boolean(),
   "eligible": zod.boolean(),
   "planRevision": zod.number().int().min(saveDailyHabitReflectionResponseExecutionPlanRevisionMin),
@@ -1018,6 +1028,8 @@ export const RecordDailyAdaptationDecisionResponse = zod.object({
   "habitId": zod.number().int(),
   "date": zod.coerce.date(),
   "dayNumber": zod.number().int(),
+  "habitDayId": zod.number().int().nullish().describe('Saved habit_days row ID when a saved plan snapshot exists'),
+  "memoryId": zod.number().int().nullish().describe('Owner\'s private memory ID for this day'),
   "scheduled": zod.boolean(),
   "eligible": zod.boolean(),
   "planRevision": zod.number().int().min(recordDailyAdaptationDecisionResponsePlanRevisionMin),
@@ -1114,6 +1126,8 @@ export const GetDailyOverviewResponse = zod.object({
   "habitId": zod.number().int(),
   "date": zod.coerce.date(),
   "dayNumber": zod.number().int(),
+  "habitDayId": zod.number().int().nullish().describe('Saved habit_days row ID when a saved plan snapshot exists'),
+  "memoryId": zod.number().int().nullish().describe('Owner\'s private memory ID for this day'),
   "scheduled": zod.boolean(),
   "eligible": zod.boolean(),
   "planRevision": zod.number().int().min(getDailyOverviewResponseHabitsItemExecutionPlanRevisionMin),
@@ -1690,48 +1704,168 @@ export const GetTrackedDayAnalysisResponse = zod.object({
 
 
 /**
- * @summary List memory journal entries
+ * Returns only memories owned by the authenticated user. Memories created by the journey flow are private and associated with a completed saved day; legacy entries without a saved-day association remain unlinked.
+ * @summary List the current owner's private memories
  */
 export const ListMemoriesQueryParams = zod.object({
-  "habitId": zod.coerce.number().int().optional()
+  "habitId": zod.coerce.number().int().optional().describe('Filter by habit; the current journey identity is the habit ID.'),
+  "journeyId": zod.coerce.number().int().optional().describe('Current journey identity (the owning habit ID). If habitId is also supplied, both filters must match.\n')
 })
+
+export const listMemoriesResponseCaptionMax = 300;
+
+
 
 export const ListMemoriesResponseItem = zod.object({
   "id": zod.number().int(),
   "habitId": zod.number().int().nullable(),
-  "note": zod.string(),
-  "photoUrl": zod.string().nullable(),
+  "note": zod.string().nullable().describe('Deprecated compatibility alias for caption; legacy note content is preserved'),
+  "photoUrl": zod.string().nullable().describe('Existing authenticated private-object URL behavior; a URL does not make the image public'),
   "date": zod.coerce.date(),
-  "createdAt": zod.coerce.date()
+  "createdAt": zod.coerce.date(),
+  "caption": zod.string().max(listMemoriesResponseCaptionMax).nullable(),
+  "visibility": zod.enum(['private', 'friends', 'selected', 'public']).describe('Private for all V1 memories; other values are reserved for future social support'),
+  "updatedAt": zod.coerce.date(),
+  "journeyId": zod.number().int().nullable().describe('Server-derived journey identity (the habit ID); null for legacy memories not linked to a saved journey day'),
+  "habitDayId": zod.number().int().nullable().describe('Saved habit_days row ID; null for legacy memories not linked to a saved journey day'),
+  "dayNumber": zod.number().int().nullable().describe('Saved journey day number; null for legacy memories'),
+  "journeyLength": zod.number().int().nullable().describe('Saved journey length; null for legacy memories'),
+  "habitTitle": zod.string().nullable().describe('Habit title from the saved day context; null for legacy memories'),
+  "targetValue": zod.number().nullable().describe('Target from the immutable saved day plan; null for legacy memories'),
+  "actualValue": zod.number().nullable().describe('Actual value from the real successful check-in; null for legacy memories'),
+  "unit": zod.union([zod.literal('minutes'),zod.literal('count'),zod.literal('pages'),zod.literal('custom'),zod.literal(null)]).nullable(),
+  "difficulty": zod.union([zod.literal('easy'),zod.literal('normal'),zod.literal('hard'),zod.literal('very_hard'),zod.literal(null)]).nullable().describe('Stored difficulty from the successful check-in; never created or changed by a memory')
 })
 export const ListMemoriesResponse = zod.array(ListMemoriesResponseItem)
 
 
 /**
- * @summary Create a memory (optionally with an uploaded photo)
+ * The server derives the owned journey day from habitId and the user's local calendar date. The day must have a saved plan snapshot and a real successful check-in. Do not send a user ID, journey ID, habit-day ID, check-in ID, or day number. Memory creation is separate from habit completion and never grants or changes rewards. Only private visibility is writable in this version.
+ * @summary Create a private photo memory for a completed journey day
  */
 
+export const createMemoryBodyCaptionMax = 300;
 
+export const createMemoryBodyNoteMax = 300;
+
+export const createMemoryBodyVisibilityDefault = `private`;
 
 export const CreateMemoryBody = zod.object({
-  "habitId": zod.number().int().optional(),
-  "note": zod.string().min(1),
-  "photoObjectPath": zod.string().optional().describe('objectPath returned by POST /storage/uploads/request-url'),
-  "date": zod.coerce.date()
+  "habitId": zod.number().int().describe('Habit and current journey identity; ownership is checked by the server'),
+  "date": zod.coerce.date(),
+  "photoObjectPath": zod.string().min(1).describe('Private objectPath returned by POST /storage/uploads/request-url; ownership and file content are checked by the server'),
+  "caption": zod.string().max(createMemoryBodyCaptionMax).nullish(),
+  "note": zod.string().max(createMemoryBodyNoteMax).nullish().describe('Deprecated caption alias for legacy clients; ignored when caption is also supplied'),
+  "visibility": zod.enum(['private', 'friends', 'selected', 'public']).default(createMemoryBodyVisibilityDefault).describe('Only private is accepted in V1; other enum values are reserved and rejected by the server')
 })
+
+export const createMemoryResponseCaptionMax = 300;
+
+
 
 export const CreateMemoryResponse = zod.object({
   "id": zod.number().int(),
   "habitId": zod.number().int().nullable(),
-  "note": zod.string(),
-  "photoUrl": zod.string().nullable(),
+  "note": zod.string().nullable().describe('Deprecated compatibility alias for caption; legacy note content is preserved'),
+  "photoUrl": zod.string().nullable().describe('Existing authenticated private-object URL behavior; a URL does not make the image public'),
   "date": zod.coerce.date(),
-  "createdAt": zod.coerce.date()
+  "createdAt": zod.coerce.date(),
+  "caption": zod.string().max(createMemoryResponseCaptionMax).nullable(),
+  "visibility": zod.enum(['private', 'friends', 'selected', 'public']).describe('Private for all V1 memories; other values are reserved for future social support'),
+  "updatedAt": zod.coerce.date(),
+  "journeyId": zod.number().int().nullable().describe('Server-derived journey identity (the habit ID); null for legacy memories not linked to a saved journey day'),
+  "habitDayId": zod.number().int().nullable().describe('Saved habit_days row ID; null for legacy memories not linked to a saved journey day'),
+  "dayNumber": zod.number().int().nullable().describe('Saved journey day number; null for legacy memories'),
+  "journeyLength": zod.number().int().nullable().describe('Saved journey length; null for legacy memories'),
+  "habitTitle": zod.string().nullable().describe('Habit title from the saved day context; null for legacy memories'),
+  "targetValue": zod.number().nullable().describe('Target from the immutable saved day plan; null for legacy memories'),
+  "actualValue": zod.number().nullable().describe('Actual value from the real successful check-in; null for legacy memories'),
+  "unit": zod.union([zod.literal('minutes'),zod.literal('count'),zod.literal('pages'),zod.literal('custom'),zod.literal(null)]).nullable(),
+  "difficulty": zod.union([zod.literal('easy'),zod.literal('normal'),zod.literal('hard'),zod.literal('very_hard'),zod.literal(null)]).nullable().describe('Stored difficulty from the successful check-in; never created or changed by a memory')
 })
 
 
 /**
- * @summary Delete a memory
+ * @summary Get an owner-only private memory
+ */
+export const GetMemoryParams = zod.object({
+  "memoryId": zod.coerce.number().int()
+})
+
+export const getMemoryResponseCaptionMax = 300;
+
+
+
+export const GetMemoryResponse = zod.object({
+  "id": zod.number().int(),
+  "habitId": zod.number().int().nullable(),
+  "note": zod.string().nullable().describe('Deprecated compatibility alias for caption; legacy note content is preserved'),
+  "photoUrl": zod.string().nullable().describe('Existing authenticated private-object URL behavior; a URL does not make the image public'),
+  "date": zod.coerce.date(),
+  "createdAt": zod.coerce.date(),
+  "caption": zod.string().max(getMemoryResponseCaptionMax).nullable(),
+  "visibility": zod.enum(['private', 'friends', 'selected', 'public']).describe('Private for all V1 memories; other values are reserved for future social support'),
+  "updatedAt": zod.coerce.date(),
+  "journeyId": zod.number().int().nullable().describe('Server-derived journey identity (the habit ID); null for legacy memories not linked to a saved journey day'),
+  "habitDayId": zod.number().int().nullable().describe('Saved habit_days row ID; null for legacy memories not linked to a saved journey day'),
+  "dayNumber": zod.number().int().nullable().describe('Saved journey day number; null for legacy memories'),
+  "journeyLength": zod.number().int().nullable().describe('Saved journey length; null for legacy memories'),
+  "habitTitle": zod.string().nullable().describe('Habit title from the saved day context; null for legacy memories'),
+  "targetValue": zod.number().nullable().describe('Target from the immutable saved day plan; null for legacy memories'),
+  "actualValue": zod.number().nullable().describe('Actual value from the real successful check-in; null for legacy memories'),
+  "unit": zod.union([zod.literal('minutes'),zod.literal('count'),zod.literal('pages'),zod.literal('custom'),zod.literal(null)]).nullable(),
+  "difficulty": zod.union([zod.literal('easy'),zod.literal('normal'),zod.literal('hard'),zod.literal('very_hard'),zod.literal(null)]).nullable().describe('Stored difficulty from the successful check-in; never created or changed by a memory')
+})
+
+
+/**
+ * Caption-only edit; image, date, journey/day association, and visibility cannot be changed. The deprecated note input is accepted as a caption alias for legacy clients when caption is omitted.
+ * @summary Update a private memory caption
+ */
+export const UpdateMemoryParams = zod.object({
+  "memoryId": zod.coerce.number().int()
+})
+
+export const updateMemoryBodyCaptionMax = 300;
+
+export const updateMemoryBodyNoteMax = 300;
+
+
+
+export const UpdateMemoryBody = zod.object({
+  "caption": zod.string().max(updateMemoryBodyCaptionMax).nullish().describe('Set or clear the caption; explicit null clears it'),
+  "note": zod.string().max(updateMemoryBodyNoteMax).nullish().describe('Deprecated caption alias for legacy clients; ignored when caption is also supplied')
+})
+
+export const updateMemoryResponseCaptionMax = 300;
+
+
+
+export const UpdateMemoryResponse = zod.object({
+  "id": zod.number().int(),
+  "habitId": zod.number().int().nullable(),
+  "note": zod.string().nullable().describe('Deprecated compatibility alias for caption; legacy note content is preserved'),
+  "photoUrl": zod.string().nullable().describe('Existing authenticated private-object URL behavior; a URL does not make the image public'),
+  "date": zod.coerce.date(),
+  "createdAt": zod.coerce.date(),
+  "caption": zod.string().max(updateMemoryResponseCaptionMax).nullable(),
+  "visibility": zod.enum(['private', 'friends', 'selected', 'public']).describe('Private for all V1 memories; other values are reserved for future social support'),
+  "updatedAt": zod.coerce.date(),
+  "journeyId": zod.number().int().nullable().describe('Server-derived journey identity (the habit ID); null for legacy memories not linked to a saved journey day'),
+  "habitDayId": zod.number().int().nullable().describe('Saved habit_days row ID; null for legacy memories not linked to a saved journey day'),
+  "dayNumber": zod.number().int().nullable().describe('Saved journey day number; null for legacy memories'),
+  "journeyLength": zod.number().int().nullable().describe('Saved journey length; null for legacy memories'),
+  "habitTitle": zod.string().nullable().describe('Habit title from the saved day context; null for legacy memories'),
+  "targetValue": zod.number().nullable().describe('Target from the immutable saved day plan; null for legacy memories'),
+  "actualValue": zod.number().nullable().describe('Actual value from the real successful check-in; null for legacy memories'),
+  "unit": zod.union([zod.literal('minutes'),zod.literal('count'),zod.literal('pages'),zod.literal('custom'),zod.literal(null)]).nullable(),
+  "difficulty": zod.union([zod.literal('easy'),zod.literal('normal'),zod.literal('hard'),zod.literal('very_hard'),zod.literal(null)]).nullable().describe('Stored difficulty from the successful check-in; never created or changed by a memory')
+})
+
+
+/**
+ * Deleting a memory does not change habit completion, journey progress, XP, or coins.
+ * @summary Delete an owner-only private memory
  */
 export const DeleteMemoryParams = zod.object({
   "memoryId": zod.coerce.number().int()
@@ -2407,6 +2541,676 @@ export const GetDashboardTodayResponse = zod.object({
 
 
 /**
+ * @summary Read-only timezone-aware home dashboard projection
+ */
+export const getDashboardHomeResponseFocusOneHabitCustomDaysItemMin = 0;
+export const getDashboardHomeResponseFocusOneHabitCustomDaysItemMax = 6;
+
+export const getDashboardHomeResponseFocusOneHabitCueTimeRegExp = new RegExp('^([01][0-9]|2[0-3]):[0-5][0-9]$');
+export const getDashboardHomeResponseFocusOneHabitMinimumFloorMin = 0;
+
+export const getDashboardHomeResponseFocusOneHabitJourneyLengthMax = 22;
+
+
+export const getDashboardHomeResponseFocusOneExecutionPlanRevisionMin = 0;
+
+export const getDashboardHomeResponseFocusOneExecutionElapsedSecondsMin = 0;
+
+export const getDashboardHomeResponseFocusOneExecutionPausedSecondsMin = 0;
+
+export const getDashboardHomeResponseFocusOneExecutionRevisionMin = 0;
+
+export const getDashboardHomeResponseFocusOneExecutionSuccessfulDaysMin = 0;
+
+export const getDashboardHomeResponseFocusOneExecutionEligibleDaysMin = 0;
+
+export const getDashboardHomeResponseOtherHabitsItemHabitCustomDaysItemMin = 0;
+export const getDashboardHomeResponseOtherHabitsItemHabitCustomDaysItemMax = 6;
+
+export const getDashboardHomeResponseOtherHabitsItemHabitCueTimeRegExp = new RegExp('^([01][0-9]|2[0-3]):[0-5][0-9]$');
+export const getDashboardHomeResponseOtherHabitsItemHabitMinimumFloorMin = 0;
+
+export const getDashboardHomeResponseOtherHabitsItemHabitJourneyLengthMax = 22;
+
+
+export const getDashboardHomeResponseOtherHabitsItemExecutionPlanRevisionMin = 0;
+
+export const getDashboardHomeResponseOtherHabitsItemExecutionElapsedSecondsMin = 0;
+
+export const getDashboardHomeResponseOtherHabitsItemExecutionPausedSecondsMin = 0;
+
+export const getDashboardHomeResponseOtherHabitsItemExecutionRevisionMin = 0;
+
+export const getDashboardHomeResponseOtherHabitsItemExecutionSuccessfulDaysMin = 0;
+
+export const getDashboardHomeResponseOtherHabitsItemExecutionEligibleDaysMin = 0;
+
+export const getDashboardHomeResponseMissedDayOneHabitCustomDaysItemMin = 0;
+export const getDashboardHomeResponseMissedDayOneHabitCustomDaysItemMax = 6;
+
+export const getDashboardHomeResponseMissedDayOneHabitCueTimeRegExp = new RegExp('^([01][0-9]|2[0-3]):[0-5][0-9]$');
+export const getDashboardHomeResponseMissedDayOneHabitMinimumFloorMin = 0;
+
+export const getDashboardHomeResponseMissedDayOneHabitJourneyLengthMax = 22;
+
+
+export const getDashboardHomeResponseMissedDayOneExecutionPlanRevisionMin = 0;
+
+export const getDashboardHomeResponseMissedDayOneExecutionElapsedSecondsMin = 0;
+
+export const getDashboardHomeResponseMissedDayOneExecutionPausedSecondsMin = 0;
+
+export const getDashboardHomeResponseMissedDayOneExecutionRevisionMin = 0;
+
+export const getDashboardHomeResponseMissedDayOneExecutionSuccessfulDaysMin = 0;
+
+export const getDashboardHomeResponseMissedDayOneExecutionEligibleDaysMin = 0;
+
+export const getDashboardHomeResponseJourneyOneCurrentDayMin = 0;
+export const getDashboardHomeResponseJourneyOneCurrentDayMax = 22;
+
+export const getDashboardHomeResponseJourneyOneSuccessfulDaysMin = 0;
+
+export const getDashboardHomeResponseJourneyOneEligibleDaysMin = 0;
+
+export const getDashboardHomeResponseJourneyOneConsistencyPercentageMin = 0;
+export const getDashboardHomeResponseJourneyOneConsistencyPercentageMax = 100;
+
+export const getDashboardHomeResponseJourneyOneDaysRemainingMin = 0;
+export const getDashboardHomeResponseJourneyOneDaysRemainingMax = 22;
+
+export const getDashboardHomeResponseJourneyOneProgressPercentMin = 0;
+export const getDashboardHomeResponseJourneyOneProgressPercentMax = 100;
+
+export const getDashboardHomeResponseJourneyOneCoinsEarnedMin = 0;
+
+export const getDashboardHomeResponseJourneyOneXpEarnedMin = 0;
+
+export const getDashboardHomeResponseRewardOneEstimatedValueMin = 0;
+
+export const getDashboardHomeResponseRewardOneCurrentDayMin = 0;
+export const getDashboardHomeResponseRewardOneCurrentDayMax = 22;
+
+export const getDashboardHomeResponseRewardOneDaysRemainingMin = 0;
+export const getDashboardHomeResponseRewardOneDaysRemainingMax = 22;
+
+export const getDashboardHomeResponseCompletionOneJourneyCurrentDayMin = 0;
+export const getDashboardHomeResponseCompletionOneJourneyCurrentDayMax = 22;
+
+export const getDashboardHomeResponseCompletionOneJourneySuccessfulDaysMin = 0;
+
+export const getDashboardHomeResponseCompletionOneJourneyEligibleDaysMin = 0;
+
+export const getDashboardHomeResponseCompletionOneJourneyConsistencyPercentageMin = 0;
+export const getDashboardHomeResponseCompletionOneJourneyConsistencyPercentageMax = 100;
+
+export const getDashboardHomeResponseCompletionOneJourneyDaysRemainingMin = 0;
+export const getDashboardHomeResponseCompletionOneJourneyDaysRemainingMax = 22;
+
+export const getDashboardHomeResponseCompletionOneJourneyProgressPercentMin = 0;
+export const getDashboardHomeResponseCompletionOneJourneyProgressPercentMax = 100;
+
+export const getDashboardHomeResponseCompletionOneJourneyCoinsEarnedMin = 0;
+
+export const getDashboardHomeResponseCompletionOneJourneyXpEarnedMin = 0;
+
+export const getDashboardHomeResponseCompletionOneRewardOneEstimatedValueMin = 0;
+
+export const getDashboardHomeResponseCompletionOneRewardOneCurrentDayMin = 0;
+export const getDashboardHomeResponseCompletionOneRewardOneCurrentDayMax = 22;
+
+export const getDashboardHomeResponseCompletionOneRewardOneDaysRemainingMin = 0;
+export const getDashboardHomeResponseCompletionOneRewardOneDaysRemainingMax = 22;
+
+export const getDashboardHomeResponseCharacterOneTotalXpMin = 0;
+
+
+export const getDashboardHomeResponseCharacterOneProgressPercentMin = 0;
+export const getDashboardHomeResponseCharacterOneProgressPercentMax = 100;
+
+export const getDashboardHomeResponseCharacterOneWalletCoinsMin = 0;
+
+export const getDashboardHomeResponseCharacterOneEquippedItemsItemLevelRequiredDefault = 0;
+export const getDashboardHomeResponseCharacterOneEquippedItemsItemLevelRequiredMin = 0;
+
+export const getDashboardHomeResponseCharacterOneRecentProgressItemXpEarnedMin = 0;
+
+export const getDashboardHomeResponseCharacterOneRecentProgressItemCoinsEarnedMin = 0;
+
+export const getDashboardHomeResponseTimeOneTrackedMinutesMin = 0;
+
+export const getDashboardHomeResponseTimeOneCategoryTotalsItemMinutesMin = 0;
+
+export const getDashboardHomeResponseTimeOneCategoryTotalsItemPercentageMin = 0;
+export const getDashboardHomeResponseTimeOneCategoryTotalsItemPercentageMax = 100;
+
+export const getDashboardHomeResponseTimeOneCategoryTotalsMax = 3;
+
+export const getDashboardHomeResponseFriendsItemJourneyOneProgressDayMin = 0;
+export const getDashboardHomeResponseFriendsItemJourneyOneProgressDayMax = 22;
+
+export const getDashboardHomeResponseFriendsItemJourneyOneSuccessfulDayCountMin = 0;
+
+export const getDashboardHomeResponseFriendsItemJourneyOneConsistencyPercentageMin = 0;
+export const getDashboardHomeResponseFriendsItemJourneyOneConsistencyPercentageMax = 100;
+
+export const getDashboardHomeResponseFriendsMax = 4;
+
+export const getDashboardHomeResponseMemoryOneCaptionMax = 300;
+
+
+
+export const GetDashboardHomeResponse = zod.object({
+  "date": zod.coerce.date(),
+  "timezone": zod.string(),
+  "greeting": zod.enum(['morning', 'evening', 'night']),
+  "profile": zod.object({
+  "id": zod.string(),
+  "displayName": zod.string(),
+  "avatarEmoji": zod.string(),
+  "level": zod.number().int(),
+  "xp": zod.number().int(),
+  "xpToNextLevel": zod.number().int(),
+  "coins": zod.number().int(),
+  "motivationStyle": zod.enum(['encouraging', 'tough_love', 'data_driven']),
+  "primaryGoalCategory": zod.union([zod.literal('health'),zod.literal('learning'),zod.literal('productivity'),zod.literal('mindfulness'),zod.literal('social'),zod.literal('creativity'),zod.literal('finance'),zod.literal('custom'),zod.literal(null)]).nullable(),
+  "onboardingCompleted": zod.boolean(),
+  "timezone": zod.string(),
+  "createdAt": zod.coerce.date()
+}),
+  "state": zod.enum(['new_user', 'no_habit', 'tracking_active', 'tracking_paused', 'analysis_available', 'habit_not_started', 'habit_in_progress', 'minimum_reached', 'target_complete', 'missed_day', 'adaptation_required', 'journey_complete', 'rest_day', 'unavailable']),
+  "focus": zod.union([zod.object({
+  "habit": zod.object({
+  "id": zod.number().int(),
+  "title": zod.string(),
+  "emoji": zod.string(),
+  "category": zod.enum(['health', 'learning', 'productivity', 'mindfulness', 'social', 'creativity', 'finance', 'custom']),
+  "cadence": zod.enum(['daily', 'weekdays', 'weekly', 'custom_days']),
+  "customDays": zod.array(zod.number().int().min(getDashboardHomeResponseFocusOneHabitCustomDaysItemMin).max(getDashboardHomeResponseFocusOneHabitCustomDaysItemMax)).nullable(),
+  "unit": zod.enum(['minutes', 'count', 'pages', 'custom']),
+  "executionType": zod.union([zod.literal('duration'),zod.literal('count'),zod.literal('boolean'),zod.literal('limit'),zod.literal(null)]).nullish().describe('Nullable for legacy records; inferred from unit and goalType when consumed.'),
+  "targetValue": zod.number(),
+  "minimumValue": zod.number().nullable(),
+  "busyDayValue": zod.number().nullable(),
+  "baselineValue": zod.number().nullable(),
+  "successLimitValue": zod.number().nullable(),
+  "cueType": zod.union([zod.literal('time'),zod.literal('routine'),zod.literal('custom'),zod.literal(null)]).nullable(),
+  "cueTime": zod.string().regex(getDashboardHomeResponseFocusOneHabitCueTimeRegExp).nullable(),
+  "cue": zod.string().nullable(),
+  "startAction": zod.string().nullable(),
+  "friction": zod.string().nullable(),
+  "minimumFloor": zod.number().min(getDashboardHomeResponseFocusOneHabitMinimumFloorMin).nullable(),
+  "journeyStartDate": zod.coerce.date().nullable(),
+  "journeyLength": zod.number().int().min(1).max(getDashboardHomeResponseFocusOneHabitJourneyLengthMax).nullable(),
+  "journeyCompletedAt": zod.coerce.date().nullish().describe('Server-recorded journey completion instant; optional for compatibility with older servers.'),
+  "rewardId": zod.number().int().min(1).nullable(),
+  "difficulty": zod.enum(['easy', 'medium', 'hard']),
+  "goalType": zod.enum(['build', 'quit']),
+  "isActive": zod.boolean(),
+  "currentStreak": zod.number().int(),
+  "longestStreak": zod.number().int(),
+  "lastCheckinDate": zod.coerce.date().nullable(),
+  "milestones": zod.array(zod.object({
+  "title": zod.string(),
+  "description": zod.string(),
+  "targetValue": zod.number(),
+  "order": zod.number().int()
+})),
+  "createdAt": zod.coerce.date()
+}),
+  "execution": zod.object({
+  "habitId": zod.number().int(),
+  "date": zod.coerce.date(),
+  "dayNumber": zod.number().int(),
+  "habitDayId": zod.number().int().nullish().describe('Saved habit_days row ID when a saved plan snapshot exists'),
+  "memoryId": zod.number().int().nullish().describe('Owner\'s private memory ID for this day'),
+  "scheduled": zod.boolean(),
+  "eligible": zod.boolean(),
+  "planRevision": zod.number().int().min(getDashboardHomeResponseFocusOneExecutionPlanRevisionMin),
+  "title": zod.string(),
+  "executionType": zod.enum(['duration', 'count', 'boolean', 'limit']),
+  "unit": zod.enum(['minutes', 'count', 'pages', 'custom']),
+  "targetValue": zod.number(),
+  "minimumValue": zod.number(),
+  "busyDayValue": zod.number().nullable(),
+  "successLimitValue": zod.number().nullable(),
+  "goalType": zod.enum(['build', 'quit']),
+  "cueType": zod.union([zod.literal('time'),zod.literal('routine'),zod.literal('custom'),zod.literal(null)]).nullable(),
+  "cueTime": zod.string().nullable(),
+  "cue": zod.string().nullable(),
+  "startAction": zod.string().nullable(),
+  "status": zod.enum(['pending', 'in_progress', 'paused', 'minimum_reached', 'target_reached', 'pending_reflection', 'completed', 'missed', 'recovery_available', 'recovery_active', 'recovered']),
+  "actualValue": zod.number().nullable(),
+  "actualSeconds": zod.number().int().nullable(),
+  "elapsedSeconds": zod.number().int().min(getDashboardHomeResponseFocusOneExecutionElapsedSecondsMin),
+  "startedAt": zod.coerce.date().nullable(),
+  "lastResumedAt": zod.coerce.date().nullable(),
+  "pausedAt": zod.coerce.date().nullable(),
+  "pausedSeconds": zod.number().int().min(getDashboardHomeResponseFocusOneExecutionPausedSecondsMin),
+  "finishedAt": zod.coerce.date().nullable(),
+  "missedReason": zod.union([zod.literal('too_difficult'),zod.literal('no_time'),zod.literal('forgot'),zod.literal('lost_motivation'),zod.literal('unexpected'),zod.literal('other'),zod.literal(null)]).nullable(),
+  "note": zod.string().nullable(),
+  "difficulty": zod.union([zod.literal('easy'),zod.literal('normal'),zod.literal('hard'),zod.literal('very_hard'),zod.literal(null)]).nullable(),
+  "revision": zod.number().int().min(getDashboardHomeResponseFocusOneExecutionRevisionMin),
+  "adaptationDecision": zod.union([zod.enum(['accepted', 'rejected']),zod.null()]),
+  "checkin": zod.union([zod.object({
+  "id": zod.number().int(),
+  "habitId": zod.number().int(),
+  "date": zod.coerce.date(),
+  "completed": zod.boolean(),
+  "value": zod.number().nullable(),
+  "note": zod.string().nullable(),
+  "moodRating": zod.number().int().nullable(),
+  "difficulty": zod.union([zod.literal('easy'),zod.literal('normal'),zod.literal('hard'),zod.literal('very_hard'),zod.literal(null)]).nullable(),
+  "missedReason": zod.union([zod.literal('too_difficult'),zod.literal('no_time'),zod.literal('forgot'),zod.literal('lost_motivation'),zod.literal('unexpected'),zod.literal('other'),zod.literal(null)]).nullable(),
+  "targetSnapshot": zod.number().nullable(),
+  "minimumSnapshot": zod.number().nullable(),
+  "successLimitSnapshot": zod.number().nullable(),
+  "goalTypeSnapshot": zod.union([zod.literal('build'),zod.literal('quit'),zod.literal(null)]).nullable(),
+  "targetCompleted": zod.boolean(),
+  "coinsEarned": zod.number().int(),
+  "xpEarned": zod.number().int().nullable().describe('Exact XP persisted atomically with newly granted check-in rewards; null means historical earnings are unknown'),
+  "createdAt": zod.coerce.date()
+}),zod.null()]),
+  "successfulDays": zod.number().int().min(getDashboardHomeResponseFocusOneExecutionSuccessfulDaysMin),
+  "eligibleDays": zod.number().int().min(getDashboardHomeResponseFocusOneExecutionEligibleDaysMin),
+  "rewardMilestones": zod.array(zod.object({
+  "days": zod.union([zod.literal(1),zod.literal(5),zod.literal(10),zod.literal(15),zod.literal(22)]),
+  "reached": zod.boolean()
+}))
+})
+}),zod.null()]),
+  "otherHabits": zod.array(zod.object({
+  "habit": zod.object({
+  "id": zod.number().int(),
+  "title": zod.string(),
+  "emoji": zod.string(),
+  "category": zod.enum(['health', 'learning', 'productivity', 'mindfulness', 'social', 'creativity', 'finance', 'custom']),
+  "cadence": zod.enum(['daily', 'weekdays', 'weekly', 'custom_days']),
+  "customDays": zod.array(zod.number().int().min(getDashboardHomeResponseOtherHabitsItemHabitCustomDaysItemMin).max(getDashboardHomeResponseOtherHabitsItemHabitCustomDaysItemMax)).nullable(),
+  "unit": zod.enum(['minutes', 'count', 'pages', 'custom']),
+  "executionType": zod.union([zod.literal('duration'),zod.literal('count'),zod.literal('boolean'),zod.literal('limit'),zod.literal(null)]).nullish().describe('Nullable for legacy records; inferred from unit and goalType when consumed.'),
+  "targetValue": zod.number(),
+  "minimumValue": zod.number().nullable(),
+  "busyDayValue": zod.number().nullable(),
+  "baselineValue": zod.number().nullable(),
+  "successLimitValue": zod.number().nullable(),
+  "cueType": zod.union([zod.literal('time'),zod.literal('routine'),zod.literal('custom'),zod.literal(null)]).nullable(),
+  "cueTime": zod.string().regex(getDashboardHomeResponseOtherHabitsItemHabitCueTimeRegExp).nullable(),
+  "cue": zod.string().nullable(),
+  "startAction": zod.string().nullable(),
+  "friction": zod.string().nullable(),
+  "minimumFloor": zod.number().min(getDashboardHomeResponseOtherHabitsItemHabitMinimumFloorMin).nullable(),
+  "journeyStartDate": zod.coerce.date().nullable(),
+  "journeyLength": zod.number().int().min(1).max(getDashboardHomeResponseOtherHabitsItemHabitJourneyLengthMax).nullable(),
+  "journeyCompletedAt": zod.coerce.date().nullish().describe('Server-recorded journey completion instant; optional for compatibility with older servers.'),
+  "rewardId": zod.number().int().min(1).nullable(),
+  "difficulty": zod.enum(['easy', 'medium', 'hard']),
+  "goalType": zod.enum(['build', 'quit']),
+  "isActive": zod.boolean(),
+  "currentStreak": zod.number().int(),
+  "longestStreak": zod.number().int(),
+  "lastCheckinDate": zod.coerce.date().nullable(),
+  "milestones": zod.array(zod.object({
+  "title": zod.string(),
+  "description": zod.string(),
+  "targetValue": zod.number(),
+  "order": zod.number().int()
+})),
+  "createdAt": zod.coerce.date()
+}),
+  "execution": zod.object({
+  "habitId": zod.number().int(),
+  "date": zod.coerce.date(),
+  "dayNumber": zod.number().int(),
+  "habitDayId": zod.number().int().nullish().describe('Saved habit_days row ID when a saved plan snapshot exists'),
+  "memoryId": zod.number().int().nullish().describe('Owner\'s private memory ID for this day'),
+  "scheduled": zod.boolean(),
+  "eligible": zod.boolean(),
+  "planRevision": zod.number().int().min(getDashboardHomeResponseOtherHabitsItemExecutionPlanRevisionMin),
+  "title": zod.string(),
+  "executionType": zod.enum(['duration', 'count', 'boolean', 'limit']),
+  "unit": zod.enum(['minutes', 'count', 'pages', 'custom']),
+  "targetValue": zod.number(),
+  "minimumValue": zod.number(),
+  "busyDayValue": zod.number().nullable(),
+  "successLimitValue": zod.number().nullable(),
+  "goalType": zod.enum(['build', 'quit']),
+  "cueType": zod.union([zod.literal('time'),zod.literal('routine'),zod.literal('custom'),zod.literal(null)]).nullable(),
+  "cueTime": zod.string().nullable(),
+  "cue": zod.string().nullable(),
+  "startAction": zod.string().nullable(),
+  "status": zod.enum(['pending', 'in_progress', 'paused', 'minimum_reached', 'target_reached', 'pending_reflection', 'completed', 'missed', 'recovery_available', 'recovery_active', 'recovered']),
+  "actualValue": zod.number().nullable(),
+  "actualSeconds": zod.number().int().nullable(),
+  "elapsedSeconds": zod.number().int().min(getDashboardHomeResponseOtherHabitsItemExecutionElapsedSecondsMin),
+  "startedAt": zod.coerce.date().nullable(),
+  "lastResumedAt": zod.coerce.date().nullable(),
+  "pausedAt": zod.coerce.date().nullable(),
+  "pausedSeconds": zod.number().int().min(getDashboardHomeResponseOtherHabitsItemExecutionPausedSecondsMin),
+  "finishedAt": zod.coerce.date().nullable(),
+  "missedReason": zod.union([zod.literal('too_difficult'),zod.literal('no_time'),zod.literal('forgot'),zod.literal('lost_motivation'),zod.literal('unexpected'),zod.literal('other'),zod.literal(null)]).nullable(),
+  "note": zod.string().nullable(),
+  "difficulty": zod.union([zod.literal('easy'),zod.literal('normal'),zod.literal('hard'),zod.literal('very_hard'),zod.literal(null)]).nullable(),
+  "revision": zod.number().int().min(getDashboardHomeResponseOtherHabitsItemExecutionRevisionMin),
+  "adaptationDecision": zod.union([zod.enum(['accepted', 'rejected']),zod.null()]),
+  "checkin": zod.union([zod.object({
+  "id": zod.number().int(),
+  "habitId": zod.number().int(),
+  "date": zod.coerce.date(),
+  "completed": zod.boolean(),
+  "value": zod.number().nullable(),
+  "note": zod.string().nullable(),
+  "moodRating": zod.number().int().nullable(),
+  "difficulty": zod.union([zod.literal('easy'),zod.literal('normal'),zod.literal('hard'),zod.literal('very_hard'),zod.literal(null)]).nullable(),
+  "missedReason": zod.union([zod.literal('too_difficult'),zod.literal('no_time'),zod.literal('forgot'),zod.literal('lost_motivation'),zod.literal('unexpected'),zod.literal('other'),zod.literal(null)]).nullable(),
+  "targetSnapshot": zod.number().nullable(),
+  "minimumSnapshot": zod.number().nullable(),
+  "successLimitSnapshot": zod.number().nullable(),
+  "goalTypeSnapshot": zod.union([zod.literal('build'),zod.literal('quit'),zod.literal(null)]).nullable(),
+  "targetCompleted": zod.boolean(),
+  "coinsEarned": zod.number().int(),
+  "xpEarned": zod.number().int().nullable().describe('Exact XP persisted atomically with newly granted check-in rewards; null means historical earnings are unknown'),
+  "createdAt": zod.coerce.date()
+}),zod.null()]),
+  "successfulDays": zod.number().int().min(getDashboardHomeResponseOtherHabitsItemExecutionSuccessfulDaysMin),
+  "eligibleDays": zod.number().int().min(getDashboardHomeResponseOtherHabitsItemExecutionEligibleDaysMin),
+  "rewardMilestones": zod.array(zod.object({
+  "days": zod.union([zod.literal(1),zod.literal(5),zod.literal(10),zod.literal(15),zod.literal(22)]),
+  "reached": zod.boolean()
+}))
+})
+})),
+  "missedDay": zod.union([zod.object({
+  "habit": zod.object({
+  "id": zod.number().int(),
+  "title": zod.string(),
+  "emoji": zod.string(),
+  "category": zod.enum(['health', 'learning', 'productivity', 'mindfulness', 'social', 'creativity', 'finance', 'custom']),
+  "cadence": zod.enum(['daily', 'weekdays', 'weekly', 'custom_days']),
+  "customDays": zod.array(zod.number().int().min(getDashboardHomeResponseMissedDayOneHabitCustomDaysItemMin).max(getDashboardHomeResponseMissedDayOneHabitCustomDaysItemMax)).nullable(),
+  "unit": zod.enum(['minutes', 'count', 'pages', 'custom']),
+  "executionType": zod.union([zod.literal('duration'),zod.literal('count'),zod.literal('boolean'),zod.literal('limit'),zod.literal(null)]).nullish().describe('Nullable for legacy records; inferred from unit and goalType when consumed.'),
+  "targetValue": zod.number(),
+  "minimumValue": zod.number().nullable(),
+  "busyDayValue": zod.number().nullable(),
+  "baselineValue": zod.number().nullable(),
+  "successLimitValue": zod.number().nullable(),
+  "cueType": zod.union([zod.literal('time'),zod.literal('routine'),zod.literal('custom'),zod.literal(null)]).nullable(),
+  "cueTime": zod.string().regex(getDashboardHomeResponseMissedDayOneHabitCueTimeRegExp).nullable(),
+  "cue": zod.string().nullable(),
+  "startAction": zod.string().nullable(),
+  "friction": zod.string().nullable(),
+  "minimumFloor": zod.number().min(getDashboardHomeResponseMissedDayOneHabitMinimumFloorMin).nullable(),
+  "journeyStartDate": zod.coerce.date().nullable(),
+  "journeyLength": zod.number().int().min(1).max(getDashboardHomeResponseMissedDayOneHabitJourneyLengthMax).nullable(),
+  "journeyCompletedAt": zod.coerce.date().nullish().describe('Server-recorded journey completion instant; optional for compatibility with older servers.'),
+  "rewardId": zod.number().int().min(1).nullable(),
+  "difficulty": zod.enum(['easy', 'medium', 'hard']),
+  "goalType": zod.enum(['build', 'quit']),
+  "isActive": zod.boolean(),
+  "currentStreak": zod.number().int(),
+  "longestStreak": zod.number().int(),
+  "lastCheckinDate": zod.coerce.date().nullable(),
+  "milestones": zod.array(zod.object({
+  "title": zod.string(),
+  "description": zod.string(),
+  "targetValue": zod.number(),
+  "order": zod.number().int()
+})),
+  "createdAt": zod.coerce.date()
+}),
+  "execution": zod.object({
+  "habitId": zod.number().int(),
+  "date": zod.coerce.date(),
+  "dayNumber": zod.number().int(),
+  "habitDayId": zod.number().int().nullish().describe('Saved habit_days row ID when a saved plan snapshot exists'),
+  "memoryId": zod.number().int().nullish().describe('Owner\'s private memory ID for this day'),
+  "scheduled": zod.boolean(),
+  "eligible": zod.boolean(),
+  "planRevision": zod.number().int().min(getDashboardHomeResponseMissedDayOneExecutionPlanRevisionMin),
+  "title": zod.string(),
+  "executionType": zod.enum(['duration', 'count', 'boolean', 'limit']),
+  "unit": zod.enum(['minutes', 'count', 'pages', 'custom']),
+  "targetValue": zod.number(),
+  "minimumValue": zod.number(),
+  "busyDayValue": zod.number().nullable(),
+  "successLimitValue": zod.number().nullable(),
+  "goalType": zod.enum(['build', 'quit']),
+  "cueType": zod.union([zod.literal('time'),zod.literal('routine'),zod.literal('custom'),zod.literal(null)]).nullable(),
+  "cueTime": zod.string().nullable(),
+  "cue": zod.string().nullable(),
+  "startAction": zod.string().nullable(),
+  "status": zod.enum(['pending', 'in_progress', 'paused', 'minimum_reached', 'target_reached', 'pending_reflection', 'completed', 'missed', 'recovery_available', 'recovery_active', 'recovered']),
+  "actualValue": zod.number().nullable(),
+  "actualSeconds": zod.number().int().nullable(),
+  "elapsedSeconds": zod.number().int().min(getDashboardHomeResponseMissedDayOneExecutionElapsedSecondsMin),
+  "startedAt": zod.coerce.date().nullable(),
+  "lastResumedAt": zod.coerce.date().nullable(),
+  "pausedAt": zod.coerce.date().nullable(),
+  "pausedSeconds": zod.number().int().min(getDashboardHomeResponseMissedDayOneExecutionPausedSecondsMin),
+  "finishedAt": zod.coerce.date().nullable(),
+  "missedReason": zod.union([zod.literal('too_difficult'),zod.literal('no_time'),zod.literal('forgot'),zod.literal('lost_motivation'),zod.literal('unexpected'),zod.literal('other'),zod.literal(null)]).nullable(),
+  "note": zod.string().nullable(),
+  "difficulty": zod.union([zod.literal('easy'),zod.literal('normal'),zod.literal('hard'),zod.literal('very_hard'),zod.literal(null)]).nullable(),
+  "revision": zod.number().int().min(getDashboardHomeResponseMissedDayOneExecutionRevisionMin),
+  "adaptationDecision": zod.union([zod.enum(['accepted', 'rejected']),zod.null()]),
+  "checkin": zod.union([zod.object({
+  "id": zod.number().int(),
+  "habitId": zod.number().int(),
+  "date": zod.coerce.date(),
+  "completed": zod.boolean(),
+  "value": zod.number().nullable(),
+  "note": zod.string().nullable(),
+  "moodRating": zod.number().int().nullable(),
+  "difficulty": zod.union([zod.literal('easy'),zod.literal('normal'),zod.literal('hard'),zod.literal('very_hard'),zod.literal(null)]).nullable(),
+  "missedReason": zod.union([zod.literal('too_difficult'),zod.literal('no_time'),zod.literal('forgot'),zod.literal('lost_motivation'),zod.literal('unexpected'),zod.literal('other'),zod.literal(null)]).nullable(),
+  "targetSnapshot": zod.number().nullable(),
+  "minimumSnapshot": zod.number().nullable(),
+  "successLimitSnapshot": zod.number().nullable(),
+  "goalTypeSnapshot": zod.union([zod.literal('build'),zod.literal('quit'),zod.literal(null)]).nullable(),
+  "targetCompleted": zod.boolean(),
+  "coinsEarned": zod.number().int(),
+  "xpEarned": zod.number().int().nullable().describe('Exact XP persisted atomically with newly granted check-in rewards; null means historical earnings are unknown'),
+  "createdAt": zod.coerce.date()
+}),zod.null()]),
+  "successfulDays": zod.number().int().min(getDashboardHomeResponseMissedDayOneExecutionSuccessfulDaysMin),
+  "eligibleDays": zod.number().int().min(getDashboardHomeResponseMissedDayOneExecutionEligibleDaysMin),
+  "rewardMilestones": zod.array(zod.object({
+  "days": zod.union([zod.literal(1),zod.literal(5),zod.literal(10),zod.literal(15),zod.literal(22)]),
+  "reached": zod.boolean()
+}))
+})
+}),zod.null()]),
+  "journey": zod.union([zod.object({
+  "habitId": zod.number().int(),
+  "title": zod.string(),
+  "emoji": zod.string(),
+  "currentDay": zod.number().int().min(getDashboardHomeResponseJourneyOneCurrentDayMin).max(getDashboardHomeResponseJourneyOneCurrentDayMax),
+  "journeyLength": zod.literal(22),
+  "status": zod.enum(['upcoming', 'active', 'completed', 'expired']),
+  "successfulDays": zod.number().int().min(getDashboardHomeResponseJourneyOneSuccessfulDaysMin),
+  "eligibleDays": zod.number().int().min(getDashboardHomeResponseJourneyOneEligibleDaysMin),
+  "consistencyPercentage": zod.number().min(getDashboardHomeResponseJourneyOneConsistencyPercentageMin).max(getDashboardHomeResponseJourneyOneConsistencyPercentageMax).nullable(),
+  "daysRemaining": zod.number().int().min(getDashboardHomeResponseJourneyOneDaysRemainingMin).max(getDashboardHomeResponseJourneyOneDaysRemainingMax),
+  "progressPercent": zod.number().int().min(getDashboardHomeResponseJourneyOneProgressPercentMin).max(getDashboardHomeResponseJourneyOneProgressPercentMax).describe('Calendar progress only; not consistency or reward eligibility.'),
+  "coinsEarned": zod.number().int().min(getDashboardHomeResponseJourneyOneCoinsEarnedMin),
+  "xpEarned": zod.number().int().min(getDashboardHomeResponseJourneyOneXpEarnedMin),
+  "earningsPartial": zod.boolean()
+}),zod.null()]),
+  "reward": zod.union([zod.object({
+  "id": zod.number().int(),
+  "habitId": zod.number().int().nullable(),
+  "title": zod.string(),
+  "type": zod.enum(['physical', 'experience']),
+  "description": zod.string().nullable(),
+  "imageUrl": zod.string().nullable().describe('Normalized private object path; clients serve it through the authenticated object route.'),
+  "estimatedValue": zod.number().min(getDashboardHomeResponseRewardOneEstimatedValueMin).nullable(),
+  "status": zod.enum(['pending', 'unlocked', 'claimed']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "unlockedAt": zod.coerce.date().nullable(),
+  "claimedAt": zod.coerce.date().nullable(),
+  "currentDay": zod.number().int().min(getDashboardHomeResponseRewardOneCurrentDayMin).max(getDashboardHomeResponseRewardOneCurrentDayMax).nullable().describe('Current server-computed calendar day of the attached journey; null when unattached.'),
+  "daysRemaining": zod.number().int().min(getDashboardHomeResponseRewardOneDaysRemainingMin).max(getDashboardHomeResponseRewardOneDaysRemainingMax).nullable().describe('Remaining calendar days in the attached 22-day journey; null when unattached.')
+}).describe('Owner-private personal reward and its server-computed 22-calendar-day progress. Image URL is a normalized private object path.'),zod.null()]),
+  "completion": zod.union([zod.object({
+  "journey": zod.object({
+  "habitId": zod.number().int(),
+  "title": zod.string(),
+  "emoji": zod.string(),
+  "currentDay": zod.number().int().min(getDashboardHomeResponseCompletionOneJourneyCurrentDayMin).max(getDashboardHomeResponseCompletionOneJourneyCurrentDayMax),
+  "journeyLength": zod.literal(22),
+  "status": zod.enum(['upcoming', 'active', 'completed', 'expired']),
+  "successfulDays": zod.number().int().min(getDashboardHomeResponseCompletionOneJourneySuccessfulDaysMin),
+  "eligibleDays": zod.number().int().min(getDashboardHomeResponseCompletionOneJourneyEligibleDaysMin),
+  "consistencyPercentage": zod.number().min(getDashboardHomeResponseCompletionOneJourneyConsistencyPercentageMin).max(getDashboardHomeResponseCompletionOneJourneyConsistencyPercentageMax).nullable(),
+  "daysRemaining": zod.number().int().min(getDashboardHomeResponseCompletionOneJourneyDaysRemainingMin).max(getDashboardHomeResponseCompletionOneJourneyDaysRemainingMax),
+  "progressPercent": zod.number().int().min(getDashboardHomeResponseCompletionOneJourneyProgressPercentMin).max(getDashboardHomeResponseCompletionOneJourneyProgressPercentMax).describe('Calendar progress only; not consistency or reward eligibility.'),
+  "coinsEarned": zod.number().int().min(getDashboardHomeResponseCompletionOneJourneyCoinsEarnedMin),
+  "xpEarned": zod.number().int().min(getDashboardHomeResponseCompletionOneJourneyXpEarnedMin),
+  "earningsPartial": zod.boolean()
+}),
+  "reward": zod.union([zod.object({
+  "id": zod.number().int(),
+  "habitId": zod.number().int().nullable(),
+  "title": zod.string(),
+  "type": zod.enum(['physical', 'experience']),
+  "description": zod.string().nullable(),
+  "imageUrl": zod.string().nullable().describe('Normalized private object path; clients serve it through the authenticated object route.'),
+  "estimatedValue": zod.number().min(getDashboardHomeResponseCompletionOneRewardOneEstimatedValueMin).nullable(),
+  "status": zod.enum(['pending', 'unlocked', 'claimed']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "unlockedAt": zod.coerce.date().nullable(),
+  "claimedAt": zod.coerce.date().nullable(),
+  "currentDay": zod.number().int().min(getDashboardHomeResponseCompletionOneRewardOneCurrentDayMin).max(getDashboardHomeResponseCompletionOneRewardOneCurrentDayMax).nullable().describe('Current server-computed calendar day of the attached journey; null when unattached.'),
+  "daysRemaining": zod.number().int().min(getDashboardHomeResponseCompletionOneRewardOneDaysRemainingMin).max(getDashboardHomeResponseCompletionOneRewardOneDaysRemainingMax).nullable().describe('Remaining calendar days in the attached 22-day journey; null when unattached.')
+}).describe('Owner-private personal reward and its server-computed 22-calendar-day progress. Image URL is a normalized private object path.'),zod.null()])
+}),zod.null()]).optional(),
+  "character": zod.union([zod.object({
+  "level": zod.number().int(),
+  "xp": zod.number().int(),
+  "xpToNextLevel": zod.number().int(),
+  "totalXp": zod.number().int().min(getDashboardHomeResponseCharacterOneTotalXpMin),
+  "nextLevelXp": zod.number().int().min(1),
+  "progressPercent": zod.number().min(getDashboardHomeResponseCharacterOneProgressPercentMin).max(getDashboardHomeResponseCharacterOneProgressPercentMax),
+  "walletCoins": zod.number().int().min(getDashboardHomeResponseCharacterOneWalletCoinsMin),
+  "equippedItems": zod.array(zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "slot": zod.enum(['outfit', 'hat', 'accessory', 'pet', 'background']),
+  "emoji": zod.string(),
+  "coinCost": zod.number().int(),
+  "levelRequired": zod.number().int().min(getDashboardHomeResponseCharacterOneEquippedItemsItemLevelRequiredMin).default(getDashboardHomeResponseCharacterOneEquippedItemsItemLevelRequiredDefault),
+  "owned": zod.boolean(),
+  "equipped": zod.boolean()
+})),
+  "recentProgress": zod.array(zod.object({
+  "date": zod.coerce.date(),
+  "xpEarned": zod.number().int().min(getDashboardHomeResponseCharacterOneRecentProgressItemXpEarnedMin).nullable(),
+  "coinsEarned": zod.number().int().min(getDashboardHomeResponseCharacterOneRecentProgressItemCoinsEarnedMin).nullable()
+}))
+}),zod.null()]),
+  "time": zod.union([zod.object({
+  "session": zod.union([zod.object({
+  "date": zod.coerce.date(),
+  "status": zod.enum(['active', 'paused', 'finished']),
+  "intervalMinutes": zod.union([zod.literal(15),zod.literal(30)]),
+  "startedAt": zod.coerce.date(),
+  "lastCheckinAt": zod.coerce.date().nullable(),
+  "nextCheckinAt": zod.coerce.date().nullable(),
+  "finishedAt": zod.coerce.date().nullable()
+}),zod.null()]),
+  "trackedMinutes": zod.number().int().min(getDashboardHomeResponseTimeOneTrackedMinutesMin),
+  "intervalMinutes": zod.number().int().nullable(),
+  "categoryTotals": zod.array(zod.object({
+  "category": zod.string(),
+  "label": zod.string(),
+  "minutes": zod.number().int().min(getDashboardHomeResponseTimeOneCategoryTotalsItemMinutesMin),
+  "percentage": zod.number().int().min(getDashboardHomeResponseTimeOneCategoryTotalsItemPercentageMin).max(getDashboardHomeResponseTimeOneCategoryTotalsItemPercentageMax)
+})).max(getDashboardHomeResponseTimeOneCategoryTotalsMax),
+  "opportunity": zod.string().nullable()
+}),zod.null()]),
+  "coach": zod.union([zod.object({
+  "analysis": zod.union([zod.object({
+  "status": zod.enum(['ready', 'insufficient']),
+  "headline": zod.string(),
+  "observation": zod.string(),
+  "pattern": zod.string(),
+  "opportunity": zod.string(),
+  "suggestedChange": zod.union([zod.object({
+  "minutes": zod.number().int(),
+  "category": zod.enum(['study', 'work', 'social_media', 'gaming', 'entertainment', 'exercise', 'eating', 'rest', 'travel', 'socializing', 'personal', 'other', 'unknown'])
+}),zod.null()]),
+  "replacements": zod.array(zod.object({
+  "title": zod.string(),
+  "minutes": zod.number().int(),
+  "category": zod.enum(['study', 'work', 'social_media', 'gaming', 'entertainment', 'exercise', 'eating', 'rest', 'travel', 'socializing', 'personal', 'other', 'unknown'])
+}))
+}),zod.null()]),
+  "analysisDate": zod.coerce.date().nullable(),
+  "updatedAt": zod.coerce.date().nullable(),
+  "isStale": zod.boolean()
+}),zod.null()]),
+  "friends": zod.array(zod.object({
+  "user": zod.object({
+  "id": zod.string(),
+  "username": zod.string().nullable(),
+  "displayName": zod.string(),
+  "avatarEmoji": zod.string()
+}),
+  "journey": zod.union([zod.object({
+  "journeyId": zod.number().int().describe('The owner\'s habit ID; read-only identity.'),
+  "title": zod.string(),
+  "emoji": zod.string(),
+  "category": zod.string(),
+  "progressDay": zod.number().int().min(getDashboardHomeResponseFriendsItemJourneyOneProgressDayMin).max(getDashboardHomeResponseFriendsItemJourneyOneProgressDayMax).describe('Greatest successfully completed day number'),
+  "journeyLength": zod.literal(22),
+  "successfulDayCount": zod.number().int().min(getDashboardHomeResponseFriendsItemJourneyOneSuccessfulDayCountMin).describe('Aggregate successful days only; no missed-day rows/reasons are exposed.'),
+  "consistencyPercentage": zod.number().min(getDashboardHomeResponseFriendsItemJourneyOneConsistencyPercentageMin).max(getDashboardHomeResponseFriendsItemJourneyOneConsistencyPercentageMax).nullish().describe('Successful elapsed scheduled days divided by known elapsed scheduled days; null before any scheduled day.'),
+  "completed": zod.boolean()
+}),zod.null()]),
+  "character": zod.array(zod.object({
+  "slot": zod.enum(['outfit', 'hat', 'accessory', 'pet', 'background']),
+  "name": zod.string(),
+  "emoji": zod.string()
+})).describe('Empty unless this friend\'s character/profile is independently shared with the current user.')
+})).max(getDashboardHomeResponseFriendsMax),
+  "memory": zod.union([zod.object({
+  "id": zod.number().int(),
+  "habitId": zod.number().int().nullable(),
+  "note": zod.string().nullable().describe('Deprecated compatibility alias for caption; legacy note content is preserved'),
+  "photoUrl": zod.string().nullable().describe('Existing authenticated private-object URL behavior; a URL does not make the image public'),
+  "date": zod.coerce.date(),
+  "createdAt": zod.coerce.date(),
+  "caption": zod.string().max(getDashboardHomeResponseMemoryOneCaptionMax).nullable(),
+  "visibility": zod.enum(['private', 'friends', 'selected', 'public']).describe('Private for all V1 memories; other values are reserved for future social support'),
+  "updatedAt": zod.coerce.date(),
+  "journeyId": zod.number().int().nullable().describe('Server-derived journey identity (the habit ID); null for legacy memories not linked to a saved journey day'),
+  "habitDayId": zod.number().int().nullable().describe('Saved habit_days row ID; null for legacy memories not linked to a saved journey day'),
+  "dayNumber": zod.number().int().nullable().describe('Saved journey day number; null for legacy memories'),
+  "journeyLength": zod.number().int().nullable().describe('Saved journey length; null for legacy memories'),
+  "habitTitle": zod.string().nullable().describe('Habit title from the saved day context; null for legacy memories'),
+  "targetValue": zod.number().nullable().describe('Target from the immutable saved day plan; null for legacy memories'),
+  "actualValue": zod.number().nullable().describe('Actual value from the real successful check-in; null for legacy memories'),
+  "unit": zod.union([zod.literal('minutes'),zod.literal('count'),zod.literal('pages'),zod.literal('custom'),zod.literal(null)]).nullable(),
+  "difficulty": zod.union([zod.literal('easy'),zod.literal('normal'),zod.literal('hard'),zod.literal('very_hard'),zod.literal(null)]).nullable().describe('Stored difficulty from the successful check-in; never created or changed by a memory')
+}),zod.null()]),
+  "sectionStatus": zod.object({
+  "habits": zod.enum(['ready', 'empty', 'unavailable', 'stale']),
+  "journey": zod.enum(['ready', 'empty', 'unavailable', 'stale']),
+  "reward": zod.enum(['ready', 'empty', 'unavailable', 'stale']),
+  "character": zod.enum(['ready', 'empty', 'unavailable', 'stale']),
+  "time": zod.enum(['ready', 'empty', 'unavailable', 'stale']),
+  "coach": zod.enum(['ready', 'empty', 'unavailable', 'stale']),
+  "social": zod.enum(['ready', 'empty', 'unavailable', 'stale']),
+  "memory": zod.enum(['ready', 'empty', 'unavailable', 'stale'])
+})
+})
+
+
+/**
  * @summary Daily completion heatmap data for a calendar month
  */
 export const GetDashboardCalendarQueryParams = zod.object({
@@ -2423,7 +3227,1549 @@ export const GetDashboardCalendarResponse = zod.array(GetDashboardCalendarRespon
 
 
 /**
- * @summary List groups/challenges the current user belongs to
+ * Username is nullable until chosen. Character and achievement sharing default to private and are changed through the resource sharing endpoint.
+ * @summary Get the current user's social account and profile-sharing preferences
+ */
+export const getSocialMeResponseUsernameMin = 3;
+export const getSocialMeResponseUsernameMax = 24;
+
+
+export const getSocialMeResponseCharacterSharingSelectedUserIdsMax = 100;
+
+
+export const getSocialMeResponseAchievementsSharingSelectedUserIdsMax = 100;
+
+
+
+export const GetSocialMeResponse = zod.object({
+  "id": zod.string(),
+  "username": zod.string().min(getSocialMeResponseUsernameMin).max(getSocialMeResponseUsernameMax).nullable(),
+  "displayName": zod.string(),
+  "avatarEmoji": zod.string(),
+  "characterSharing": zod.object({
+  "resourceType": zod.enum(['journey', 'memory', 'reward', 'character', 'achievements']).describe('Journey IDs are habit IDs; profile preferences use resourceId "profile".'),
+  "resourceId": zod.string().min(1),
+  "visibility": zod.enum(['private', 'friends', 'selected']),
+  "selectedUserIds": zod.array(zod.string()).max(getSocialMeResponseCharacterSharingSelectedUserIdsMax)
+}),
+  "achievementsSharing": zod.object({
+  "resourceType": zod.enum(['journey', 'memory', 'reward', 'character', 'achievements']).describe('Journey IDs are habit IDs; profile preferences use resourceId "profile".'),
+  "resourceId": zod.string().min(1),
+  "visibility": zod.enum(['private', 'friends', 'selected']),
+  "selectedUserIds": zod.array(zod.string()).max(getSocialMeResponseAchievementsSharingSelectedUserIdsMax)
+})
+})
+
+
+/**
+ * @summary Set or change the current user's unique username
+ */
+export const updateSocialMeBodyUsernameMin = 3;
+export const updateSocialMeBodyUsernameMax = 24;
+
+
+export const updateSocialMeBodyUsernameRegExp = new RegExp('^[a-z0-9_]{3,24}$');
+
+
+export const UpdateSocialMeBody = zod.object({
+  "username": zod.string().min(updateSocialMeBodyUsernameMin).max(updateSocialMeBodyUsernameMax).regex(updateSocialMeBodyUsernameRegExp).describe('Lowercase letters, digits, underscore only; unique without case sensitivity.')
+})
+
+export const updateSocialMeResponseUsernameMin = 3;
+export const updateSocialMeResponseUsernameMax = 24;
+
+
+export const updateSocialMeResponseCharacterSharingSelectedUserIdsMax = 100;
+
+
+export const updateSocialMeResponseAchievementsSharingSelectedUserIdsMax = 100;
+
+
+
+export const UpdateSocialMeResponse = zod.object({
+  "id": zod.string(),
+  "username": zod.string().min(updateSocialMeResponseUsernameMin).max(updateSocialMeResponseUsernameMax).nullable(),
+  "displayName": zod.string(),
+  "avatarEmoji": zod.string(),
+  "characterSharing": zod.object({
+  "resourceType": zod.enum(['journey', 'memory', 'reward', 'character', 'achievements']).describe('Journey IDs are habit IDs; profile preferences use resourceId "profile".'),
+  "resourceId": zod.string().min(1),
+  "visibility": zod.enum(['private', 'friends', 'selected']),
+  "selectedUserIds": zod.array(zod.string()).max(updateSocialMeResponseCharacterSharingSelectedUserIdsMax)
+}),
+  "achievementsSharing": zod.object({
+  "resourceType": zod.enum(['journey', 'memory', 'reward', 'character', 'achievements']).describe('Journey IDs are habit IDs; profile preferences use resourceId "profile".'),
+  "resourceId": zod.string().min(1),
+  "visibility": zod.enum(['private', 'friends', 'selected']),
+  "selectedUserIds": zod.array(zod.string()).max(updateSocialMeResponseAchievementsSharingSelectedUserIdsMax)
+})
+})
+
+
+/**
+ * Username-only search; requires at least two characters. Never returns email, habit, reward, or activity data.
+ * @summary Search a narrow safe user DTO by username
+ */
+export const searchSocialUsersQueryQMin = 2;
+export const searchSocialUsersQueryQMax = 24;
+
+export const searchSocialUsersQueryLimitDefault = 20;
+export const searchSocialUsersQueryLimitMax = 50;
+
+
+
+export const SearchSocialUsersQueryParams = zod.object({
+  "q": zod.coerce.string().min(searchSocialUsersQueryQMin).max(searchSocialUsersQueryQMax),
+  "limit": zod.coerce.number().int().min(1).max(searchSocialUsersQueryLimitMax).default(searchSocialUsersQueryLimitDefault)
+})
+
+export const SearchSocialUsersResponseItem = zod.object({
+  "id": zod.string(),
+  "username": zod.string().nullable(),
+  "displayName": zod.string(),
+  "avatarEmoji": zod.string()
+}).and(zod.object({
+  "relationship": zod.enum(['none', 'pending_incoming', 'pending_outgoing', 'friend', 'blocked'])
+}))
+export const SearchSocialUsersResponse = zod.array(SearchSocialUsersResponseItem)
+
+
+/**
+ * @summary List accepted friends
+ */
+export const ListSocialFriendsResponseItem = zod.object({
+  "id": zod.string(),
+  "username": zod.string().nullable(),
+  "displayName": zod.string(),
+  "avatarEmoji": zod.string()
+}).and(zod.object({
+  "friendsSince": zod.coerce.date()
+}))
+export const ListSocialFriendsResponse = zod.array(ListSocialFriendsResponseItem)
+
+
+/**
+ * @summary List pending requests addressed to the current user
+ */
+export const ListIncomingSocialFriendRequestsResponseItem = zod.object({
+  "id": zod.number().int(),
+  "sender": zod.object({
+  "id": zod.string(),
+  "username": zod.string().nullable(),
+  "displayName": zod.string(),
+  "avatarEmoji": zod.string()
+}),
+  "recipient": zod.object({
+  "id": zod.string(),
+  "username": zod.string().nullable(),
+  "displayName": zod.string(),
+  "avatarEmoji": zod.string()
+}),
+  "status": zod.enum(['pending', 'accepted', 'declined', 'canceled']),
+  "createdAt": zod.coerce.date(),
+  "respondedAt": zod.coerce.date().nullish()
+})
+export const ListIncomingSocialFriendRequestsResponse = zod.array(ListIncomingSocialFriendRequestsResponseItem)
+
+
+/**
+ * @summary List pending requests sent by the current user
+ */
+export const ListOutgoingSocialFriendRequestsResponseItem = zod.object({
+  "id": zod.number().int(),
+  "sender": zod.object({
+  "id": zod.string(),
+  "username": zod.string().nullable(),
+  "displayName": zod.string(),
+  "avatarEmoji": zod.string()
+}),
+  "recipient": zod.object({
+  "id": zod.string(),
+  "username": zod.string().nullable(),
+  "displayName": zod.string(),
+  "avatarEmoji": zod.string()
+}),
+  "status": zod.enum(['pending', 'accepted', 'declined', 'canceled']),
+  "createdAt": zod.coerce.date(),
+  "respondedAt": zod.coerce.date().nullish()
+})
+export const ListOutgoingSocialFriendRequestsResponse = zod.array(ListOutgoingSocialFriendRequestsResponseItem)
+
+
+/**
+ * Server verifies the target, existing relationship, and both block directions; self-requests are invalid.
+ * @summary Send a friend request by target user ID
+ */
+
+
+
+export const SendSocialFriendRequestBody = zod.object({
+  "recipientUserId": zod.string().min(1)
+})
+
+export const SendSocialFriendRequestResponse = zod.object({
+  "id": zod.number().int(),
+  "sender": zod.object({
+  "id": zod.string(),
+  "username": zod.string().nullable(),
+  "displayName": zod.string(),
+  "avatarEmoji": zod.string()
+}),
+  "recipient": zod.object({
+  "id": zod.string(),
+  "username": zod.string().nullable(),
+  "displayName": zod.string(),
+  "avatarEmoji": zod.string()
+}),
+  "status": zod.enum(['pending', 'accepted', 'declined', 'canceled']),
+  "createdAt": zod.coerce.date(),
+  "respondedAt": zod.coerce.date().nullish()
+})
+
+
+/**
+ * @summary Accept or decline an incoming friend request
+ */
+export const RespondToSocialFriendRequestParams = zod.object({
+  "requestId": zod.coerce.number().int()
+})
+
+export const RespondToSocialFriendRequestBody = zod.object({
+  "decision": zod.enum(['accept', 'decline'])
+})
+
+export const RespondToSocialFriendRequestResponse = zod.object({
+  "id": zod.number().int(),
+  "sender": zod.object({
+  "id": zod.string(),
+  "username": zod.string().nullable(),
+  "displayName": zod.string(),
+  "avatarEmoji": zod.string()
+}),
+  "recipient": zod.object({
+  "id": zod.string(),
+  "username": zod.string().nullable(),
+  "displayName": zod.string(),
+  "avatarEmoji": zod.string()
+}),
+  "status": zod.enum(['pending', 'accepted', 'declined', 'canceled']),
+  "createdAt": zod.coerce.date(),
+  "respondedAt": zod.coerce.date().nullish()
+})
+
+
+/**
+ * @summary Cancel the current user's pending outgoing request
+ */
+export const CancelSocialFriendRequestParams = zod.object({
+  "requestId": zod.coerce.number().int()
+})
+
+export const CancelSocialFriendRequestResponse = zod.void()
+
+
+/**
+ * @summary Remove an accepted friendship in either direction
+ */
+export const RemoveSocialFriendParams = zod.object({
+  "friendUserId": zod.coerce.string()
+})
+
+export const RemoveSocialFriendResponse = zod.void()
+
+
+/**
+ * @summary List users blocked by the current user
+ */
+export const ListSocialBlocksResponseItem = zod.object({
+  "id": zod.string(),
+  "username": zod.string().nullable(),
+  "displayName": zod.string(),
+  "avatarEmoji": zod.string()
+})
+export const ListSocialBlocksResponse = zod.array(ListSocialBlocksResponseItem)
+
+
+/**
+ * @summary Block a user and end any friendship or pending requests between them
+ */
+
+
+
+export const CreateSocialBlockBody = zod.object({
+  "blockedUserId": zod.string().min(1)
+})
+
+export const CreateSocialBlockResponse = zod.object({
+  "id": zod.number().int(),
+  "blockedUser": zod.object({
+  "id": zod.string(),
+  "username": zod.string().nullable(),
+  "displayName": zod.string(),
+  "avatarEmoji": zod.string()
+}),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Unblock a user
+ */
+export const RemoveSocialBlockParams = zod.object({
+  "blockedUserId": zod.coerce.string()
+})
+
+export const RemoveSocialBlockResponse = zod.void()
+
+
+/**
+ * Reports are not transmitted to an AI moderation service.
+ * @summary Persist a report about a user for human review
+ */
+
+export const createSocialReportBodyDetailsMax = 1000;
+
+
+
+export const CreateSocialReportBody = zod.object({
+  "reportedUserId": zod.string().min(1),
+  "reason": zod.enum(['spam', 'inappropriate_content', 'harassment', 'other']),
+  "details": zod.string().max(createSocialReportBodyDetailsMax).optional()
+})
+
+export const CreateSocialReportResponse = zod.object({
+  "id": zod.number().int(),
+  "status": zod.enum(['open', 'reviewed', 'closed']),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * Response is limited to safe identity, explicitly shared equipped character, achievements, visible journey summaries, shared Memories, and explicitly shared rewards. Access is directional: either accepted friendship plus friends visibility, or a selected-user ACL. A block in either direction denies the entire request. No time logs, cues, private habits, missed days/reasons, precise location, reward values, or private Memory fields.
+ * @summary Get only information explicitly shared with the current user
+ */
+export const GetSocialProfileParams = zod.object({
+  "userId": zod.coerce.string()
+})
+
+export const getSocialProfileResponseVisibleJourneySummariesItemProgressDayMin = 0;
+export const getSocialProfileResponseVisibleJourneySummariesItemProgressDayMax = 22;
+
+export const getSocialProfileResponseVisibleJourneySummariesItemSuccessfulDayCountMin = 0;
+
+export const getSocialProfileResponseVisibleJourneySummariesItemConsistencyPercentageMin = 0;
+export const getSocialProfileResponseVisibleJourneySummariesItemConsistencyPercentageMax = 100;
+
+
+
+export const GetSocialProfileResponse = zod.object({
+  "user": zod.object({
+  "id": zod.string(),
+  "username": zod.string().nullable(),
+  "displayName": zod.string(),
+  "avatarEmoji": zod.string()
+}),
+  "character": zod.array(zod.object({
+  "slot": zod.enum(['outfit', 'hat', 'accessory', 'pet', 'background']),
+  "name": zod.string(),
+  "emoji": zod.string()
+})).describe('Empty unless character/profile is explicitly shared with the current user.'),
+  "achievements": zod.array(zod.object({
+  "title": zod.string(),
+  "description": zod.string(),
+  "emoji": zod.string(),
+  "reachedAt": zod.coerce.date()
+})).describe('Empty unless achievements/profile is explicitly shared with the current user.'),
+  "visibleJourneySummaries": zod.array(zod.object({
+  "journeyId": zod.number().int().describe('The owner\'s habit ID; read-only identity.'),
+  "title": zod.string(),
+  "emoji": zod.string(),
+  "category": zod.string(),
+  "progressDay": zod.number().int().min(getSocialProfileResponseVisibleJourneySummariesItemProgressDayMin).max(getSocialProfileResponseVisibleJourneySummariesItemProgressDayMax).describe('Greatest successfully completed day number'),
+  "journeyLength": zod.literal(22),
+  "successfulDayCount": zod.number().int().min(getSocialProfileResponseVisibleJourneySummariesItemSuccessfulDayCountMin).describe('Aggregate successful days only; no missed-day rows/reasons are exposed.'),
+  "consistencyPercentage": zod.number().min(getSocialProfileResponseVisibleJourneySummariesItemConsistencyPercentageMin).max(getSocialProfileResponseVisibleJourneySummariesItemConsistencyPercentageMax).nullish().describe('Successful elapsed scheduled days divided by known elapsed scheduled days; null before any scheduled day.'),
+  "completed": zod.boolean()
+})),
+  "sharedMemories": zod.array(zod.object({
+  "id": zod.number().int(),
+  "caption": zod.string().nullable(),
+  "date": zod.coerce.date(),
+  "photoUrl": zod.string().describe('Authenticated /social/memories/{memoryId}/photo ACL endpoint, not a public URL.')
+})),
+  "sharedRewards": zod.array(zod.object({
+  "id": zod.number().int(),
+  "title": zod.string(),
+  "emoji": zod.string()
+}))
+})
+
+
+/**
+ * Owner only. Unknown ACL rows mean private. journey resourceId is the habit ID; profile preferences use resourceId "profile" for character and achievements. selectedUserIds are explicit recipients, never public.
+ * @summary Get the current owner's ACL for one resource
+ */
+
+
+
+export const GetSocialResourceSharingParams = zod.object({
+  "resourceType": zod.enum(['journey', 'memory', 'reward', 'character', 'achievements']),
+  "resourceId": zod.coerce.string().min(1)
+})
+
+
+export const getSocialResourceSharingResponseSelectedUserIdsMax = 100;
+
+
+
+export const GetSocialResourceSharingResponse = zod.object({
+  "resourceType": zod.enum(['journey', 'memory', 'reward', 'character', 'achievements']).describe('Journey IDs are habit IDs; profile preferences use resourceId "profile".'),
+  "resourceId": zod.string().min(1),
+  "visibility": zod.enum(['private', 'friends', 'selected']),
+  "selectedUserIds": zod.array(zod.string()).max(getSocialResourceSharingResponseSelectedUserIdsMax)
+})
+
+
+/**
+ * Public visibility is not supported. selectedUserIds is required when visibility is selected and must name allowed recipients; omitted or empty selectedUserIds for private/friends clears recipient rows.
+ * @summary Change private/friends/selected sharing for an owned resource
+ */
+
+
+
+export const UpdateSocialResourceSharingParams = zod.object({
+  "resourceType": zod.enum(['journey', 'memory', 'reward', 'character', 'achievements']),
+  "resourceId": zod.coerce.string().min(1)
+})
+
+
+export const updateSocialResourceSharingBodySelectedUserIdsMax = 100;
+
+
+
+export const UpdateSocialResourceSharingBody = zod.object({
+  "visibility": zod.enum(['private', 'friends', 'selected']),
+  "selectedUserIds": zod.array(zod.string().min(1)).max(updateSocialResourceSharingBodySelectedUserIdsMax).optional()
+})
+
+
+export const updateSocialResourceSharingResponseSelectedUserIdsMax = 100;
+
+
+
+export const UpdateSocialResourceSharingResponse = zod.object({
+  "resourceType": zod.enum(['journey', 'memory', 'reward', 'character', 'achievements']).describe('Journey IDs are habit IDs; profile preferences use resourceId "profile".'),
+  "resourceId": zod.string().min(1),
+  "visibility": zod.enum(['private', 'friends', 'selected']),
+  "selectedUserIds": zod.array(zod.string()).max(updateSocialResourceSharingResponseSelectedUserIdsMax)
+})
+
+
+/**
+ * Private object bytes are returned only to the owner or a currently authorized recipient. Friendship and block state are checked on every request. Never return a public URL or use the unconditional public object route for Memory photos.
+ * @summary Stream a Memory photo only after evaluating its explicit ACL
+ */
+export const GetSocialMemoryPhotoParams = zod.object({
+  "memoryId": zod.coerce.number().int()
+})
+
+export const GetSocialMemoryPhotoResponse = zod.unknown()
+
+
+/**
+ * Only successful days, milestones, and journey completions are eligible. Missed days and private details have no event contract.
+ * @summary List recent successful friend activity
+ */
+export const listSocialActivityQueryLimitDefault = 25;
+export const listSocialActivityQueryLimitMax = 100;
+
+
+
+export const ListSocialActivityQueryParams = zod.object({
+  "limit": zod.coerce.number().int().min(1).max(listSocialActivityQueryLimitMax).default(listSocialActivityQueryLimitDefault),
+  "beforeId": zod.coerce.number().int().optional()
+})
+
+export const listSocialActivityResponseJourneyOneProgressDayMin = 0;
+export const listSocialActivityResponseJourneyOneProgressDayMax = 22;
+
+export const listSocialActivityResponseJourneyOneSuccessfulDayCountMin = 0;
+
+export const listSocialActivityResponseJourneyOneConsistencyPercentageMin = 0;
+export const listSocialActivityResponseJourneyOneConsistencyPercentageMax = 100;
+
+export const listSocialActivityResponseProgressDayMin = 0;
+export const listSocialActivityResponseProgressDayMax = 22;
+
+
+
+export const ListSocialActivityResponseItem = zod.object({
+  "id": zod.number().int(),
+  "actor": zod.object({
+  "id": zod.string(),
+  "username": zod.string().nullable(),
+  "displayName": zod.string(),
+  "avatarEmoji": zod.string()
+}),
+  "eventType": zod.enum(['successful_day', 'milestone', 'journey_completed']),
+  "journey": zod.union([zod.object({
+  "journeyId": zod.number().int().describe('The owner\'s habit ID; read-only identity.'),
+  "title": zod.string(),
+  "emoji": zod.string(),
+  "category": zod.string(),
+  "progressDay": zod.number().int().min(listSocialActivityResponseJourneyOneProgressDayMin).max(listSocialActivityResponseJourneyOneProgressDayMax).describe('Greatest successfully completed day number'),
+  "journeyLength": zod.literal(22),
+  "successfulDayCount": zod.number().int().min(listSocialActivityResponseJourneyOneSuccessfulDayCountMin).describe('Aggregate successful days only; no missed-day rows/reasons are exposed.'),
+  "consistencyPercentage": zod.number().min(listSocialActivityResponseJourneyOneConsistencyPercentageMin).max(listSocialActivityResponseJourneyOneConsistencyPercentageMax).nullish().describe('Successful elapsed scheduled days divided by known elapsed scheduled days; null before any scheduled day.'),
+  "completed": zod.boolean()
+}),zod.null()]),
+  "progressDay": zod.number().int().min(listSocialActivityResponseProgressDayMin).max(listSocialActivityResponseProgressDayMax).nullable(),
+  "milestoneTitle": zod.string().nullable(),
+  "createdAt": zod.coerce.date()
+})
+export const ListSocialActivityResponse = zod.array(ListSocialActivityResponseItem)
+
+
+/**
+ * Receiver must be an accepted friend; an optional journeyId must identify a journey currently shared with the sender. A custom message is at most 120 characters. A persisted requestId makes retries idempotent and the database enforces a sender/recipient minute cooldown. This grants no XP, coins, rewards, or other progress.
+ * @summary Send one short positive encouragement to an authorized friend
+ */
+
+
+export const createSocialEncouragementBodyMessageMax = 120;
+
+
+
+export const CreateSocialEncouragementBody = zod.object({
+  "receiverUserId": zod.string().min(1),
+  "journeyId": zod.number().int().min(1).optional(),
+  "type": zod.enum(['cheer', 'clap', 'fire', 'support']),
+  "template": zod.enum(['nice_work', 'keep_going', 'great_job', 'you_got_this', 'keep_moving']),
+  "message": zod.string().max(createSocialEncouragementBodyMessageMax).optional(),
+  "requestId": zod.string().uuid().describe('Client-generated stable UUID reused for an idempotent retry.')
+})
+
+export const createSocialEncouragementResponseMessageMax = 120;
+
+
+
+export const CreateSocialEncouragementResponse = zod.object({
+  "id": zod.number().int(),
+  "sender": zod.object({
+  "id": zod.string(),
+  "username": zod.string().nullable(),
+  "displayName": zod.string(),
+  "avatarEmoji": zod.string()
+}),
+  "receiver": zod.object({
+  "id": zod.string(),
+  "username": zod.string().nullable(),
+  "displayName": zod.string(),
+  "avatarEmoji": zod.string()
+}),
+  "journeyId": zod.number().int().nullable(),
+  "type": zod.enum(['cheer', 'clap', 'fire', 'support']),
+  "template": zod.enum(['nice_work', 'keep_going', 'great_job', 'you_got_this', 'keep_moving']),
+  "message": zod.string().max(createSocialEncouragementResponseMessageMax).nullable(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary List the current user's persisted social notifications
+ */
+export const listSocialNotificationsQueryUnreadOnlyDefault = false;
+export const listSocialNotificationsQueryLimitDefault = 50;
+export const listSocialNotificationsQueryLimitMax = 100;
+
+
+
+export const ListSocialNotificationsQueryParams = zod.object({
+  "unreadOnly": zod.coerce.boolean().default(listSocialNotificationsQueryUnreadOnlyDefault),
+  "limit": zod.coerce.number().int().min(1).max(listSocialNotificationsQueryLimitMax).default(listSocialNotificationsQueryLimitDefault),
+  "beforeId": zod.coerce.number().int().optional()
+})
+
+export const listSocialNotificationsResponseEncouragementMessageMax = 120;
+
+
+
+export const ListSocialNotificationsResponseItem = zod.object({
+  "id": zod.number().int(),
+  "type": zod.enum(['friend_request_received', 'friend_request_accepted', 'challenge_invitation', 'challenge_accepted', 'challenge_declined', 'group_invitation', 'group_member_joined', 'encouragement_received', 'shared_milestone', 'group_milestone']),
+  "actor": zod.union([zod.object({
+  "id": zod.string(),
+  "username": zod.string().nullable(),
+  "displayName": zod.string(),
+  "avatarEmoji": zod.string()
+}),zod.null()]),
+  "friendRequestId": zod.number().int().nullable(),
+  "groupInvitationId": zod.number().int().nullable(),
+  "groupId": zod.number().int().nullable(),
+  "challengeId": zod.number().int().nullable(),
+  "encouragementId": zod.number().int().nullable(),
+  "encouragementTemplate": zod.union([zod.literal('nice_work'),zod.literal('keep_going'),zod.literal('great_job'),zod.literal('you_got_this'),zod.literal('keep_moving'),zod.literal(null)]).nullish(),
+  "encouragementMessage": zod.string().max(listSocialNotificationsResponseEncouragementMessageMax).nullish().describe('Available only after live authorization of the received encouragement.'),
+  "readAt": zod.coerce.date().nullable(),
+  "createdAt": zod.coerce.date()
+})
+export const ListSocialNotificationsResponse = zod.array(ListSocialNotificationsResponseItem)
+
+
+/**
+ * @summary Mark one owned notification read
+ */
+export const MarkSocialNotificationReadParams = zod.object({
+  "notificationId": zod.coerce.number().int()
+})
+
+export const markSocialNotificationReadResponseEncouragementMessageMax = 120;
+
+
+
+export const MarkSocialNotificationReadResponse = zod.object({
+  "id": zod.number().int(),
+  "type": zod.enum(['friend_request_received', 'friend_request_accepted', 'challenge_invitation', 'challenge_accepted', 'challenge_declined', 'group_invitation', 'group_member_joined', 'encouragement_received', 'shared_milestone', 'group_milestone']),
+  "actor": zod.union([zod.object({
+  "id": zod.string(),
+  "username": zod.string().nullable(),
+  "displayName": zod.string(),
+  "avatarEmoji": zod.string()
+}),zod.null()]),
+  "friendRequestId": zod.number().int().nullable(),
+  "groupInvitationId": zod.number().int().nullable(),
+  "groupId": zod.number().int().nullable(),
+  "challengeId": zod.number().int().nullable(),
+  "encouragementId": zod.number().int().nullable(),
+  "encouragementTemplate": zod.union([zod.literal('nice_work'),zod.literal('keep_going'),zod.literal('great_job'),zod.literal('you_got_this'),zod.literal('keep_moving'),zod.literal(null)]).nullish(),
+  "encouragementMessage": zod.string().max(markSocialNotificationReadResponseEncouragementMessageMax).nullish().describe('Available only after live authorization of the received encouragement.'),
+  "readAt": zod.coerce.date().nullable(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Mark all current-user notifications read
+ */
+export const markAllSocialNotificationsReadResponseUpdatedCountMin = 0;
+
+
+
+export const MarkAllSocialNotificationsReadResponse = zod.object({
+  "updatedCount": zod.number().int().min(markAllSocialNotificationsReadResponseUpdatedCountMin)
+})
+
+
+/**
+ * @summary List challenges involving the current user
+ */
+export const listSocialChallengesResponseTemplateCustomDaysItemMin = 0;
+export const listSocialChallengesResponseTemplateCustomDaysItemMax = 6;
+
+export const listSocialChallengesResponseTemplateCustomDaysMax = 7;
+
+export const listSocialChallengesResponseTemplateSuggestedTargetValueMin = 0;
+
+export const listSocialChallengesResponseTemplateSuggestedMinimumValueMin = 0;
+
+
+
+
+export const ListSocialChallengesResponseItem = zod.object({
+  "id": zod.number().int(),
+  "title": zod.string(),
+  "description": zod.string().nullable(),
+  "durationDays": zod.literal(22),
+  "template": zod.object({
+  "title": zod.string(),
+  "emoji": zod.string(),
+  "category": zod.enum(['health', 'learning', 'productivity', 'mindfulness', 'social', 'creativity', 'finance', 'custom']),
+  "cadence": zod.enum(['daily', 'weekdays', 'weekly', 'custom_days']),
+  "customDays": zod.array(zod.number().int().min(listSocialChallengesResponseTemplateCustomDaysItemMin).max(listSocialChallengesResponseTemplateCustomDaysItemMax)).max(listSocialChallengesResponseTemplateCustomDaysMax).nullable(),
+  "unit": zod.enum(['minutes', 'count', 'pages', 'custom']),
+  "executionType": zod.enum(['duration', 'count', 'boolean', 'limit']),
+  "goalType": zod.enum(['build', 'quit']),
+  "difficulty": zod.enum(['easy', 'medium', 'hard']),
+  "suggestedTargetValue": zod.number().min(listSocialChallengesResponseTemplateSuggestedTargetValueMin),
+  "suggestedMinimumValue": zod.number().min(listSocialChallengesResponseTemplateSuggestedMinimumValueMin)
+}),
+  "creator": zod.object({
+  "id": zod.string(),
+  "username": zod.string().nullable(),
+  "displayName": zod.string(),
+  "avatarEmoji": zod.string()
+}),
+  "myStatus": zod.enum(['invited', 'accepted', 'declined', 'left']),
+  "memberCount": zod.number().int().min(1),
+  "createdAt": zod.coerce.date()
+})
+export const ListSocialChallengesResponse = zod.array(ListSocialChallengesResponseItem)
+
+
+/**
+ * The server verifies ownership of sourceHabitId and snapshots only safe habit template fields (title, emoji, category, cadence, unit, execution type, goal type, difficulty, suggested target/minimum). Cues, friction, time tracking, missed reasons, rewards, and XP/coins are never copied or shared. The creator remains linked to their own habit.
+ * @summary Create an invite-only 22-day challenge from the current user's own habit
+ */
+
+export const createSocialChallengeBodyTitleMax = 80;
+
+export const createSocialChallengeBodyDescriptionMax = 500;
+
+
+
+export const CreateSocialChallengeBody = zod.object({
+  "sourceHabitId": zod.number().int().min(1),
+  "title": zod.string().min(1).max(createSocialChallengeBodyTitleMax).optional(),
+  "description": zod.string().max(createSocialChallengeBodyDescriptionMax).optional()
+})
+
+export const createSocialChallengeResponseOneTemplateCustomDaysItemMin = 0;
+export const createSocialChallengeResponseOneTemplateCustomDaysItemMax = 6;
+
+export const createSocialChallengeResponseOneTemplateCustomDaysMax = 7;
+
+export const createSocialChallengeResponseOneTemplateSuggestedTargetValueMin = 0;
+
+export const createSocialChallengeResponseOneTemplateSuggestedMinimumValueMin = 0;
+
+
+export const createSocialChallengeResponseTwoMembersItemProgressDayMin = 0;
+export const createSocialChallengeResponseTwoMembersItemProgressDayMax = 22;
+
+export const createSocialChallengeResponseTwoMembersItemConsistencyPercentageMin = 0;
+export const createSocialChallengeResponseTwoMembersItemConsistencyPercentageMax = 100;
+
+
+
+export const CreateSocialChallengeResponse = zod.object({
+  "id": zod.number().int(),
+  "title": zod.string(),
+  "description": zod.string().nullable(),
+  "durationDays": zod.literal(22),
+  "template": zod.object({
+  "title": zod.string(),
+  "emoji": zod.string(),
+  "category": zod.enum(['health', 'learning', 'productivity', 'mindfulness', 'social', 'creativity', 'finance', 'custom']),
+  "cadence": zod.enum(['daily', 'weekdays', 'weekly', 'custom_days']),
+  "customDays": zod.array(zod.number().int().min(createSocialChallengeResponseOneTemplateCustomDaysItemMin).max(createSocialChallengeResponseOneTemplateCustomDaysItemMax)).max(createSocialChallengeResponseOneTemplateCustomDaysMax).nullable(),
+  "unit": zod.enum(['minutes', 'count', 'pages', 'custom']),
+  "executionType": zod.enum(['duration', 'count', 'boolean', 'limit']),
+  "goalType": zod.enum(['build', 'quit']),
+  "difficulty": zod.enum(['easy', 'medium', 'hard']),
+  "suggestedTargetValue": zod.number().min(createSocialChallengeResponseOneTemplateSuggestedTargetValueMin),
+  "suggestedMinimumValue": zod.number().min(createSocialChallengeResponseOneTemplateSuggestedMinimumValueMin)
+}),
+  "creator": zod.object({
+  "id": zod.string(),
+  "username": zod.string().nullable(),
+  "displayName": zod.string(),
+  "avatarEmoji": zod.string()
+}),
+  "myStatus": zod.enum(['invited', 'accepted', 'declined', 'left']),
+  "memberCount": zod.number().int().min(1),
+  "createdAt": zod.coerce.date()
+}).and(zod.object({
+  "members": zod.array(zod.object({
+  "user": zod.object({
+  "id": zod.string(),
+  "username": zod.string().nullable(),
+  "displayName": zod.string(),
+  "avatarEmoji": zod.string()
+}),
+  "status": zod.enum(['invited', 'accepted', 'declined', 'left']),
+  "journeyId": zod.number().int().nullable().describe('The participant\'s own habit ID; never grants direct habit access.'),
+  "progressDay": zod.number().int().min(createSocialChallengeResponseTwoMembersItemProgressDayMin).max(createSocialChallengeResponseTwoMembersItemProgressDayMax).nullable(),
+  "journeyLength": zod.union([zod.literal(22),zod.literal(null)]).nullable(),
+  "completed": zod.boolean().nullable(),
+  "consistencyPercentage": zod.number().min(createSocialChallengeResponseTwoMembersItemConsistencyPercentageMin).max(createSocialChallengeResponseTwoMembersItemConsistencyPercentageMax).nullish(),
+  "character": zod.array(zod.object({
+  "slot": zod.enum(['outfit', 'hat', 'accessory', 'pet', 'background']),
+  "name": zod.string(),
+  "emoji": zod.string()
+})).optional().describe('Equipped items only if separately shared with the viewer; challenge consent does not share the character.')
+}))
+}))
+
+
+/**
+ * @summary Get a challenge and safe progress for accepted participants
+ */
+export const GetSocialChallengeParams = zod.object({
+  "challengeId": zod.coerce.number().int()
+})
+
+export const getSocialChallengeResponseOneTemplateCustomDaysItemMin = 0;
+export const getSocialChallengeResponseOneTemplateCustomDaysItemMax = 6;
+
+export const getSocialChallengeResponseOneTemplateCustomDaysMax = 7;
+
+export const getSocialChallengeResponseOneTemplateSuggestedTargetValueMin = 0;
+
+export const getSocialChallengeResponseOneTemplateSuggestedMinimumValueMin = 0;
+
+
+export const getSocialChallengeResponseTwoMembersItemProgressDayMin = 0;
+export const getSocialChallengeResponseTwoMembersItemProgressDayMax = 22;
+
+export const getSocialChallengeResponseTwoMembersItemConsistencyPercentageMin = 0;
+export const getSocialChallengeResponseTwoMembersItemConsistencyPercentageMax = 100;
+
+
+
+export const GetSocialChallengeResponse = zod.object({
+  "id": zod.number().int(),
+  "title": zod.string(),
+  "description": zod.string().nullable(),
+  "durationDays": zod.literal(22),
+  "template": zod.object({
+  "title": zod.string(),
+  "emoji": zod.string(),
+  "category": zod.enum(['health', 'learning', 'productivity', 'mindfulness', 'social', 'creativity', 'finance', 'custom']),
+  "cadence": zod.enum(['daily', 'weekdays', 'weekly', 'custom_days']),
+  "customDays": zod.array(zod.number().int().min(getSocialChallengeResponseOneTemplateCustomDaysItemMin).max(getSocialChallengeResponseOneTemplateCustomDaysItemMax)).max(getSocialChallengeResponseOneTemplateCustomDaysMax).nullable(),
+  "unit": zod.enum(['minutes', 'count', 'pages', 'custom']),
+  "executionType": zod.enum(['duration', 'count', 'boolean', 'limit']),
+  "goalType": zod.enum(['build', 'quit']),
+  "difficulty": zod.enum(['easy', 'medium', 'hard']),
+  "suggestedTargetValue": zod.number().min(getSocialChallengeResponseOneTemplateSuggestedTargetValueMin),
+  "suggestedMinimumValue": zod.number().min(getSocialChallengeResponseOneTemplateSuggestedMinimumValueMin)
+}),
+  "creator": zod.object({
+  "id": zod.string(),
+  "username": zod.string().nullable(),
+  "displayName": zod.string(),
+  "avatarEmoji": zod.string()
+}),
+  "myStatus": zod.enum(['invited', 'accepted', 'declined', 'left']),
+  "memberCount": zod.number().int().min(1),
+  "createdAt": zod.coerce.date()
+}).and(zod.object({
+  "members": zod.array(zod.object({
+  "user": zod.object({
+  "id": zod.string(),
+  "username": zod.string().nullable(),
+  "displayName": zod.string(),
+  "avatarEmoji": zod.string()
+}),
+  "status": zod.enum(['invited', 'accepted', 'declined', 'left']),
+  "journeyId": zod.number().int().nullable().describe('The participant\'s own habit ID; never grants direct habit access.'),
+  "progressDay": zod.number().int().min(getSocialChallengeResponseTwoMembersItemProgressDayMin).max(getSocialChallengeResponseTwoMembersItemProgressDayMax).nullable(),
+  "journeyLength": zod.union([zod.literal(22),zod.literal(null)]).nullable(),
+  "completed": zod.boolean().nullable(),
+  "consistencyPercentage": zod.number().min(getSocialChallengeResponseTwoMembersItemConsistencyPercentageMin).max(getSocialChallengeResponseTwoMembersItemConsistencyPercentageMax).nullish(),
+  "character": zod.array(zod.object({
+  "slot": zod.enum(['outfit', 'hat', 'accessory', 'pet', 'background']),
+  "name": zod.string(),
+  "emoji": zod.string()
+})).optional().describe('Equipped items only if separately shared with the viewer; challenge consent does not share the character.')
+}))
+}))
+
+
+/**
+ * Invites create pending memberships only; each invitee must accept before their separate owned habit and journey are created.
+ * @summary Invite existing friends to a challenge
+ */
+export const InviteUsersToSocialChallengeParams = zod.object({
+  "challengeId": zod.coerce.number().int()
+})
+
+
+export const inviteUsersToSocialChallengeBodyInviteeUserIdsMax = 100;
+
+
+
+export const InviteUsersToSocialChallengeBody = zod.object({
+  "inviteeUserIds": zod.array(zod.string().min(1)).min(1).max(inviteUsersToSocialChallengeBodyInviteeUserIdsMax)
+})
+
+export const inviteUsersToSocialChallengeResponseProgressDayMin = 0;
+export const inviteUsersToSocialChallengeResponseProgressDayMax = 22;
+
+export const inviteUsersToSocialChallengeResponseConsistencyPercentageMin = 0;
+export const inviteUsersToSocialChallengeResponseConsistencyPercentageMax = 100;
+
+
+
+export const InviteUsersToSocialChallengeResponseItem = zod.object({
+  "user": zod.object({
+  "id": zod.string(),
+  "username": zod.string().nullable(),
+  "displayName": zod.string(),
+  "avatarEmoji": zod.string()
+}),
+  "status": zod.enum(['invited', 'accepted', 'declined', 'left']),
+  "journeyId": zod.number().int().nullable().describe('The participant\'s own habit ID; never grants direct habit access.'),
+  "progressDay": zod.number().int().min(inviteUsersToSocialChallengeResponseProgressDayMin).max(inviteUsersToSocialChallengeResponseProgressDayMax).nullable(),
+  "journeyLength": zod.union([zod.literal(22),zod.literal(null)]).nullable(),
+  "completed": zod.boolean().nullable(),
+  "consistencyPercentage": zod.number().min(inviteUsersToSocialChallengeResponseConsistencyPercentageMin).max(inviteUsersToSocialChallengeResponseConsistencyPercentageMax).nullish(),
+  "character": zod.array(zod.object({
+  "slot": zod.enum(['outfit', 'hat', 'accessory', 'pet', 'background']),
+  "name": zod.string(),
+  "emoji": zod.string()
+})).optional().describe('Equipped items only if separately shared with the viewer; challenge consent does not share the character.')
+})
+export const InviteUsersToSocialChallengeResponse = zod.array(InviteUsersToSocialChallengeResponseItem)
+
+
+/**
+ * Accept creates a distinct owned habit, derives the current timezone and local start date from the authenticated user, and persists 22 immutable habit_days snapshots. Target/minimum/cadence may be personalized. The new habit has no reward and no private cues copied from the inviter.
+ * @summary Accept or decline the current user's challenge invitation
+ */
+export const RespondToSocialChallengeParams = zod.object({
+  "challengeId": zod.coerce.number().int()
+})
+
+export const respondToSocialChallengeBodyTargetValueMin = 0;
+
+export const respondToSocialChallengeBodyMinimumValueMin = 0;
+
+export const respondToSocialChallengeBodyCustomDaysItemMin = 0;
+export const respondToSocialChallengeBodyCustomDaysItemMax = 6;
+
+export const respondToSocialChallengeBodyCustomDaysMax = 7;
+
+
+
+export const RespondToSocialChallengeBody = zod.object({
+  "decision": zod.enum(['accept', 'decline']),
+  "targetValue": zod.number().min(respondToSocialChallengeBodyTargetValueMin).optional(),
+  "minimumValue": zod.number().min(respondToSocialChallengeBodyMinimumValueMin).optional(),
+  "difficulty": zod.enum(['easy', 'medium', 'hard']).optional().describe('Independently chosen by the accepting participant.'),
+  "cadence": zod.enum(['daily', 'weekdays', 'weekly', 'custom_days']).optional(),
+  "customDays": zod.array(zod.number().int().min(respondToSocialChallengeBodyCustomDaysItemMin).max(respondToSocialChallengeBodyCustomDaysItemMax)).min(1).max(respondToSocialChallengeBodyCustomDaysMax).optional()
+})
+
+export const respondToSocialChallengeResponseOneTemplateCustomDaysItemMin = 0;
+export const respondToSocialChallengeResponseOneTemplateCustomDaysItemMax = 6;
+
+export const respondToSocialChallengeResponseOneTemplateCustomDaysMax = 7;
+
+export const respondToSocialChallengeResponseOneTemplateSuggestedTargetValueMin = 0;
+
+export const respondToSocialChallengeResponseOneTemplateSuggestedMinimumValueMin = 0;
+
+
+export const respondToSocialChallengeResponseTwoMembersItemProgressDayMin = 0;
+export const respondToSocialChallengeResponseTwoMembersItemProgressDayMax = 22;
+
+export const respondToSocialChallengeResponseTwoMembersItemConsistencyPercentageMin = 0;
+export const respondToSocialChallengeResponseTwoMembersItemConsistencyPercentageMax = 100;
+
+
+
+export const RespondToSocialChallengeResponse = zod.object({
+  "id": zod.number().int(),
+  "title": zod.string(),
+  "description": zod.string().nullable(),
+  "durationDays": zod.literal(22),
+  "template": zod.object({
+  "title": zod.string(),
+  "emoji": zod.string(),
+  "category": zod.enum(['health', 'learning', 'productivity', 'mindfulness', 'social', 'creativity', 'finance', 'custom']),
+  "cadence": zod.enum(['daily', 'weekdays', 'weekly', 'custom_days']),
+  "customDays": zod.array(zod.number().int().min(respondToSocialChallengeResponseOneTemplateCustomDaysItemMin).max(respondToSocialChallengeResponseOneTemplateCustomDaysItemMax)).max(respondToSocialChallengeResponseOneTemplateCustomDaysMax).nullable(),
+  "unit": zod.enum(['minutes', 'count', 'pages', 'custom']),
+  "executionType": zod.enum(['duration', 'count', 'boolean', 'limit']),
+  "goalType": zod.enum(['build', 'quit']),
+  "difficulty": zod.enum(['easy', 'medium', 'hard']),
+  "suggestedTargetValue": zod.number().min(respondToSocialChallengeResponseOneTemplateSuggestedTargetValueMin),
+  "suggestedMinimumValue": zod.number().min(respondToSocialChallengeResponseOneTemplateSuggestedMinimumValueMin)
+}),
+  "creator": zod.object({
+  "id": zod.string(),
+  "username": zod.string().nullable(),
+  "displayName": zod.string(),
+  "avatarEmoji": zod.string()
+}),
+  "myStatus": zod.enum(['invited', 'accepted', 'declined', 'left']),
+  "memberCount": zod.number().int().min(1),
+  "createdAt": zod.coerce.date()
+}).and(zod.object({
+  "members": zod.array(zod.object({
+  "user": zod.object({
+  "id": zod.string(),
+  "username": zod.string().nullable(),
+  "displayName": zod.string(),
+  "avatarEmoji": zod.string()
+}),
+  "status": zod.enum(['invited', 'accepted', 'declined', 'left']),
+  "journeyId": zod.number().int().nullable().describe('The participant\'s own habit ID; never grants direct habit access.'),
+  "progressDay": zod.number().int().min(respondToSocialChallengeResponseTwoMembersItemProgressDayMin).max(respondToSocialChallengeResponseTwoMembersItemProgressDayMax).nullable(),
+  "journeyLength": zod.union([zod.literal(22),zod.literal(null)]).nullable(),
+  "completed": zod.boolean().nullable(),
+  "consistencyPercentage": zod.number().min(respondToSocialChallengeResponseTwoMembersItemConsistencyPercentageMin).max(respondToSocialChallengeResponseTwoMembersItemConsistencyPercentageMax).nullish(),
+  "character": zod.array(zod.object({
+  "slot": zod.enum(['outfit', 'hat', 'accessory', 'pet', 'background']),
+  "name": zod.string(),
+  "emoji": zod.string()
+})).optional().describe('Equipped items only if separately shared with the viewer; challenge consent does not share the character.')
+}))
+}))
+
+
+/**
+ * @summary Leave a challenge without deleting or changing the user's own habit
+ */
+export const LeaveSocialChallengeParams = zod.object({
+  "challengeId": zod.coerce.number().int()
+})
+
+export const leaveSocialChallengeResponseOneTemplateCustomDaysItemMin = 0;
+export const leaveSocialChallengeResponseOneTemplateCustomDaysItemMax = 6;
+
+export const leaveSocialChallengeResponseOneTemplateCustomDaysMax = 7;
+
+export const leaveSocialChallengeResponseOneTemplateSuggestedTargetValueMin = 0;
+
+export const leaveSocialChallengeResponseOneTemplateSuggestedMinimumValueMin = 0;
+
+
+export const leaveSocialChallengeResponseTwoMembersItemProgressDayMin = 0;
+export const leaveSocialChallengeResponseTwoMembersItemProgressDayMax = 22;
+
+export const leaveSocialChallengeResponseTwoMembersItemConsistencyPercentageMin = 0;
+export const leaveSocialChallengeResponseTwoMembersItemConsistencyPercentageMax = 100;
+
+
+
+export const LeaveSocialChallengeResponse = zod.object({
+  "id": zod.number().int(),
+  "title": zod.string(),
+  "description": zod.string().nullable(),
+  "durationDays": zod.literal(22),
+  "template": zod.object({
+  "title": zod.string(),
+  "emoji": zod.string(),
+  "category": zod.enum(['health', 'learning', 'productivity', 'mindfulness', 'social', 'creativity', 'finance', 'custom']),
+  "cadence": zod.enum(['daily', 'weekdays', 'weekly', 'custom_days']),
+  "customDays": zod.array(zod.number().int().min(leaveSocialChallengeResponseOneTemplateCustomDaysItemMin).max(leaveSocialChallengeResponseOneTemplateCustomDaysItemMax)).max(leaveSocialChallengeResponseOneTemplateCustomDaysMax).nullable(),
+  "unit": zod.enum(['minutes', 'count', 'pages', 'custom']),
+  "executionType": zod.enum(['duration', 'count', 'boolean', 'limit']),
+  "goalType": zod.enum(['build', 'quit']),
+  "difficulty": zod.enum(['easy', 'medium', 'hard']),
+  "suggestedTargetValue": zod.number().min(leaveSocialChallengeResponseOneTemplateSuggestedTargetValueMin),
+  "suggestedMinimumValue": zod.number().min(leaveSocialChallengeResponseOneTemplateSuggestedMinimumValueMin)
+}),
+  "creator": zod.object({
+  "id": zod.string(),
+  "username": zod.string().nullable(),
+  "displayName": zod.string(),
+  "avatarEmoji": zod.string()
+}),
+  "myStatus": zod.enum(['invited', 'accepted', 'declined', 'left']),
+  "memberCount": zod.number().int().min(1),
+  "createdAt": zod.coerce.date()
+}).and(zod.object({
+  "members": zod.array(zod.object({
+  "user": zod.object({
+  "id": zod.string(),
+  "username": zod.string().nullable(),
+  "displayName": zod.string(),
+  "avatarEmoji": zod.string()
+}),
+  "status": zod.enum(['invited', 'accepted', 'declined', 'left']),
+  "journeyId": zod.number().int().nullable().describe('The participant\'s own habit ID; never grants direct habit access.'),
+  "progressDay": zod.number().int().min(leaveSocialChallengeResponseTwoMembersItemProgressDayMin).max(leaveSocialChallengeResponseTwoMembersItemProgressDayMax).nullable(),
+  "journeyLength": zod.union([zod.literal(22),zod.literal(null)]).nullable(),
+  "completed": zod.boolean().nullable(),
+  "consistencyPercentage": zod.number().min(leaveSocialChallengeResponseTwoMembersItemConsistencyPercentageMin).max(leaveSocialChallengeResponseTwoMembersItemConsistencyPercentageMax).nullish(),
+  "character": zod.array(zod.object({
+  "slot": zod.enum(['outfit', 'hat', 'accessory', 'pet', 'background']),
+  "name": zod.string(),
+  "emoji": zod.string()
+})).optional().describe('Equipped items only if separately shared with the viewer; challenge consent does not share the character.')
+}))
+}))
+
+
+/**
+ * @summary List invite-only groups the current user belongs to
+ */
+
+export const listSocialGroupsResponseMaxMembersMin = 2;
+export const listSocialGroupsResponseMaxMembersMax = 30;
+
+
+
+export const ListSocialGroupsResponseItem = zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "description": zod.string().nullable(),
+  "goalDescription": zod.string(),
+  "privacy": zod.enum(['invite_only']),
+  "memberCount": zod.number().int().min(1),
+  "maxMembers": zod.number().int().min(listSocialGroupsResponseMaxMembersMin).max(listSocialGroupsResponseMaxMembersMax),
+  "role": zod.enum(['owner', 'member']),
+  "coverUrl": zod.string().nullable().describe('Authenticated /social/groups/{groupId}/cover endpoint.'),
+  "createdAt": zod.coerce.date()
+})
+export const ListSocialGroupsResponse = zod.array(ListSocialGroupsResponseItem)
+
+
+/**
+ * Owner is auto-added as the first member. maxMembers is configurable from 2 to 30; membership does not share any habits or check-ins.
+ * @summary Create a private invite-only circle
+ */
+export const createSocialGroupBodyNameMax = 80;
+
+export const createSocialGroupBodyDescriptionMax = 500;
+
+export const createSocialGroupBodyGoalDescriptionMax = 250;
+
+export const createSocialGroupBodyMaxMembersDefault = 30;
+export const createSocialGroupBodyMaxMembersMin = 2;
+export const createSocialGroupBodyMaxMembersMax = 30;
+
+
+
+export const CreateSocialGroupBody = zod.object({
+  "name": zod.string().min(1).max(createSocialGroupBodyNameMax),
+  "description": zod.string().max(createSocialGroupBodyDescriptionMax).optional(),
+  "goalDescription": zod.string().max(createSocialGroupBodyGoalDescriptionMax).optional(),
+  "maxMembers": zod.number().int().min(createSocialGroupBodyMaxMembersMin).max(createSocialGroupBodyMaxMembersMax).default(createSocialGroupBodyMaxMembersDefault)
+})
+
+
+export const createSocialGroupResponseOneMaxMembersMin = 2;
+export const createSocialGroupResponseOneMaxMembersMax = 30;
+
+export const createSocialGroupResponseTwoMembersItemSharedJourneysItemProgressDayMin = 0;
+export const createSocialGroupResponseTwoMembersItemSharedJourneysItemProgressDayMax = 22;
+
+export const createSocialGroupResponseTwoMembersItemSharedJourneysItemSuccessfulDayCountMin = 0;
+
+
+
+export const CreateSocialGroupResponse = zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "description": zod.string().nullable(),
+  "goalDescription": zod.string(),
+  "privacy": zod.enum(['invite_only']),
+  "memberCount": zod.number().int().min(1),
+  "maxMembers": zod.number().int().min(createSocialGroupResponseOneMaxMembersMin).max(createSocialGroupResponseOneMaxMembersMax),
+  "role": zod.enum(['owner', 'member']),
+  "coverUrl": zod.string().nullable().describe('Authenticated /social/groups/{groupId}/cover endpoint.'),
+  "createdAt": zod.coerce.date()
+}).and(zod.object({
+  "members": zod.array(zod.object({
+  "user": zod.object({
+  "id": zod.string(),
+  "username": zod.string().nullable(),
+  "displayName": zod.string(),
+  "avatarEmoji": zod.string()
+}),
+  "role": zod.enum(['owner', 'member']),
+  "joinedAt": zod.coerce.date(),
+  "sharedJourneys": zod.array(zod.object({
+  "journeyId": zod.number().int().describe('The owner\'s habit ID'),
+  "title": zod.string(),
+  "emoji": zod.string(),
+  "progressDay": zod.number().int().min(createSocialGroupResponseTwoMembersItemSharedJourneysItemProgressDayMin).max(createSocialGroupResponseTwoMembersItemSharedJourneysItemProgressDayMax),
+  "journeyLength": zod.literal(22),
+  "successfulDayCount": zod.number().int().min(createSocialGroupResponseTwoMembersItemSharedJourneysItemSuccessfulDayCountMin),
+  "completed": zod.boolean()
+})).describe('Empty unless this member explicitly shared these journeys with this group.')
+}))
+}))
+
+
+/**
+ * @summary Get an invite-only group and only members' explicitly shared journeys
+ */
+export const GetSocialGroupParams = zod.object({
+  "groupId": zod.coerce.number().int()
+})
+
+
+export const getSocialGroupResponseOneMaxMembersMin = 2;
+export const getSocialGroupResponseOneMaxMembersMax = 30;
+
+export const getSocialGroupResponseTwoMembersItemSharedJourneysItemProgressDayMin = 0;
+export const getSocialGroupResponseTwoMembersItemSharedJourneysItemProgressDayMax = 22;
+
+export const getSocialGroupResponseTwoMembersItemSharedJourneysItemSuccessfulDayCountMin = 0;
+
+
+
+export const GetSocialGroupResponse = zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "description": zod.string().nullable(),
+  "goalDescription": zod.string(),
+  "privacy": zod.enum(['invite_only']),
+  "memberCount": zod.number().int().min(1),
+  "maxMembers": zod.number().int().min(getSocialGroupResponseOneMaxMembersMin).max(getSocialGroupResponseOneMaxMembersMax),
+  "role": zod.enum(['owner', 'member']),
+  "coverUrl": zod.string().nullable().describe('Authenticated /social/groups/{groupId}/cover endpoint.'),
+  "createdAt": zod.coerce.date()
+}).and(zod.object({
+  "members": zod.array(zod.object({
+  "user": zod.object({
+  "id": zod.string(),
+  "username": zod.string().nullable(),
+  "displayName": zod.string(),
+  "avatarEmoji": zod.string()
+}),
+  "role": zod.enum(['owner', 'member']),
+  "joinedAt": zod.coerce.date(),
+  "sharedJourneys": zod.array(zod.object({
+  "journeyId": zod.number().int().describe('The owner\'s habit ID'),
+  "title": zod.string(),
+  "emoji": zod.string(),
+  "progressDay": zod.number().int().min(getSocialGroupResponseTwoMembersItemSharedJourneysItemProgressDayMin).max(getSocialGroupResponseTwoMembersItemSharedJourneysItemProgressDayMax),
+  "journeyLength": zod.literal(22),
+  "successfulDayCount": zod.number().int().min(getSocialGroupResponseTwoMembersItemSharedJourneysItemSuccessfulDayCountMin),
+  "completed": zod.boolean()
+})).describe('Empty unless this member explicitly shared these journeys with this group.')
+}))
+}))
+
+
+/**
+ * Only existing members may invite; the server enforces the configured member cap and block state.
+ * @summary Invite existing friends to an invite-only group
+ */
+export const InviteUsersToSocialGroupParams = zod.object({
+  "groupId": zod.coerce.number().int()
+})
+
+
+export const inviteUsersToSocialGroupBodyInviteeUserIdsMax = 29;
+
+
+
+export const InviteUsersToSocialGroupBody = zod.object({
+  "inviteeUserIds": zod.array(zod.string().min(1)).min(1).max(inviteUsersToSocialGroupBodyInviteeUserIdsMax)
+})
+
+export const InviteUsersToSocialGroupResponseItem = zod.object({
+  "id": zod.number().int(),
+  "groupId": zod.number().int(),
+  "groupName": zod.string(),
+  "inviter": zod.object({
+  "id": zod.string(),
+  "username": zod.string().nullable(),
+  "displayName": zod.string(),
+  "avatarEmoji": zod.string()
+}),
+  "invitee": zod.object({
+  "id": zod.string(),
+  "username": zod.string().nullable(),
+  "displayName": zod.string(),
+  "avatarEmoji": zod.string()
+}),
+  "status": zod.enum(['pending', 'accepted', 'declined', 'canceled']),
+  "createdAt": zod.coerce.date(),
+  "respondedAt": zod.coerce.date().nullish()
+})
+export const InviteUsersToSocialGroupResponse = zod.array(InviteUsersToSocialGroupResponseItem)
+
+
+/**
+ * @summary Accept or decline an invite-only group invitation
+ */
+export const RespondToSocialGroupInvitationParams = zod.object({
+  "invitationId": zod.coerce.number().int()
+})
+
+export const RespondToSocialGroupInvitationBody = zod.object({
+  "decision": zod.enum(['accept', 'decline'])
+})
+
+export const RespondToSocialGroupInvitationResponse = zod.object({
+  "id": zod.number().int(),
+  "groupId": zod.number().int(),
+  "groupName": zod.string(),
+  "inviter": zod.object({
+  "id": zod.string(),
+  "username": zod.string().nullable(),
+  "displayName": zod.string(),
+  "avatarEmoji": zod.string()
+}),
+  "invitee": zod.object({
+  "id": zod.string(),
+  "username": zod.string().nullable(),
+  "displayName": zod.string(),
+  "avatarEmoji": zod.string()
+}),
+  "status": zod.enum(['pending', 'accepted', 'declined', 'canceled']),
+  "createdAt": zod.coerce.date(),
+  "respondedAt": zod.coerce.date().nullish()
+})
+
+
+/**
+ * @summary List pending invite-only group invitations addressed to the current user
+ */
+export const ListIncomingSocialGroupInvitationsResponseItem = zod.object({
+  "id": zod.number().int(),
+  "groupId": zod.number().int(),
+  "groupName": zod.string(),
+  "inviter": zod.object({
+  "id": zod.string(),
+  "username": zod.string().nullable(),
+  "displayName": zod.string(),
+  "avatarEmoji": zod.string()
+}),
+  "invitee": zod.object({
+  "id": zod.string(),
+  "username": zod.string().nullable(),
+  "displayName": zod.string(),
+  "avatarEmoji": zod.string()
+}),
+  "status": zod.enum(['pending', 'accepted', 'declined', 'canceled']),
+  "createdAt": zod.coerce.date(),
+  "respondedAt": zod.coerce.date().nullish()
+})
+export const ListIncomingSocialGroupInvitationsResponse = zod.array(ListIncomingSocialGroupInvitationsResponseItem)
+
+
+/**
+ * @summary Leave a group; leaving an owner-only group closes it
+ */
+export const LeaveSocialGroupParams = zod.object({
+  "groupId": zod.coerce.number().int()
+})
+
+export const LeaveSocialGroupResponse = zod.void()
+
+
+/**
+ * May contain member_joined, successful_day, milestone, and journey_completed only; never a missed-day, failure reason, cue, or private time record.
+ * @summary List positive group activity after enforcing each member's per-group journey consent
+ */
+export const ListSocialGroupActivityParams = zod.object({
+  "groupId": zod.coerce.number().int()
+})
+
+export const listSocialGroupActivityResponseJourneyOneProgressDayMin = 0;
+export const listSocialGroupActivityResponseJourneyOneProgressDayMax = 22;
+
+export const listSocialGroupActivityResponseJourneyOneSuccessfulDayCountMin = 0;
+
+export const listSocialGroupActivityResponseProgressDayMin = 0;
+export const listSocialGroupActivityResponseProgressDayMax = 22;
+
+
+
+export const ListSocialGroupActivityResponseItem = zod.object({
+  "id": zod.number().int(),
+  "actor": zod.object({
+  "id": zod.string(),
+  "username": zod.string().nullable(),
+  "displayName": zod.string(),
+  "avatarEmoji": zod.string()
+}),
+  "eventType": zod.enum(['member_joined', 'successful_day', 'milestone', 'journey_completed']),
+  "journey": zod.union([zod.object({
+  "journeyId": zod.number().int().describe('The owner\'s habit ID'),
+  "title": zod.string(),
+  "emoji": zod.string(),
+  "progressDay": zod.number().int().min(listSocialGroupActivityResponseJourneyOneProgressDayMin).max(listSocialGroupActivityResponseJourneyOneProgressDayMax),
+  "journeyLength": zod.literal(22),
+  "successfulDayCount": zod.number().int().min(listSocialGroupActivityResponseJourneyOneSuccessfulDayCountMin),
+  "completed": zod.boolean()
+}),zod.null()]),
+  "progressDay": zod.number().int().min(listSocialGroupActivityResponseProgressDayMin).max(listSocialGroupActivityResponseProgressDayMax).nullable(),
+  "createdAt": zod.coerce.date()
+})
+export const ListSocialGroupActivityResponse = zod.array(ListSocialGroupActivityResponseItem)
+
+
+/**
+ * This endpoint lists only the authenticated user's own choices; group membership alone grants no check-in or journey access.
+ * @summary List the current user's explicit per-group journey shares
+ */
+export const ListMySocialGroupJourneySharesParams = zod.object({
+  "groupId": zod.coerce.number().int()
+})
+
+export const listMySocialGroupJourneySharesResponseJourneyProgressDayMin = 0;
+export const listMySocialGroupJourneySharesResponseJourneyProgressDayMax = 22;
+
+export const listMySocialGroupJourneySharesResponseJourneySuccessfulDayCountMin = 0;
+
+
+
+export const ListMySocialGroupJourneySharesResponseItem = zod.object({
+  "groupId": zod.number().int(),
+  "journey": zod.object({
+  "journeyId": zod.number().int().describe('The owner\'s habit ID'),
+  "title": zod.string(),
+  "emoji": zod.string(),
+  "progressDay": zod.number().int().min(listMySocialGroupJourneySharesResponseJourneyProgressDayMin).max(listMySocialGroupJourneySharesResponseJourneyProgressDayMax),
+  "journeyLength": zod.literal(22),
+  "successfulDayCount": zod.number().int().min(listMySocialGroupJourneySharesResponseJourneySuccessfulDayCountMin),
+  "completed": zod.boolean()
+})
+})
+export const ListMySocialGroupJourneySharesResponse = zod.array(ListMySocialGroupJourneySharesResponseItem)
+
+
+/**
+ * The server validates habit ownership and group membership; sharing exposes only safe success progress, never cues, missed days, or time logs.
+ * @summary Explicitly share one of the current user's journeys with a group
+ */
+export const ShareMyJourneyWithSocialGroupParams = zod.object({
+  "groupId": zod.coerce.number().int()
+})
+
+
+
+
+export const ShareMyJourneyWithSocialGroupBody = zod.object({
+  "journeyId": zod.number().int().min(1).describe('Journey identity is an owned habit ID.')
+})
+
+export const shareMyJourneyWithSocialGroupResponseJourneyProgressDayMin = 0;
+export const shareMyJourneyWithSocialGroupResponseJourneyProgressDayMax = 22;
+
+export const shareMyJourneyWithSocialGroupResponseJourneySuccessfulDayCountMin = 0;
+
+
+
+export const ShareMyJourneyWithSocialGroupResponse = zod.object({
+  "groupId": zod.number().int(),
+  "journey": zod.object({
+  "journeyId": zod.number().int().describe('The owner\'s habit ID'),
+  "title": zod.string(),
+  "emoji": zod.string(),
+  "progressDay": zod.number().int().min(shareMyJourneyWithSocialGroupResponseJourneyProgressDayMin).max(shareMyJourneyWithSocialGroupResponseJourneyProgressDayMax),
+  "journeyLength": zod.literal(22),
+  "successfulDayCount": zod.number().int().min(shareMyJourneyWithSocialGroupResponseJourneySuccessfulDayCountMin),
+  "completed": zod.boolean()
+})
+})
+
+
+/**
+ * @summary Revoke the current user's per-group journey consent
+ */
+export const RevokeMySocialGroupJourneyShareParams = zod.object({
+  "groupId": zod.coerce.number().int(),
+  "journeyId": zod.coerce.number().int().describe('Journey identity is the owner\'s habit ID')
+})
+
+export const RevokeMySocialGroupJourneyShareResponse = zod.void()
+
+
+/**
+ * @summary List recent group cheers using the existing group reactions store
+ */
+export const ListSocialGroupEncouragementsParams = zod.object({
+  "groupId": zod.coerce.number().int()
+})
+
+export const listSocialGroupEncouragementsResponseMessageMax = 120;
+
+
+
+export const ListSocialGroupEncouragementsResponseItem = zod.object({
+  "id": zod.number().int(),
+  "groupId": zod.number().int(),
+  "sender": zod.object({
+  "id": zod.string(),
+  "username": zod.string().nullable(),
+  "displayName": zod.string(),
+  "avatarEmoji": zod.string()
+}),
+  "receiver": zod.union([zod.object({
+  "id": zod.string(),
+  "username": zod.string().nullable(),
+  "displayName": zod.string(),
+  "avatarEmoji": zod.string()
+}),zod.null()]),
+  "emoji": zod.string(),
+  "template": zod.union([zod.literal('nice_work'),zod.literal('keep_going'),zod.literal('great_job'),zod.literal('you_got_this'),zod.literal('keep_moving'),zod.literal(null)]).nullable(),
+  "message": zod.string().max(listSocialGroupEncouragementsResponseMessageMax).nullable(),
+  "createdAt": zod.coerce.date()
+})
+export const ListSocialGroupEncouragementsResponse = zod.array(ListSocialGroupEncouragementsResponseItem)
+
+
+/**
+ * Uses group_reactions; requestId and a persisted per-recipient minute cooldown prevent retry duplicates and spam. No rewards or XP are granted.
+ * @summary Send a short group cheer to a member or the group
+ */
+export const CreateSocialGroupEncouragementParams = zod.object({
+  "groupId": zod.coerce.number().int()
+})
+
+
+export const createSocialGroupEncouragementBodyMessageMax = 120;
+
+
+
+export const CreateSocialGroupEncouragementBody = zod.object({
+  "receiverUserId": zod.string().min(1).optional().describe('Omit to cheer the whole group.'),
+  "template": zod.enum(['nice_work', 'keep_going', 'great_job', 'you_got_this', 'keep_moving']),
+  "message": zod.string().max(createSocialGroupEncouragementBodyMessageMax).optional(),
+  "requestId": zod.string().uuid().describe('Client-generated stable UUID reused for an idempotent retry.')
+})
+
+export const createSocialGroupEncouragementResponseMessageMax = 120;
+
+
+
+export const CreateSocialGroupEncouragementResponse = zod.object({
+  "id": zod.number().int(),
+  "groupId": zod.number().int(),
+  "sender": zod.object({
+  "id": zod.string(),
+  "username": zod.string().nullable(),
+  "displayName": zod.string(),
+  "avatarEmoji": zod.string()
+}),
+  "receiver": zod.union([zod.object({
+  "id": zod.string(),
+  "username": zod.string().nullable(),
+  "displayName": zod.string(),
+  "avatarEmoji": zod.string()
+}),zod.null()]),
+  "emoji": zod.string(),
+  "template": zod.union([zod.literal('nice_work'),zod.literal('keep_going'),zod.literal('great_job'),zod.literal('you_got_this'),zod.literal('keep_moving'),zod.literal(null)]).nullable(),
+  "message": zod.string().max(createSocialGroupEncouragementResponseMessageMax).nullable(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * Cover bytes are served only after membership authorization; never use a public object URL.
+ * @summary Stream the private group cover image to current group members
+ */
+export const GetSocialGroupCoverParams = zod.object({
+  "groupId": zod.coerce.number().int()
+})
+
+export const GetSocialGroupCoverResponse = zod.unknown()
+
+
+/**
+ * Owner only. The object path must belong to an authenticated upload; null removes the cover.
+ * @summary Set or remove the private group cover image
+ */
+export const UpdateSocialGroupCoverParams = zod.object({
+  "groupId": zod.coerce.number().int()
+})
+
+
+
+
+export const UpdateSocialGroupCoverBody = zod.object({
+  "imageObjectPath": zod.string().min(1).nullable().describe('Private normalized path from the authenticated upload flow, or null to remove.')
+})
+
+export const UpdateSocialGroupCoverResponse = zod.object({
+  "imageUrl": zod.string().nullable().describe('Authenticated group cover endpoint URL; never a public object URL.')
+})
+
+
+/**
+ * @deprecated
+ * @summary Legacy: list groups the current user belongs to
  */
 export const ListMyGroupsResponseItem = zod.object({
   "id": zod.number().int(),
@@ -2439,6 +4785,7 @@ export const ListMyGroupsResponse = zod.array(ListMyGroupsResponseItem)
 
 
 /**
+ * @deprecated
  * @summary Create a group challenge (creator auto-joins)
  */
 
@@ -2465,7 +4812,9 @@ export const CreateGroupResponse = zod.object({
 
 
 /**
- * @summary Join a group challenge by invite code
+ * Compatibility for existing legacy groups only. New invite-only social groups must not be joinable through shareable codes.
+ * @deprecated
+ * @summary Legacy invite-code join; new social circles use invitation acceptance
  */
 
 
@@ -2487,7 +4836,8 @@ export const JoinGroupResponse = zod.object({
 
 
 /**
- * @summary Get group detail with members ranked by progress (leaderboard)
+ * @deprecated
+ * @summary Legacy group detail without member ranking or unconsented progress
  */
 export const GetGroupParams = zod.object({
   "groupId": zod.coerce.number().int()
@@ -2507,13 +4857,13 @@ export const GetGroupResponse = zod.object({
   "userId": zod.string(),
   "displayName": zod.string(),
   "avatarEmoji": zod.string(),
-  "progressCount": zod.number().int(),
   "isMe": zod.boolean()
 }))
 }))
 
 
 /**
+ * @deprecated
  * @summary List recent cheer reactions in a group
  */
 export const ListGroupReactionsParams = zod.object({
@@ -2532,6 +4882,7 @@ export const ListGroupReactionsResponse = zod.array(ListGroupReactionsResponseIt
 
 
 /**
+ * @deprecated
  * @summary Send a cheer/reaction to the group or a specific member
  */
 export const CreateGroupReactionParams = zod.object({

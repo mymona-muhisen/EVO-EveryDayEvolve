@@ -1166,6 +1166,16 @@ export const HabitDayRecoveryStatus = {
 export interface HabitDay {
   date: string;
   dayNumber: number;
+  /**
+     * Saved habit_days row ID; null for legacy/synthetic days without a saved snapshot
+     * @nullable
+     */
+  habitDayId?: number | null;
+  /**
+     * Owner's private memory ID for this day
+     * @nullable
+     */
+  memoryId?: number | null;
   scheduled: boolean;
   /** @nullable */
   title?: string | null;
@@ -1364,6 +1374,16 @@ export interface DailyHabitState {
   habitId: number;
   date: string;
   dayNumber: number;
+  /**
+     * Saved habit_days row ID when a saved plan snapshot exists
+     * @nullable
+     */
+  habitDayId?: number | null;
+  /**
+     * Owner's private memory ID for this day
+     * @nullable
+     */
+  memoryId?: number | null;
   scheduled: boolean;
   eligible: boolean;
   /** @minimum 0 */
@@ -1730,24 +1750,166 @@ export interface TimeEntriesSummary {
   byHabit: TimeEntriesSummaryByHabitItem[];
 }
 
+/**
+ * Private for all V1 memories; other values are reserved for future social support
+ */
+export type MemoryVisibility = typeof MemoryVisibility[keyof typeof MemoryVisibility];
+
+
+export const MemoryVisibility = {
+  private: 'private',
+  friends: 'friends',
+  selected: 'selected',
+  public: 'public',
+} as const;
+
+/**
+ * @nullable
+ */
+export type MemoryUnit = typeof MemoryUnit[keyof typeof MemoryUnit] | null;
+
+
+export const MemoryUnit = {
+  minutes: 'minutes',
+  count: 'count',
+  pages: 'pages',
+  custom: 'custom',
+} as const;
+
+/**
+ * Stored difficulty from the successful check-in; never created or changed by a memory
+ * @nullable
+ */
+export type MemoryDifficulty = typeof MemoryDifficulty[keyof typeof MemoryDifficulty] | null;
+
+
+export const MemoryDifficulty = {
+  easy: 'easy',
+  normal: 'normal',
+  hard: 'hard',
+  very_hard: 'very_hard',
+} as const;
+
 export interface Memory {
   id: number;
   /** @nullable */
   habitId: number | null;
-  note: string;
-  /** @nullable */
+  /**
+     * Deprecated compatibility alias for caption; legacy note content is preserved
+     * @nullable
+     */
+  note: string | null;
+  /**
+     * Existing authenticated private-object URL behavior; a URL does not make the image public
+     * @nullable
+     */
   photoUrl: string | null;
   date: string;
   createdAt: string;
+  /**
+     * @maxLength 300
+     * @nullable
+     */
+  caption: string | null;
+  /** Private for all V1 memories; other values are reserved for future social support */
+  visibility: MemoryVisibility;
+  updatedAt: string;
+  /**
+     * Server-derived journey identity (the habit ID); null for legacy memories not linked to a saved journey day
+     * @nullable
+     */
+  journeyId: number | null;
+  /**
+     * Saved habit_days row ID; null for legacy memories not linked to a saved journey day
+     * @nullable
+     */
+  habitDayId: number | null;
+  /**
+     * Saved journey day number; null for legacy memories
+     * @nullable
+     */
+  dayNumber: number | null;
+  /**
+     * Saved journey length; null for legacy memories
+     * @nullable
+     */
+  journeyLength: number | null;
+  /**
+     * Habit title from the saved day context; null for legacy memories
+     * @nullable
+     */
+  habitTitle: string | null;
+  /**
+     * Target from the immutable saved day plan; null for legacy memories
+     * @nullable
+     */
+  targetValue: number | null;
+  /**
+     * Actual value from the real successful check-in; null for legacy memories
+     * @nullable
+     */
+  actualValue: number | null;
+  /** @nullable */
+  unit: MemoryUnit;
+  /**
+     * Stored difficulty from the successful check-in; never created or changed by a memory
+     * @nullable
+     */
+  difficulty: MemoryDifficulty;
 }
 
+/**
+ * Only private is accepted in V1; other enum values are reserved and rejected by the server
+ */
+export type MemoryInputVisibility = typeof MemoryInputVisibility[keyof typeof MemoryInputVisibility];
+
+
+export const MemoryInputVisibility = {
+  private: 'private',
+  friends: 'friends',
+  selected: 'selected',
+  public: 'public',
+} as const;
+
 export interface MemoryInput {
-  habitId?: number;
-  /** @minLength 1 */
-  note: string;
-  /** objectPath returned by POST /storage/uploads/request-url */
-  photoObjectPath?: string;
+  /** Habit and current journey identity; ownership is checked by the server */
+  habitId: number;
   date: string;
+  /**
+     * Private objectPath returned by POST /storage/uploads/request-url; ownership and file content are checked by the server
+     * @minLength 1
+     */
+  photoObjectPath: string;
+  /**
+     * @maxLength 300
+     * @nullable
+     */
+  caption?: string | null;
+  /**
+     * Deprecated caption alias for legacy clients; ignored when caption is also supplied
+     * @deprecated
+     * @maxLength 300
+     * @nullable
+     */
+  note?: string | null;
+  /** Only private is accepted in V1; other enum values are reserved and rejected by the server */
+  visibility?: MemoryInputVisibility;
+}
+
+export interface MemoryUpdate {
+  /**
+     * Set or clear the caption; explicit null clears it
+     * @maxLength 300
+     * @nullable
+     */
+  caption?: string | null;
+  /**
+     * Deprecated caption alias for legacy clients; ignored when caption is also supplied
+     * @deprecated
+     * @maxLength 300
+     * @nullable
+     */
+  note?: string | null;
 }
 
 export interface Reward {
@@ -2107,6 +2269,243 @@ export interface DashboardToday {
   realRewards?: DashboardJourneyRewardCard[];
 }
 
+export type DashboardSectionStatus = typeof DashboardSectionStatus[keyof typeof DashboardSectionStatus];
+
+
+export const DashboardSectionStatus = {
+  ready: 'ready',
+  empty: 'empty',
+  unavailable: 'unavailable',
+  stale: 'stale',
+} as const;
+
+export type DashboardHomeState = typeof DashboardHomeState[keyof typeof DashboardHomeState];
+
+
+export const DashboardHomeState = {
+  new_user: 'new_user',
+  no_habit: 'no_habit',
+  tracking_active: 'tracking_active',
+  tracking_paused: 'tracking_paused',
+  analysis_available: 'analysis_available',
+  habit_not_started: 'habit_not_started',
+  habit_in_progress: 'habit_in_progress',
+  minimum_reached: 'minimum_reached',
+  target_complete: 'target_complete',
+  missed_day: 'missed_day',
+  adaptation_required: 'adaptation_required',
+  journey_complete: 'journey_complete',
+  rest_day: 'rest_day',
+  unavailable: 'unavailable',
+} as const;
+
+export interface DashboardFocus {
+  habit: Habit;
+  execution: DailyHabitState;
+}
+
+export type DashboardJourneyPreviewJourneyLength = typeof DashboardJourneyPreviewJourneyLength[keyof typeof DashboardJourneyPreviewJourneyLength];
+
+
+export const DashboardJourneyPreviewJourneyLength = {
+  NUMBER_22: 22,
+} as const;
+
+export type DashboardJourneyPreviewStatus = typeof DashboardJourneyPreviewStatus[keyof typeof DashboardJourneyPreviewStatus];
+
+
+export const DashboardJourneyPreviewStatus = {
+  upcoming: 'upcoming',
+  active: 'active',
+  completed: 'completed',
+  expired: 'expired',
+} as const;
+
+export interface DashboardJourneyPreview {
+  habitId: number;
+  title: string;
+  emoji: string;
+  /**
+     * @minimum 0
+     * @maximum 22
+     */
+  currentDay: number;
+  journeyLength: DashboardJourneyPreviewJourneyLength;
+  status: DashboardJourneyPreviewStatus;
+  /** @minimum 0 */
+  successfulDays: number;
+  /** @minimum 0 */
+  eligibleDays: number;
+  /**
+     * @minimum 0
+     * @maximum 100
+     * @nullable
+     */
+  consistencyPercentage: number | null;
+  /**
+     * @minimum 0
+     * @maximum 22
+     */
+  daysRemaining: number;
+  /**
+     * Calendar progress only; not consistency or reward eligibility.
+     * @minimum 0
+     * @maximum 100
+     */
+  progressPercent: number;
+  /** @minimum 0 */
+  coinsEarned: number;
+  /** @minimum 0 */
+  xpEarned: number;
+  earningsPartial: boolean;
+}
+
+export interface DashboardCompletion {
+  journey: DashboardJourneyPreview;
+  reward: JourneyReward | null;
+}
+
+export interface DashboardCategoryTotal {
+  category: string;
+  label: string;
+  /** @minimum 0 */
+  minutes: number;
+  /**
+     * @minimum 0
+     * @maximum 100
+     */
+  percentage: number;
+}
+
+export interface DashboardTimeSummary {
+  session: TrackingSession | null;
+  /** @minimum 0 */
+  trackedMinutes: number;
+  /** @nullable */
+  intervalMinutes: number | null;
+  /** @maxItems 3 */
+  categoryTotals: DashboardCategoryTotal[];
+  /** @nullable */
+  opportunity: string | null;
+}
+
+export interface DashboardCoach {
+  analysis: TrackedDayAnalysis | null;
+  /** @nullable */
+  analysisDate: string | null;
+  /** @nullable */
+  updatedAt: string | null;
+  isStale: boolean;
+}
+
+export interface SocialUserSummary {
+  id: string;
+  /** @nullable */
+  username: string | null;
+  displayName: string;
+  avatarEmoji: string;
+}
+
+export type SocialJourneySummaryJourneyLength = typeof SocialJourneySummaryJourneyLength[keyof typeof SocialJourneySummaryJourneyLength];
+
+
+export const SocialJourneySummaryJourneyLength = {
+  NUMBER_22: 22,
+} as const;
+
+export interface SocialJourneySummary {
+  /** The owner's habit ID; read-only identity. */
+  journeyId: number;
+  title: string;
+  emoji: string;
+  category: string;
+  /**
+     * Greatest successfully completed day number
+     * @minimum 0
+     * @maximum 22
+     */
+  progressDay: number;
+  journeyLength: SocialJourneySummaryJourneyLength;
+  /**
+     * Aggregate successful days only; no missed-day rows/reasons are exposed.
+     * @minimum 0
+     */
+  successfulDayCount: number;
+  /**
+     * Successful elapsed scheduled days divided by known elapsed scheduled days; null before any scheduled day.
+     * @minimum 0
+     * @maximum 100
+     * @nullable
+     */
+  consistencyPercentage?: number | null;
+  completed: boolean;
+}
+
+export type SocialEquippedCharacterItemSlot = typeof SocialEquippedCharacterItemSlot[keyof typeof SocialEquippedCharacterItemSlot];
+
+
+export const SocialEquippedCharacterItemSlot = {
+  outfit: 'outfit',
+  hat: 'hat',
+  accessory: 'accessory',
+  pet: 'pet',
+  background: 'background',
+} as const;
+
+export interface SocialEquippedCharacterItem {
+  slot: SocialEquippedCharacterItemSlot;
+  name: string;
+  emoji: string;
+}
+
+export interface DashboardFriend {
+  user: SocialUserSummary;
+  journey: SocialJourneySummary | null;
+  /** Empty unless this friend's character/profile is independently shared with the current user. */
+  character: SocialEquippedCharacterItem[];
+}
+
+export interface DashboardSectionStatuses {
+  habits: DashboardSectionStatus;
+  journey: DashboardSectionStatus;
+  reward: DashboardSectionStatus;
+  character: DashboardSectionStatus;
+  time: DashboardSectionStatus;
+  coach: DashboardSectionStatus;
+  social: DashboardSectionStatus;
+  memory: DashboardSectionStatus;
+}
+
+export type DashboardHomeGreeting = typeof DashboardHomeGreeting[keyof typeof DashboardHomeGreeting];
+
+
+export const DashboardHomeGreeting = {
+  morning: 'morning',
+  evening: 'evening',
+  night: 'night',
+} as const;
+
+export interface DashboardHome {
+  date: string;
+  timezone: string;
+  greeting: DashboardHomeGreeting;
+  profile: User;
+  state: DashboardHomeState;
+  focus: DashboardFocus | null;
+  otherHabits: DashboardFocus[];
+  missedDay: DashboardFocus | null;
+  journey: DashboardJourneyPreview | null;
+  reward: JourneyReward | null;
+  completion?: DashboardCompletion | null;
+  character: MyCharacter | null;
+  time: DashboardTimeSummary | null;
+  coach: DashboardCoach | null;
+  /** @maxItems 4 */
+  friends: DashboardFriend[];
+  memory: Memory | null;
+  sectionStatus: DashboardSectionStatuses;
+}
+
 export interface DashboardCalendarDay {
   date: string;
   completedCount: number;
@@ -2139,7 +2538,6 @@ export interface GroupMember {
   userId: string;
   displayName: string;
   avatarEmoji: string;
-  progressCount: number;
   isMe: boolean;
 }
 
@@ -2166,6 +2564,855 @@ export interface GroupReactionInput {
   toUserId?: string;
   /** @minLength 1 */
   emoji: string;
+}
+
+/**
+ * Journey IDs are habit IDs; profile preferences use resourceId "profile".
+ */
+export type SocialResourceType = typeof SocialResourceType[keyof typeof SocialResourceType];
+
+
+export const SocialResourceType = {
+  journey: 'journey',
+  memory: 'memory',
+  reward: 'reward',
+  character: 'character',
+  achievements: 'achievements',
+} as const;
+
+export type SocialSharingVisibility = typeof SocialSharingVisibility[keyof typeof SocialSharingVisibility];
+
+
+export const SocialSharingVisibility = {
+  private: 'private',
+  friends: 'friends',
+  selected: 'selected',
+} as const;
+
+export interface SocialSharing {
+  resourceType: SocialResourceType;
+  /** @minLength 1 */
+  resourceId: string;
+  visibility: SocialSharingVisibility;
+  /** @maxItems 100 */
+  selectedUserIds: string[];
+}
+
+export interface SocialMe {
+  id: string;
+  /**
+     * @minLength 3
+     * @maxLength 24
+     * @nullable
+     */
+  username: string | null;
+  displayName: string;
+  avatarEmoji: string;
+  characterSharing: SocialSharing;
+  achievementsSharing: SocialSharing;
+}
+
+export interface SocialMeUpdate {
+  /**
+     * Lowercase letters, digits, underscore only; unique without case sensitivity.
+     * @minLength 3
+     * @maxLength 24
+     * @pattern ^[a-z0-9_]{3,24}$
+     */
+  username: string;
+}
+
+export type SocialUserSearchResultRelationship = typeof SocialUserSearchResultRelationship[keyof typeof SocialUserSearchResultRelationship];
+
+
+export const SocialUserSearchResultRelationship = {
+  none: 'none',
+  pending_incoming: 'pending_incoming',
+  pending_outgoing: 'pending_outgoing',
+  friend: 'friend',
+  blocked: 'blocked',
+} as const;
+
+export type SocialUserSearchResult = SocialUserSummary & {
+  relationship: SocialUserSearchResultRelationship;
+};
+
+export type SocialFriend = SocialUserSummary & {
+  friendsSince: string;
+};
+
+export type SocialFriendRequestStatus = typeof SocialFriendRequestStatus[keyof typeof SocialFriendRequestStatus];
+
+
+export const SocialFriendRequestStatus = {
+  pending: 'pending',
+  accepted: 'accepted',
+  declined: 'declined',
+  canceled: 'canceled',
+} as const;
+
+export interface SocialFriendRequest {
+  id: number;
+  sender: SocialUserSummary;
+  recipient: SocialUserSummary;
+  status: SocialFriendRequestStatus;
+  createdAt: string;
+  /** @nullable */
+  respondedAt?: string | null;
+}
+
+export interface SocialFriendRequestInput {
+  /** @minLength 1 */
+  recipientUserId: string;
+}
+
+export type SocialFriendRequestResponseDecision = typeof SocialFriendRequestResponseDecision[keyof typeof SocialFriendRequestResponseDecision];
+
+
+export const SocialFriendRequestResponseDecision = {
+  accept: 'accept',
+  decline: 'decline',
+} as const;
+
+export interface SocialFriendRequestResponse {
+  decision: SocialFriendRequestResponseDecision;
+}
+
+export interface SocialBlockInput {
+  /** @minLength 1 */
+  blockedUserId: string;
+}
+
+export interface SocialBlock {
+  id: number;
+  blockedUser: SocialUserSummary;
+  createdAt: string;
+}
+
+export type SocialReportInputReason = typeof SocialReportInputReason[keyof typeof SocialReportInputReason];
+
+
+export const SocialReportInputReason = {
+  spam: 'spam',
+  inappropriate_content: 'inappropriate_content',
+  harassment: 'harassment',
+  other: 'other',
+} as const;
+
+export interface SocialReportInput {
+  /** @minLength 1 */
+  reportedUserId: string;
+  reason: SocialReportInputReason;
+  /** @maxLength 1000 */
+  details?: string;
+}
+
+export type SocialReportReceiptStatus = typeof SocialReportReceiptStatus[keyof typeof SocialReportReceiptStatus];
+
+
+export const SocialReportReceiptStatus = {
+  open: 'open',
+  reviewed: 'reviewed',
+  closed: 'closed',
+} as const;
+
+export interface SocialReportReceipt {
+  id: number;
+  status: SocialReportReceiptStatus;
+  createdAt: string;
+}
+
+export type SocialSharingUpdateVisibility = typeof SocialSharingUpdateVisibility[keyof typeof SocialSharingUpdateVisibility];
+
+
+export const SocialSharingUpdateVisibility = {
+  private: 'private',
+  friends: 'friends',
+  selected: 'selected',
+} as const;
+
+export interface SocialSharingUpdate {
+  visibility: SocialSharingUpdateVisibility;
+  /**
+     * @maxItems 100
+     * @items.minLength 1
+     */
+  selectedUserIds?: string[];
+}
+
+export interface SocialAchievement {
+  title: string;
+  description: string;
+  emoji: string;
+  reachedAt: string;
+}
+
+export interface SocialSharedMemory {
+  id: number;
+  /** @nullable */
+  caption: string | null;
+  date: string;
+  /** Authenticated /social/memories/{memoryId}/photo ACL endpoint, not a public URL. */
+  photoUrl: string;
+}
+
+export interface SocialSharedReward {
+  id: number;
+  title: string;
+  emoji: string;
+}
+
+export interface SocialProfile {
+  user: SocialUserSummary;
+  /** Empty unless character/profile is explicitly shared with the current user. */
+  character: SocialEquippedCharacterItem[];
+  /** Empty unless achievements/profile is explicitly shared with the current user. */
+  achievements: SocialAchievement[];
+  visibleJourneySummaries: SocialJourneySummary[];
+  sharedMemories: SocialSharedMemory[];
+  sharedRewards: SocialSharedReward[];
+}
+
+export type SocialActivityEventType = typeof SocialActivityEventType[keyof typeof SocialActivityEventType];
+
+
+export const SocialActivityEventType = {
+  successful_day: 'successful_day',
+  milestone: 'milestone',
+  journey_completed: 'journey_completed',
+} as const;
+
+export interface SocialActivity {
+  id: number;
+  actor: SocialUserSummary;
+  eventType: SocialActivityEventType;
+  journey: SocialJourneySummary | null;
+  /**
+     * @minimum 0
+     * @maximum 22
+     * @nullable
+     */
+  progressDay: number | null;
+  /** @nullable */
+  milestoneTitle: string | null;
+  createdAt: string;
+}
+
+export type SocialEncouragementInputType = typeof SocialEncouragementInputType[keyof typeof SocialEncouragementInputType];
+
+
+export const SocialEncouragementInputType = {
+  cheer: 'cheer',
+  clap: 'clap',
+  fire: 'fire',
+  support: 'support',
+} as const;
+
+export type SocialEncouragementInputTemplate = typeof SocialEncouragementInputTemplate[keyof typeof SocialEncouragementInputTemplate];
+
+
+export const SocialEncouragementInputTemplate = {
+  nice_work: 'nice_work',
+  keep_going: 'keep_going',
+  great_job: 'great_job',
+  you_got_this: 'you_got_this',
+  keep_moving: 'keep_moving',
+} as const;
+
+export interface SocialEncouragementInput {
+  /** @minLength 1 */
+  receiverUserId: string;
+  /** @minimum 1 */
+  journeyId?: number;
+  type: SocialEncouragementInputType;
+  template: SocialEncouragementInputTemplate;
+  /** @maxLength 120 */
+  message?: string;
+  /** Client-generated stable UUID reused for an idempotent retry. */
+  requestId: string;
+}
+
+export type SocialEncouragementType = typeof SocialEncouragementType[keyof typeof SocialEncouragementType];
+
+
+export const SocialEncouragementType = {
+  cheer: 'cheer',
+  clap: 'clap',
+  fire: 'fire',
+  support: 'support',
+} as const;
+
+export type SocialEncouragementTemplate = typeof SocialEncouragementTemplate[keyof typeof SocialEncouragementTemplate];
+
+
+export const SocialEncouragementTemplate = {
+  nice_work: 'nice_work',
+  keep_going: 'keep_going',
+  great_job: 'great_job',
+  you_got_this: 'you_got_this',
+  keep_moving: 'keep_moving',
+} as const;
+
+export interface SocialEncouragement {
+  id: number;
+  sender: SocialUserSummary;
+  receiver: SocialUserSummary;
+  /** @nullable */
+  journeyId: number | null;
+  type: SocialEncouragementType;
+  template: SocialEncouragementTemplate;
+  /**
+     * @maxLength 120
+     * @nullable
+     */
+  message: string | null;
+  createdAt: string;
+}
+
+export type SocialNotificationType = typeof SocialNotificationType[keyof typeof SocialNotificationType];
+
+
+export const SocialNotificationType = {
+  friend_request_received: 'friend_request_received',
+  friend_request_accepted: 'friend_request_accepted',
+  challenge_invitation: 'challenge_invitation',
+  challenge_accepted: 'challenge_accepted',
+  challenge_declined: 'challenge_declined',
+  group_invitation: 'group_invitation',
+  group_member_joined: 'group_member_joined',
+  encouragement_received: 'encouragement_received',
+  shared_milestone: 'shared_milestone',
+  group_milestone: 'group_milestone',
+} as const;
+
+/**
+ * @nullable
+ */
+export type SocialNotificationEncouragementTemplate = typeof SocialNotificationEncouragementTemplate[keyof typeof SocialNotificationEncouragementTemplate] | null;
+
+
+export const SocialNotificationEncouragementTemplate = {
+  nice_work: 'nice_work',
+  keep_going: 'keep_going',
+  great_job: 'great_job',
+  you_got_this: 'you_got_this',
+  keep_moving: 'keep_moving',
+} as const;
+
+export interface SocialNotification {
+  id: number;
+  type: SocialNotificationType;
+  actor: SocialUserSummary | null;
+  /** @nullable */
+  friendRequestId: number | null;
+  /** @nullable */
+  groupInvitationId: number | null;
+  /** @nullable */
+  groupId: number | null;
+  /** @nullable */
+  challengeId: number | null;
+  /** @nullable */
+  encouragementId: number | null;
+  /** @nullable */
+  encouragementTemplate?: SocialNotificationEncouragementTemplate;
+  /**
+     * Available only after live authorization of the received encouragement.
+     * @maxLength 120
+     * @nullable
+     */
+  encouragementMessage?: string | null;
+  /** @nullable */
+  readAt: string | null;
+  createdAt: string;
+}
+
+export interface SocialReadAllResult {
+  /** @minimum 0 */
+  updatedCount: number;
+}
+
+export type SocialChallengeTemplateCategory = typeof SocialChallengeTemplateCategory[keyof typeof SocialChallengeTemplateCategory];
+
+
+export const SocialChallengeTemplateCategory = {
+  health: 'health',
+  learning: 'learning',
+  productivity: 'productivity',
+  mindfulness: 'mindfulness',
+  social: 'social',
+  creativity: 'creativity',
+  finance: 'finance',
+  custom: 'custom',
+} as const;
+
+export type SocialChallengeTemplateCadence = typeof SocialChallengeTemplateCadence[keyof typeof SocialChallengeTemplateCadence];
+
+
+export const SocialChallengeTemplateCadence = {
+  daily: 'daily',
+  weekdays: 'weekdays',
+  weekly: 'weekly',
+  custom_days: 'custom_days',
+} as const;
+
+export type SocialChallengeTemplateUnit = typeof SocialChallengeTemplateUnit[keyof typeof SocialChallengeTemplateUnit];
+
+
+export const SocialChallengeTemplateUnit = {
+  minutes: 'minutes',
+  count: 'count',
+  pages: 'pages',
+  custom: 'custom',
+} as const;
+
+export type SocialChallengeTemplateExecutionType = typeof SocialChallengeTemplateExecutionType[keyof typeof SocialChallengeTemplateExecutionType];
+
+
+export const SocialChallengeTemplateExecutionType = {
+  duration: 'duration',
+  count: 'count',
+  boolean: 'boolean',
+  limit: 'limit',
+} as const;
+
+export type SocialChallengeTemplateGoalType = typeof SocialChallengeTemplateGoalType[keyof typeof SocialChallengeTemplateGoalType];
+
+
+export const SocialChallengeTemplateGoalType = {
+  build: 'build',
+  quit: 'quit',
+} as const;
+
+export type SocialChallengeTemplateDifficulty = typeof SocialChallengeTemplateDifficulty[keyof typeof SocialChallengeTemplateDifficulty];
+
+
+export const SocialChallengeTemplateDifficulty = {
+  easy: 'easy',
+  medium: 'medium',
+  hard: 'hard',
+} as const;
+
+export interface SocialChallengeTemplate {
+  title: string;
+  emoji: string;
+  category: SocialChallengeTemplateCategory;
+  cadence: SocialChallengeTemplateCadence;
+  /**
+     * @maxItems 7
+     * @nullable
+     * @items.minimum 0
+     * @items.maximum 6
+     */
+  customDays: number[] | null;
+  unit: SocialChallengeTemplateUnit;
+  executionType: SocialChallengeTemplateExecutionType;
+  goalType: SocialChallengeTemplateGoalType;
+  difficulty: SocialChallengeTemplateDifficulty;
+  /** @minimum 0 */
+  suggestedTargetValue: number;
+  /** @minimum 0 */
+  suggestedMinimumValue: number;
+}
+
+export interface SocialChallengeInput {
+  /** @minimum 1 */
+  sourceHabitId: number;
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
+  title?: string;
+  /** @maxLength 500 */
+  description?: string;
+}
+
+export interface SocialChallengeInviteInput {
+  /**
+     * @minItems 1
+     * @maxItems 100
+     * @items.minLength 1
+     */
+  inviteeUserIds: string[];
+}
+
+export type SocialChallengeResponseDecision = typeof SocialChallengeResponseDecision[keyof typeof SocialChallengeResponseDecision];
+
+
+export const SocialChallengeResponseDecision = {
+  accept: 'accept',
+  decline: 'decline',
+} as const;
+
+/**
+ * Independently chosen by the accepting participant.
+ */
+export type SocialChallengeResponseDifficulty = typeof SocialChallengeResponseDifficulty[keyof typeof SocialChallengeResponseDifficulty];
+
+
+export const SocialChallengeResponseDifficulty = {
+  easy: 'easy',
+  medium: 'medium',
+  hard: 'hard',
+} as const;
+
+export type SocialChallengeResponseCadence = typeof SocialChallengeResponseCadence[keyof typeof SocialChallengeResponseCadence];
+
+
+export const SocialChallengeResponseCadence = {
+  daily: 'daily',
+  weekdays: 'weekdays',
+  weekly: 'weekly',
+  custom_days: 'custom_days',
+} as const;
+
+export interface SocialChallengeResponse {
+  decision: SocialChallengeResponseDecision;
+  /** @minimum 0 */
+  targetValue?: number;
+  /** @minimum 0 */
+  minimumValue?: number;
+  /** Independently chosen by the accepting participant. */
+  difficulty?: SocialChallengeResponseDifficulty;
+  cadence?: SocialChallengeResponseCadence;
+  /**
+     * @minItems 1
+     * @maxItems 7
+     * @items.minimum 0
+     * @items.maximum 6
+     */
+  customDays?: number[];
+}
+
+export type SocialChallengeSummaryDurationDays = typeof SocialChallengeSummaryDurationDays[keyof typeof SocialChallengeSummaryDurationDays];
+
+
+export const SocialChallengeSummaryDurationDays = {
+  NUMBER_22: 22,
+} as const;
+
+export type SocialChallengeSummaryMyStatus = typeof SocialChallengeSummaryMyStatus[keyof typeof SocialChallengeSummaryMyStatus];
+
+
+export const SocialChallengeSummaryMyStatus = {
+  invited: 'invited',
+  accepted: 'accepted',
+  declined: 'declined',
+  left: 'left',
+} as const;
+
+export interface SocialChallengeSummary {
+  id: number;
+  title: string;
+  /** @nullable */
+  description: string | null;
+  durationDays: SocialChallengeSummaryDurationDays;
+  template: SocialChallengeTemplate;
+  creator: SocialUserSummary;
+  myStatus: SocialChallengeSummaryMyStatus;
+  /** @minimum 1 */
+  memberCount: number;
+  createdAt: string;
+}
+
+export type SocialChallengeMemberStatus = typeof SocialChallengeMemberStatus[keyof typeof SocialChallengeMemberStatus];
+
+
+export const SocialChallengeMemberStatus = {
+  invited: 'invited',
+  accepted: 'accepted',
+  declined: 'declined',
+  left: 'left',
+} as const;
+
+/**
+ * @nullable
+ */
+export type SocialChallengeMemberJourneyLength = typeof SocialChallengeMemberJourneyLength[keyof typeof SocialChallengeMemberJourneyLength] | null;
+
+
+export const SocialChallengeMemberJourneyLength = {
+  NUMBER_22: 22,
+} as const;
+
+export interface SocialChallengeMember {
+  user: SocialUserSummary;
+  status: SocialChallengeMemberStatus;
+  /**
+     * The participant's own habit ID; never grants direct habit access.
+     * @nullable
+     */
+  journeyId: number | null;
+  /**
+     * @minimum 0
+     * @maximum 22
+     * @nullable
+     */
+  progressDay: number | null;
+  /** @nullable */
+  journeyLength: SocialChallengeMemberJourneyLength;
+  /** @nullable */
+  completed: boolean | null;
+  /**
+     * @minimum 0
+     * @maximum 100
+     * @nullable
+     */
+  consistencyPercentage?: number | null;
+  /** Equipped items only if separately shared with the viewer; challenge consent does not share the character. */
+  character?: SocialEquippedCharacterItem[];
+}
+
+export type SocialChallengeDetail = SocialChallengeSummary & {
+  members: SocialChallengeMember[];
+};
+
+export interface SocialGroupInput {
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
+  name: string;
+  /** @maxLength 500 */
+  description?: string;
+  /** @maxLength 250 */
+  goalDescription?: string;
+  /**
+     * @minimum 2
+     * @maximum 30
+     */
+  maxMembers?: number;
+}
+
+export type SocialGroupSummaryPrivacy = typeof SocialGroupSummaryPrivacy[keyof typeof SocialGroupSummaryPrivacy];
+
+
+export const SocialGroupSummaryPrivacy = {
+  invite_only: 'invite_only',
+} as const;
+
+export type SocialGroupSummaryRole = typeof SocialGroupSummaryRole[keyof typeof SocialGroupSummaryRole];
+
+
+export const SocialGroupSummaryRole = {
+  owner: 'owner',
+  member: 'member',
+} as const;
+
+export interface SocialGroupSummary {
+  id: number;
+  name: string;
+  /** @nullable */
+  description: string | null;
+  goalDescription: string;
+  privacy: SocialGroupSummaryPrivacy;
+  /** @minimum 1 */
+  memberCount: number;
+  /**
+     * @minimum 2
+     * @maximum 30
+     */
+  maxMembers: number;
+  role: SocialGroupSummaryRole;
+  /**
+     * Authenticated /social/groups/{groupId}/cover endpoint.
+     * @nullable
+     */
+  coverUrl: string | null;
+  createdAt: string;
+}
+
+export type SocialGroupJourneyProgressJourneyLength = typeof SocialGroupJourneyProgressJourneyLength[keyof typeof SocialGroupJourneyProgressJourneyLength];
+
+
+export const SocialGroupJourneyProgressJourneyLength = {
+  NUMBER_22: 22,
+} as const;
+
+export interface SocialGroupJourneyProgress {
+  /** The owner's habit ID */
+  journeyId: number;
+  title: string;
+  emoji: string;
+  /**
+     * @minimum 0
+     * @maximum 22
+     */
+  progressDay: number;
+  journeyLength: SocialGroupJourneyProgressJourneyLength;
+  /** @minimum 0 */
+  successfulDayCount: number;
+  completed: boolean;
+}
+
+export type SocialGroupMemberRole = typeof SocialGroupMemberRole[keyof typeof SocialGroupMemberRole];
+
+
+export const SocialGroupMemberRole = {
+  owner: 'owner',
+  member: 'member',
+} as const;
+
+export interface SocialGroupMember {
+  user: SocialUserSummary;
+  role: SocialGroupMemberRole;
+  joinedAt: string;
+  /** Empty unless this member explicitly shared these journeys with this group. */
+  sharedJourneys: SocialGroupJourneyProgress[];
+}
+
+export type SocialGroupDetail = SocialGroupSummary & {
+  members: SocialGroupMember[];
+};
+
+export interface SocialGroupInviteInput {
+  /**
+     * @minItems 1
+     * @maxItems 29
+     * @items.minLength 1
+     */
+  inviteeUserIds: string[];
+}
+
+export type SocialGroupInvitationResponseDecision = typeof SocialGroupInvitationResponseDecision[keyof typeof SocialGroupInvitationResponseDecision];
+
+
+export const SocialGroupInvitationResponseDecision = {
+  accept: 'accept',
+  decline: 'decline',
+} as const;
+
+export interface SocialGroupInvitationResponse {
+  decision: SocialGroupInvitationResponseDecision;
+}
+
+export type SocialGroupInvitationStatus = typeof SocialGroupInvitationStatus[keyof typeof SocialGroupInvitationStatus];
+
+
+export const SocialGroupInvitationStatus = {
+  pending: 'pending',
+  accepted: 'accepted',
+  declined: 'declined',
+  canceled: 'canceled',
+} as const;
+
+export interface SocialGroupInvitation {
+  id: number;
+  groupId: number;
+  groupName: string;
+  inviter: SocialUserSummary;
+  invitee: SocialUserSummary;
+  status: SocialGroupInvitationStatus;
+  createdAt: string;
+  /** @nullable */
+  respondedAt?: string | null;
+}
+
+export type SocialGroupActivityEventType = typeof SocialGroupActivityEventType[keyof typeof SocialGroupActivityEventType];
+
+
+export const SocialGroupActivityEventType = {
+  member_joined: 'member_joined',
+  successful_day: 'successful_day',
+  milestone: 'milestone',
+  journey_completed: 'journey_completed',
+} as const;
+
+export interface SocialGroupActivity {
+  id: number;
+  actor: SocialUserSummary;
+  eventType: SocialGroupActivityEventType;
+  journey: SocialGroupJourneyProgress | null;
+  /**
+     * @minimum 0
+     * @maximum 22
+     * @nullable
+     */
+  progressDay: number | null;
+  createdAt: string;
+}
+
+export interface SocialGroupJourneyShareInput {
+  /**
+     * Journey identity is an owned habit ID.
+     * @minimum 1
+     */
+  journeyId: number;
+}
+
+export interface SocialGroupJourneyShare {
+  groupId: number;
+  journey: SocialGroupJourneyProgress;
+}
+
+export type SocialGroupEncouragementInputTemplate = typeof SocialGroupEncouragementInputTemplate[keyof typeof SocialGroupEncouragementInputTemplate];
+
+
+export const SocialGroupEncouragementInputTemplate = {
+  nice_work: 'nice_work',
+  keep_going: 'keep_going',
+  great_job: 'great_job',
+  you_got_this: 'you_got_this',
+  keep_moving: 'keep_moving',
+} as const;
+
+export interface SocialGroupEncouragementInput {
+  /**
+     * Omit to cheer the whole group.
+     * @minLength 1
+     */
+  receiverUserId?: string;
+  template: SocialGroupEncouragementInputTemplate;
+  /** @maxLength 120 */
+  message?: string;
+  /** Client-generated stable UUID reused for an idempotent retry. */
+  requestId: string;
+}
+
+/**
+ * @nullable
+ */
+export type SocialGroupEncouragementTemplate = typeof SocialGroupEncouragementTemplate[keyof typeof SocialGroupEncouragementTemplate] | null;
+
+
+export const SocialGroupEncouragementTemplate = {
+  nice_work: 'nice_work',
+  keep_going: 'keep_going',
+  great_job: 'great_job',
+  you_got_this: 'you_got_this',
+  keep_moving: 'keep_moving',
+} as const;
+
+export interface SocialGroupEncouragement {
+  id: number;
+  groupId: number;
+  sender: SocialUserSummary;
+  receiver: SocialUserSummary | null;
+  emoji: string;
+  /** @nullable */
+  template: SocialGroupEncouragementTemplate;
+  /**
+     * @maxLength 120
+     * @nullable
+     */
+  message: string | null;
+  createdAt: string;
+}
+
+export interface SocialGroupCoverUpdate {
+  /**
+     * Private normalized path from the authenticated upload flow, or null to remove.
+     * @minLength 1
+     * @nullable
+     */
+  imageObjectPath: string | null;
+}
+
+export interface SocialGroupCover {
+  /**
+     * Authenticated group cover endpoint URL; never a public object URL.
+     * @nullable
+     */
+  imageUrl: string | null;
 }
 
 export type AiBreakdownGoalInputCategory = typeof AiBreakdownGoalInputCategory[keyof typeof AiBreakdownGoalInputCategory];
@@ -2340,7 +3587,14 @@ date: string;
 };
 
 export type ListMemoriesParams = {
+/**
+ * Filter by habit; the current journey identity is the habit ID.
+ */
 habitId?: number;
+/**
+ * Current journey identity (the owning habit ID). If habitId is also supplied, both filters must match.
+ */
+journeyId?: number;
 };
 
 export type ListWalletTransactionsParams = {
@@ -2356,5 +3610,37 @@ export type GetDashboardCalendarParams = {
  * Format YYYY-MM
  */
 month: string;
+};
+
+export type SearchSocialUsersParams = {
+/**
+ * @minLength 2
+ * @maxLength 24
+ */
+q: string;
+/**
+ * @minimum 1
+ * @maximum 50
+ */
+limit?: number;
+};
+
+export type ListSocialActivityParams = {
+/**
+ * @minimum 1
+ * @maximum 100
+ */
+limit?: number;
+beforeId?: number;
+};
+
+export type ListSocialNotificationsParams = {
+unreadOnly?: boolean;
+/**
+ * @minimum 1
+ * @maximum 100
+ */
+limit?: number;
+beforeId?: number;
 };
 

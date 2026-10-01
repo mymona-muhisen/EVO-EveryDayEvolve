@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { SharingButton } from '@/components/social/sharing';
 import { Link } from 'wouter';
 import { useClerk } from '@clerk/react';
 import { useQueryClient, type QueryClient } from '@tanstack/react-query';
@@ -17,7 +18,7 @@ import { invalidateDailyAll } from '@/hooks/use-daily';
 export const rewardImg = (p?: string | null) => (p && /^\/objects\/[^\s]+$/.test(p) ? `/api/storage${p}` : null);
 
 /** Reauthorize private image reads when the identity changes; never reuse a cached owner's bytes. */
-function useRewardImage(path?: string | null) {
+export function useRewardImage(path?: string | null) {
   const { session, user } = useClerk();
   const src = rewardImg(path);
   const [state, setState] = useState<{ url: string | null; status: 'idle' | 'loading' | 'ok' | 'error' }>({ url: null, status: src ? 'loading' : 'idle' });
@@ -110,6 +111,7 @@ export function RewardCard({ reward, journeyDay, onEdit }: { reward: JourneyRewa
       </div></div>
     <div className="h-1.5 rounded-full bg-[#e3d9c9] overflow-hidden mt-2"><div className="h-full bg-[#245448]" style={{ width: `${Math.min(100, day / 22 * 100)}%` }} /></div>
     {reward.status === 'pending' && onEdit && <button type="button" data-testid="button-edit-reward" className="text-xs underline mt-2" onClick={onEdit}>تعديل المكافأة</button>}
+    {onEdit && <div className="mt-2"><SharingButton resourceType="reward" resourceId={String(reward.id)} title="مشاركة هذه المكافأة" /></div>}
   </div>;
 }
 

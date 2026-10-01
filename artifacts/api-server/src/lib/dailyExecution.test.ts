@@ -189,3 +189,63 @@ test("explicit Done closes a successful execution for optional reflection after 
   assert.equal(done.shouldRecordSuccess, true);
   assert.equal(done.updates.status, "pending_reflection");
 });
+
+test("a paid unfinished count minimum can continue through progress updates without another reward", () => {
+  const plan: DailyPlan = { ...durationPlan, executionType: "count" };
+  const paidMinimum = state({
+    executionType: "count",
+    status: "pending_reflection",
+    actualValue: 5,
+    hasPaidCheckin: true,
+  });
+  const continued = transitionDailyExecution(
+    plan, paidMinimum, { action: "update_progress", value: 6 }, new Date("2025-01-01T10:06:00Z"),
+  );
+  assert.equal(continued.shouldRecordSuccess, false);
+  assert.equal(continued.updates.status, "pending_reflection");
+  assert.equal(continued.updates.actualValue, 6);
+  assert.throws(() => transitionDailyExecution(
+    plan, paidMinimum, { action: "update_progress", value: 4 }, new Date("2025-01-01T10:07:00Z"),
+  ), /cannot be reduced below its minimum/);
+  assert.throws(() => transitionDailyExecution(
+    plan, { ...paidMinimum, hasPaidCheckin: false },
+    { action: "update_progress", value: 6 }, new Date("2025-01-01T10:08:00Z"),
+  ), /already closed/);
+  assert.throws(() => transitionDailyExecution(
+    { ...plan, executionType: "boolean" },
+    { ...paidMinimum, executionType: "boolean" },
+    { action: "update_progress", value: 1 },
+    new Date("2025-01-01T10:09:00Z"),
+  ), /already closed/);
+});
+
+test("a paid unfinished duration minimum may resume/start and finish without downgrading its claim", () => {
+  const pausedAt = new Date("2025-01-01T10:05:00Z");
+  const pausedPaid = state({
+    status: "pending_reflection",
+    startedAt: new Date("2025-01-01T10:00:00Z"),
+    pausedAt,
+    actualValue: 5,
+    actualSeconds: 300,
+    hasPaidCheckin: true,
+  });
+  const resumed = transitionDailyExecution(
+    durationPlan, pausedPaid, { action: "resume" }, new Date("2025-01-01T10:06:00Z"),
+  );
+  assert.equal(resumed.updates.status, "in_progress");
+  const finished = transitionDailyExecution(
+    durationPlan,
+    { ...pausedPaid, ...resumed.updates } as DailyExecutionState,
+    { action: "finish" },
+    new Date("2025-01-01T10:06:30Z"),
+  );
+  assert.equal(finished.shouldRecordSuccess, true);
+  assert.equal(finished.updates.actualValue, 5.5);
+  assert.equal(finished.updates.status, "minimum_reached");
+  assert.throws(() => transitionDailyExecution(
+    { ...durationPlan, goalType: "quit" },
+    pausedPaid,
+    { action: "start" },
+    new Date("2025-01-01T10:07:00Z"),
+  ), /already closed/);
+});

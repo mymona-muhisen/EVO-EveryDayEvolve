@@ -52,7 +52,11 @@ export const actualUnits = (s: DailyHabitState) => s.actualValue ?? 0;
 export const fmtUnits = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1).replace(/\.0$/, ''));
 /** Zero is an editable initial value today, not a substitute for unknown historical actuals. */
 export const displayActualValue = (s: DailyHabitState) => s.actualValue == null && (s.status === 'missed' || !s.eligible) ? '—' : fmtUnits(actualUnits(s));
-export const isOpen = (s: DailyHabitState) => ['pending', 'in_progress', 'paused', 'minimum_reached', 'target_reached'].includes(s.status);
+export const isOpen = (s: DailyHabitState) => ['pending', 'in_progress', 'paused', 'minimum_reached', 'target_reached'].includes(s.status)
+  || (['completed', 'pending_reflection'].includes(s.status)
+    && s.checkin?.completed === true && s.goalType !== 'quit'
+    && (s.executionType === 'count' || s.executionType === 'duration')
+    && s.actualValue != null && s.actualValue >= s.minimumValue && s.actualValue < s.targetValue);
 
 export const reasonLabels: [string, string][] = [['too_difficult', 'كانت صعبة'], ['no_time', 'لم أجد وقتًا'], ['forgot', 'نسيت'], ['lost_motivation', 'فقدت الحماس'], ['unexpected', 'حدث أمر غير متوقع'], ['other', 'سبب آخر']];
 export const difficultyLabels: [string, string][] = [['easy', 'سهلة'], ['normal', 'عادية'], ['hard', 'صعبة'], ['very_hard', 'صعبة جدًا']];

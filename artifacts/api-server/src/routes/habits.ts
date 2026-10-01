@@ -1,8 +1,8 @@
 import { Router, type IRouter, type Request, type Response } from "express";
-import { eq, and, asc, desc } from "drizzle-orm";
+import { eq, and, asc, desc, inArray } from "drizzle-orm";
 import {
   db, habitsTable, checkinsTable, habitDaysTable, habitPlanRevisionsTable,
-  habitDailyExecutionsTable, rewardsTable, usersTable, journeyRewardsTable,
+  habitDailyExecutionsTable, rewardsTable, usersTable, journeyRewardsTable, memoriesTable,
 } from "@workspace/db";
 import {
   ListHabitsQueryParams,
@@ -296,6 +296,22 @@ const getHabitJourneyHandler = async (req: Request, res: Response): Promise<void
         tx.select().from(habitDailyExecutionsTable).where(eq(habitDailyExecutionsTable.habitId, habit.id)),
       ])
       : [[], [], []];
+    const savedDayIds = days.map((day) => day.id);
+    const associatedMemories = savedDayIds.length
+      ? await tx.select({
+        habitDayId: memoriesTable.habitDayId,
+        id: memoriesTable.id,
+      }).from(memoriesTable).where(and(
+        eq(memoriesTable.userId, req.userId!),
+        eq(memoriesTable.habitId, habit.id),
+        inArray(memoriesTable.habitDayId, savedDayIds),
+      ))
+      : [];
+    const memoryIdByDayId = new Map(
+      associatedMemories
+        .filter((memory) => memory.habitDayId != null)
+        .map((memory) => [memory.habitDayId!, memory.id]),
+    );
     const rewardFields = {
       id: rewardsTable.id,
       title: rewardsTable.title,
@@ -459,6 +475,8 @@ const getHabitJourneyHandler = async (req: Request, res: Response): Promise<void
             ? execution.status as "recovery_available" | "recovery_active" | "recovered"
             : null;
           return {
+            habitDayId: day.id,
+            memoryId: memoryIdByDayId.get(day.id) ?? null,
             date: day.date,
             dayNumber: habit.journeyStartDate == null
               ? day.dayNumber

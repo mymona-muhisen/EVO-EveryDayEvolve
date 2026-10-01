@@ -10,6 +10,5 @@ export interface GroupMember {
   userId: string;
   displayName: string;
   avatarEmoji: string;
-  progressCount: number;
   isMe: boolean;
 }

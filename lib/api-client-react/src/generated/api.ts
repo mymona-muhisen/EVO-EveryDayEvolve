@@ -40,6 +40,7 @@ import type {
   DailyHabitState,
   DailyOverview,
   DashboardCalendarDay,
+  DashboardHome,
   DashboardToday,
   DecorationItem,
   DecorationPurchase,
@@ -75,16 +76,60 @@ import type {
   ListHabitCheckinsParams,
   ListHabitsParams,
   ListMemoriesParams,
+  ListSocialActivityParams,
+  ListSocialNotificationsParams,
   ListTimeEntriesParams,
   ListWalletTransactionsParams,
   Memory,
   MemoryInput,
+  MemoryUpdate,
   MyCharacter,
   RecoverStreakResult,
   RedeemRewardResult,
   Reward,
   RewardInput,
   RewardUpdate,
+  SearchSocialUsersParams,
+  SocialActivity,
+  SocialBlock,
+  SocialBlockInput,
+  SocialChallengeDetail,
+  SocialChallengeInput,
+  SocialChallengeInviteInput,
+  SocialChallengeMember,
+  SocialChallengeResponse,
+  SocialChallengeSummary,
+  SocialEncouragement,
+  SocialEncouragementInput,
+  SocialFriend,
+  SocialFriendRequest,
+  SocialFriendRequestInput,
+  SocialFriendRequestResponse,
+  SocialGroupActivity,
+  SocialGroupCover,
+  SocialGroupCoverUpdate,
+  SocialGroupDetail,
+  SocialGroupEncouragement,
+  SocialGroupEncouragementInput,
+  SocialGroupInput,
+  SocialGroupInvitation,
+  SocialGroupInvitationResponse,
+  SocialGroupInviteInput,
+  SocialGroupJourneyShare,
+  SocialGroupJourneyShareInput,
+  SocialGroupSummary,
+  SocialMe,
+  SocialMeUpdate,
+  SocialNotification,
+  SocialProfile,
+  SocialReadAllResult,
+  SocialReportInput,
+  SocialReportReceipt,
+  SocialResourceType,
+  SocialSharing,
+  SocialSharingUpdate,
+  SocialUserSearchResult,
+  SocialUserSummary,
   StartHabitJourneyInput,
   TimeEntriesSummary,
   TimeEntry,
@@ -2666,7 +2711,8 @@ export const getListMemoriesUrl = (params?: ListMemoriesParams,) => {
 }
 
 /**
- * @summary List memory journal entries
+ * Returns only memories owned by the authenticated user. Memories created by the journey flow are private and associated with a completed saved day; legacy entries without a saved-day association remain unlinked.
+ * @summary List the current owner's private memories
  */
 export const listMemories = async (params?: ListMemoriesParams, options?: Parameters<typeof customFetch>[1]): Promise<Memory[]> => {
 
@@ -2713,7 +2759,7 @@ export type ListMemoriesQueryError = ErrorType<unknown>
 
 
 /**
- * @summary List memory journal entries
+ * @summary List the current owner's private memories
  */
 
 export function useListMemories<TData = Awaited<ReturnType<typeof listMemories>>, TError = ErrorType<unknown>>(
@@ -2743,7 +2789,8 @@ export const getCreateMemoryUrl = () => {
 }
 
 /**
- * @summary Create a memory (optionally with an uploaded photo)
+ * The server derives the owned journey day from habitId and the user's local calendar date. The day must have a saved plan snapshot and a real successful check-in. Do not send a user ID, journey ID, habit-day ID, check-in ID, or day number. Memory creation is separate from habit completion and never grants or changes rewards. Only private visibility is writable in this version.
+ * @summary Create a private photo memory for a completed journey day
  */
 export const createMemory = async (memoryInput: MemoryInput, options?: Parameters<typeof customFetch>[1]): Promise<Memory> => {
 
@@ -2776,7 +2823,7 @@ return customFetch<Memory>(getCreateMemoryUrl(),
 
 export const getCreateMemoryMutationKey = () => ['createMemory'] as const;
 
-export const getCreateMemoryMutationOptions = <TError = ErrorType<unknown>,
+export const getCreateMemoryMutationOptions = <TError = ErrorType<Error>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createMemory>>, TError,CreateMemoryMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof createMemory>>, TError,CreateMemoryMutationVariables, TContext> => {
 
@@ -2805,13 +2852,13 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type CreateMemoryMutationResult = NonNullable<Awaited<ReturnType<typeof createMemory>>>
     export type CreateMemoryMutationBody = BodyType<MemoryInput>
-    export type CreateMemoryMutationError = ErrorType<unknown>
+    export type CreateMemoryMutationError = ErrorType<Error>
     export type CreateMemoryMutationVariables = {data: BodyType<MemoryInput>}
 
     /**
- * @summary Create a memory (optionally with an uploaded photo)
+ * @summary Create a private photo memory for a completed journey day
  */
-export const useCreateMemory = <TError = ErrorType<unknown>,
+export const useCreateMemory = <TError = ErrorType<Error>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createMemory>>, TError,CreateMemoryMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof createMemory>>,
@@ -2820,6 +2867,173 @@ export const useCreateMemory = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getCreateMemoryMutationOptions(options));
+    }
+
+export const getGetMemoryUrl = (memoryId: number,) => {
+
+
+
+
+  return `/api/memories/${memoryId}`
+}
+
+/**
+ * @summary Get an owner-only private memory
+ */
+export const getMemory = async (memoryId: number, options?: Parameters<typeof customFetch>[1]): Promise<Memory> => {
+
+  return customFetch<Memory>(getGetMemoryUrl(memoryId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMemoryQueryKey = (memoryId: number,) => {
+    return [
+    `/api/memories/${memoryId}`
+    ] as const;
+    }
+
+
+export const getGetMemoryQueryOptions = <TData = Awaited<ReturnType<typeof getMemory>>, TError = ErrorType<Error>>(memoryId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMemory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMemoryQueryKey(memoryId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMemory>>> = ({ signal }) => getMemory(memoryId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: memoryId !== null && memoryId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMemory>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMemoryQueryResult = NonNullable<Awaited<ReturnType<typeof getMemory>>>
+export type GetMemoryQueryError = ErrorType<Error>
+
+
+/**
+ * @summary Get an owner-only private memory
+ */
+
+export function useGetMemory<TData = Awaited<ReturnType<typeof getMemory>>, TError = ErrorType<Error>>(
+ memoryId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMemory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMemoryQueryOptions(memoryId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateMemoryUrl = (memoryId: number,) => {
+
+
+
+
+  return `/api/memories/${memoryId}`
+}
+
+/**
+ * Caption-only edit; image, date, journey/day association, and visibility cannot be changed. The deprecated note input is accepted as a caption alias for legacy clients when caption is omitted.
+ * @summary Update a private memory caption
+ */
+export const updateMemory = async (memoryId: number,
+    memoryUpdate: MemoryUpdate, options?: Parameters<typeof customFetch>[1]): Promise<Memory> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<Memory>(getUpdateMemoryUrl(memoryId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(memoryUpdate)
+  }
+);}
+
+
+
+
+
+export const getUpdateMemoryMutationKey = () => ['updateMemory'] as const;
+
+export const getUpdateMemoryMutationOptions = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateMemory>>, TError,UpdateMemoryMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateMemory>>, TError,UpdateMemoryMutationVariables, TContext> => {
+
+const mutationKey = getUpdateMemoryMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateMemory>>, UpdateMemoryMutationVariables> = (props) => {
+          const {memoryId,data} = props ?? {};
+
+          return  updateMemory(memoryId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateMemoryMutationResult = NonNullable<Awaited<ReturnType<typeof updateMemory>>>
+    export type UpdateMemoryMutationBody = BodyType<MemoryUpdate>
+    export type UpdateMemoryMutationError = ErrorType<Error>
+    export type UpdateMemoryMutationVariables = {memoryId: number;data: BodyType<MemoryUpdate>}
+
+    /**
+ * @summary Update a private memory caption
+ */
+export const useUpdateMemory = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateMemory>>, TError,UpdateMemoryMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateMemory>>,
+        TError,
+        UpdateMemoryMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdateMemoryMutationOptions(options));
     }
 
 export const getDeleteMemoryUrl = (memoryId: number,) => {
@@ -2831,7 +3045,8 @@ export const getDeleteMemoryUrl = (memoryId: number,) => {
 }
 
 /**
- * @summary Delete a memory
+ * Deleting a memory does not change habit completion, journey progress, XP, or coins.
+ * @summary Delete an owner-only private memory
  */
 export const deleteMemory = async (memoryId: number, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
 
@@ -2883,7 +3098,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type DeleteMemoryMutationVariables = {memoryId: number}
 
     /**
- * @summary Delete a memory
+ * @summary Delete an owner-only private memory
  */
 export const useDeleteMemory = <TError = ErrorType<Error>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteMemory>>, TError,DeleteMemoryMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
@@ -4804,6 +5019,83 @@ export function useGetDashboardToday<TData = Awaited<ReturnType<typeof getDashbo
 
 
 
+export const getGetDashboardHomeUrl = () => {
+
+
+
+
+  return `/api/dashboard`
+}
+
+/**
+ * @summary Read-only timezone-aware home dashboard projection
+ */
+export const getDashboardHome = async ( options?: Parameters<typeof customFetch>[1]): Promise<DashboardHome> => {
+
+  return customFetch<DashboardHome>(getGetDashboardHomeUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetDashboardHomeQueryKey = () => {
+    return [
+    `/api/dashboard`
+    ] as const;
+    }
+
+
+export const getGetDashboardHomeQueryOptions = <TData = Awaited<ReturnType<typeof getDashboardHome>>, TError = ErrorType<Error>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDashboardHome>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetDashboardHomeQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getDashboardHome>>> = ({ signal }) => getDashboardHome({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getDashboardHome>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetDashboardHomeQueryResult = NonNullable<Awaited<ReturnType<typeof getDashboardHome>>>
+export type GetDashboardHomeQueryError = ErrorType<Error>
+
+
+/**
+ * @summary Read-only timezone-aware home dashboard projection
+ */
+
+export function useGetDashboardHome<TData = Awaited<ReturnType<typeof getDashboardHome>>, TError = ErrorType<Error>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDashboardHome>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetDashboardHomeQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getGetDashboardCalendarUrl = (params: GetDashboardCalendarParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -4888,6 +5180,3606 @@ export function useGetDashboardCalendar<TData = Awaited<ReturnType<typeof getDas
 
 
 
+export const getGetSocialMeUrl = () => {
+
+
+
+
+  return `/api/social/me`
+}
+
+/**
+ * Username is nullable until chosen. Character and achievement sharing default to private and are changed through the resource sharing endpoint.
+ * @summary Get the current user's social account and profile-sharing preferences
+ */
+export const getSocialMe = async ( options?: Parameters<typeof customFetch>[1]): Promise<SocialMe> => {
+
+  return customFetch<SocialMe>(getGetSocialMeUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetSocialMeQueryKey = () => {
+    return [
+    `/api/social/me`
+    ] as const;
+    }
+
+
+export const getGetSocialMeQueryOptions = <TData = Awaited<ReturnType<typeof getSocialMe>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSocialMe>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetSocialMeQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSocialMe>>> = ({ signal }) => getSocialMe({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSocialMe>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetSocialMeQueryResult = NonNullable<Awaited<ReturnType<typeof getSocialMe>>>
+export type GetSocialMeQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get the current user's social account and profile-sharing preferences
+ */
+
+export function useGetSocialMe<TData = Awaited<ReturnType<typeof getSocialMe>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSocialMe>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetSocialMeQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateSocialMeUrl = () => {
+
+
+
+
+  return `/api/social/me`
+}
+
+/**
+ * @summary Set or change the current user's unique username
+ */
+export const updateSocialMe = async (socialMeUpdate: SocialMeUpdate, options?: Parameters<typeof customFetch>[1]): Promise<SocialMe> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<SocialMe>(getUpdateSocialMeUrl(),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(socialMeUpdate)
+  }
+);}
+
+
+
+
+
+export const getUpdateSocialMeMutationKey = () => ['updateSocialMe'] as const;
+
+export const getUpdateSocialMeMutationOptions = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateSocialMe>>, TError,UpdateSocialMeMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateSocialMe>>, TError,UpdateSocialMeMutationVariables, TContext> => {
+
+const mutationKey = getUpdateSocialMeMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateSocialMe>>, UpdateSocialMeMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  updateSocialMe(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateSocialMeMutationResult = NonNullable<Awaited<ReturnType<typeof updateSocialMe>>>
+    export type UpdateSocialMeMutationBody = BodyType<SocialMeUpdate>
+    export type UpdateSocialMeMutationError = ErrorType<Error>
+    export type UpdateSocialMeMutationVariables = {data: BodyType<SocialMeUpdate>}
+
+    /**
+ * @summary Set or change the current user's unique username
+ */
+export const useUpdateSocialMe = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateSocialMe>>, TError,UpdateSocialMeMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateSocialMe>>,
+        TError,
+        UpdateSocialMeMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdateSocialMeMutationOptions(options));
+    }
+
+export const getSearchSocialUsersUrl = (params: SearchSocialUsersParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/social/users/search?${stringifiedParams}` : `/api/social/users/search`
+}
+
+/**
+ * Username-only search; requires at least two characters. Never returns email, habit, reward, or activity data.
+ * @summary Search a narrow safe user DTO by username
+ */
+export const searchSocialUsers = async (params: SearchSocialUsersParams, options?: Parameters<typeof customFetch>[1]): Promise<SocialUserSearchResult[]> => {
+
+  return customFetch<SocialUserSearchResult[]>(getSearchSocialUsersUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getSearchSocialUsersQueryKey = (params?: SearchSocialUsersParams,) => {
+    return [
+    `/api/social/users/search`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getSearchSocialUsersQueryOptions = <TData = Awaited<ReturnType<typeof searchSocialUsers>>, TError = ErrorType<unknown>>(params: SearchSocialUsersParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof searchSocialUsers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getSearchSocialUsersQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof searchSocialUsers>>> = ({ signal }) => searchSocialUsers(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof searchSocialUsers>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type SearchSocialUsersQueryResult = NonNullable<Awaited<ReturnType<typeof searchSocialUsers>>>
+export type SearchSocialUsersQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Search a narrow safe user DTO by username
+ */
+
+export function useSearchSocialUsers<TData = Awaited<ReturnType<typeof searchSocialUsers>>, TError = ErrorType<unknown>>(
+ params: SearchSocialUsersParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof searchSocialUsers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getSearchSocialUsersQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListSocialFriendsUrl = () => {
+
+
+
+
+  return `/api/social/friends`
+}
+
+/**
+ * @summary List accepted friends
+ */
+export const listSocialFriends = async ( options?: Parameters<typeof customFetch>[1]): Promise<SocialFriend[]> => {
+
+  return customFetch<SocialFriend[]>(getListSocialFriendsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListSocialFriendsQueryKey = () => {
+    return [
+    `/api/social/friends`
+    ] as const;
+    }
+
+
+export const getListSocialFriendsQueryOptions = <TData = Awaited<ReturnType<typeof listSocialFriends>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSocialFriends>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListSocialFriendsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listSocialFriends>>> = ({ signal }) => listSocialFriends({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listSocialFriends>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListSocialFriendsQueryResult = NonNullable<Awaited<ReturnType<typeof listSocialFriends>>>
+export type ListSocialFriendsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List accepted friends
+ */
+
+export function useListSocialFriends<TData = Awaited<ReturnType<typeof listSocialFriends>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSocialFriends>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListSocialFriendsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListIncomingSocialFriendRequestsUrl = () => {
+
+
+
+
+  return `/api/social/friend-requests/incoming`
+}
+
+/**
+ * @summary List pending requests addressed to the current user
+ */
+export const listIncomingSocialFriendRequests = async ( options?: Parameters<typeof customFetch>[1]): Promise<SocialFriendRequest[]> => {
+
+  return customFetch<SocialFriendRequest[]>(getListIncomingSocialFriendRequestsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListIncomingSocialFriendRequestsQueryKey = () => {
+    return [
+    `/api/social/friend-requests/incoming`
+    ] as const;
+    }
+
+
+export const getListIncomingSocialFriendRequestsQueryOptions = <TData = Awaited<ReturnType<typeof listIncomingSocialFriendRequests>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listIncomingSocialFriendRequests>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListIncomingSocialFriendRequestsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listIncomingSocialFriendRequests>>> = ({ signal }) => listIncomingSocialFriendRequests({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listIncomingSocialFriendRequests>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListIncomingSocialFriendRequestsQueryResult = NonNullable<Awaited<ReturnType<typeof listIncomingSocialFriendRequests>>>
+export type ListIncomingSocialFriendRequestsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List pending requests addressed to the current user
+ */
+
+export function useListIncomingSocialFriendRequests<TData = Awaited<ReturnType<typeof listIncomingSocialFriendRequests>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listIncomingSocialFriendRequests>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListIncomingSocialFriendRequestsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListOutgoingSocialFriendRequestsUrl = () => {
+
+
+
+
+  return `/api/social/friend-requests/outgoing`
+}
+
+/**
+ * @summary List pending requests sent by the current user
+ */
+export const listOutgoingSocialFriendRequests = async ( options?: Parameters<typeof customFetch>[1]): Promise<SocialFriendRequest[]> => {
+
+  return customFetch<SocialFriendRequest[]>(getListOutgoingSocialFriendRequestsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListOutgoingSocialFriendRequestsQueryKey = () => {
+    return [
+    `/api/social/friend-requests/outgoing`
+    ] as const;
+    }
+
+
+export const getListOutgoingSocialFriendRequestsQueryOptions = <TData = Awaited<ReturnType<typeof listOutgoingSocialFriendRequests>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listOutgoingSocialFriendRequests>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListOutgoingSocialFriendRequestsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listOutgoingSocialFriendRequests>>> = ({ signal }) => listOutgoingSocialFriendRequests({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listOutgoingSocialFriendRequests>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListOutgoingSocialFriendRequestsQueryResult = NonNullable<Awaited<ReturnType<typeof listOutgoingSocialFriendRequests>>>
+export type ListOutgoingSocialFriendRequestsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List pending requests sent by the current user
+ */
+
+export function useListOutgoingSocialFriendRequests<TData = Awaited<ReturnType<typeof listOutgoingSocialFriendRequests>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listOutgoingSocialFriendRequests>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListOutgoingSocialFriendRequestsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSendSocialFriendRequestUrl = () => {
+
+
+
+
+  return `/api/social/friend-requests`
+}
+
+/**
+ * Server verifies the target, existing relationship, and both block directions; self-requests are invalid.
+ * @summary Send a friend request by target user ID
+ */
+export const sendSocialFriendRequest = async (socialFriendRequestInput: SocialFriendRequestInput, options?: Parameters<typeof customFetch>[1]): Promise<SocialFriendRequest> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<SocialFriendRequest>(getSendSocialFriendRequestUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(socialFriendRequestInput)
+  }
+);}
+
+
+
+
+
+export const getSendSocialFriendRequestMutationKey = () => ['sendSocialFriendRequest'] as const;
+
+export const getSendSocialFriendRequestMutationOptions = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendSocialFriendRequest>>, TError,SendSocialFriendRequestMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof sendSocialFriendRequest>>, TError,SendSocialFriendRequestMutationVariables, TContext> => {
+
+const mutationKey = getSendSocialFriendRequestMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof sendSocialFriendRequest>>, SendSocialFriendRequestMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  sendSocialFriendRequest(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SendSocialFriendRequestMutationResult = NonNullable<Awaited<ReturnType<typeof sendSocialFriendRequest>>>
+    export type SendSocialFriendRequestMutationBody = BodyType<SocialFriendRequestInput>
+    export type SendSocialFriendRequestMutationError = ErrorType<Error>
+    export type SendSocialFriendRequestMutationVariables = {data: BodyType<SocialFriendRequestInput>}
+
+    /**
+ * @summary Send a friend request by target user ID
+ */
+export const useSendSocialFriendRequest = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendSocialFriendRequest>>, TError,SendSocialFriendRequestMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof sendSocialFriendRequest>>,
+        TError,
+        SendSocialFriendRequestMutationVariables,
+        TContext
+      > => {
+      return useMutation(getSendSocialFriendRequestMutationOptions(options));
+    }
+
+export const getRespondToSocialFriendRequestUrl = (requestId: number,) => {
+
+
+
+
+  return `/api/social/friend-requests/${requestId}/respond`
+}
+
+/**
+ * @summary Accept or decline an incoming friend request
+ */
+export const respondToSocialFriendRequest = async (requestId: number,
+    socialFriendRequestResponse: SocialFriendRequestResponse, options?: Parameters<typeof customFetch>[1]): Promise<SocialFriendRequest> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<SocialFriendRequest>(getRespondToSocialFriendRequestUrl(requestId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(socialFriendRequestResponse)
+  }
+);}
+
+
+
+
+
+export const getRespondToSocialFriendRequestMutationKey = () => ['respondToSocialFriendRequest'] as const;
+
+export const getRespondToSocialFriendRequestMutationOptions = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof respondToSocialFriendRequest>>, TError,RespondToSocialFriendRequestMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof respondToSocialFriendRequest>>, TError,RespondToSocialFriendRequestMutationVariables, TContext> => {
+
+const mutationKey = getRespondToSocialFriendRequestMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof respondToSocialFriendRequest>>, RespondToSocialFriendRequestMutationVariables> = (props) => {
+          const {requestId,data} = props ?? {};
+
+          return  respondToSocialFriendRequest(requestId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RespondToSocialFriendRequestMutationResult = NonNullable<Awaited<ReturnType<typeof respondToSocialFriendRequest>>>
+    export type RespondToSocialFriendRequestMutationBody = BodyType<SocialFriendRequestResponse>
+    export type RespondToSocialFriendRequestMutationError = ErrorType<Error>
+    export type RespondToSocialFriendRequestMutationVariables = {requestId: number;data: BodyType<SocialFriendRequestResponse>}
+
+    /**
+ * @summary Accept or decline an incoming friend request
+ */
+export const useRespondToSocialFriendRequest = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof respondToSocialFriendRequest>>, TError,RespondToSocialFriendRequestMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof respondToSocialFriendRequest>>,
+        TError,
+        RespondToSocialFriendRequestMutationVariables,
+        TContext
+      > => {
+      return useMutation(getRespondToSocialFriendRequestMutationOptions(options));
+    }
+
+export const getCancelSocialFriendRequestUrl = (requestId: number,) => {
+
+
+
+
+  return `/api/social/friend-requests/${requestId}`
+}
+
+/**
+ * @summary Cancel the current user's pending outgoing request
+ */
+export const cancelSocialFriendRequest = async (requestId: number, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getCancelSocialFriendRequestUrl(requestId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getCancelSocialFriendRequestMutationKey = () => ['cancelSocialFriendRequest'] as const;
+
+export const getCancelSocialFriendRequestMutationOptions = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelSocialFriendRequest>>, TError,CancelSocialFriendRequestMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof cancelSocialFriendRequest>>, TError,CancelSocialFriendRequestMutationVariables, TContext> => {
+
+const mutationKey = getCancelSocialFriendRequestMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof cancelSocialFriendRequest>>, CancelSocialFriendRequestMutationVariables> = (props) => {
+          const {requestId} = props ?? {};
+
+          return  cancelSocialFriendRequest(requestId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CancelSocialFriendRequestMutationResult = NonNullable<Awaited<ReturnType<typeof cancelSocialFriendRequest>>>
+
+    export type CancelSocialFriendRequestMutationError = ErrorType<Error>
+    export type CancelSocialFriendRequestMutationVariables = {requestId: number}
+
+    /**
+ * @summary Cancel the current user's pending outgoing request
+ */
+export const useCancelSocialFriendRequest = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelSocialFriendRequest>>, TError,CancelSocialFriendRequestMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof cancelSocialFriendRequest>>,
+        TError,
+        CancelSocialFriendRequestMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCancelSocialFriendRequestMutationOptions(options));
+    }
+
+export const getRemoveSocialFriendUrl = (friendUserId: string,) => {
+
+
+
+
+  return `/api/social/friends/${friendUserId}`
+}
+
+/**
+ * @summary Remove an accepted friendship in either direction
+ */
+export const removeSocialFriend = async (friendUserId: string, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getRemoveSocialFriendUrl(friendUserId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getRemoveSocialFriendMutationKey = () => ['removeSocialFriend'] as const;
+
+export const getRemoveSocialFriendMutationOptions = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removeSocialFriend>>, TError,RemoveSocialFriendMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof removeSocialFriend>>, TError,RemoveSocialFriendMutationVariables, TContext> => {
+
+const mutationKey = getRemoveSocialFriendMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof removeSocialFriend>>, RemoveSocialFriendMutationVariables> = (props) => {
+          const {friendUserId} = props ?? {};
+
+          return  removeSocialFriend(friendUserId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RemoveSocialFriendMutationResult = NonNullable<Awaited<ReturnType<typeof removeSocialFriend>>>
+
+    export type RemoveSocialFriendMutationError = ErrorType<Error>
+    export type RemoveSocialFriendMutationVariables = {friendUserId: string}
+
+    /**
+ * @summary Remove an accepted friendship in either direction
+ */
+export const useRemoveSocialFriend = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removeSocialFriend>>, TError,RemoveSocialFriendMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof removeSocialFriend>>,
+        TError,
+        RemoveSocialFriendMutationVariables,
+        TContext
+      > => {
+      return useMutation(getRemoveSocialFriendMutationOptions(options));
+    }
+
+export const getListSocialBlocksUrl = () => {
+
+
+
+
+  return `/api/social/blocks`
+}
+
+/**
+ * @summary List users blocked by the current user
+ */
+export const listSocialBlocks = async ( options?: Parameters<typeof customFetch>[1]): Promise<SocialUserSummary[]> => {
+
+  return customFetch<SocialUserSummary[]>(getListSocialBlocksUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListSocialBlocksQueryKey = () => {
+    return [
+    `/api/social/blocks`
+    ] as const;
+    }
+
+
+export const getListSocialBlocksQueryOptions = <TData = Awaited<ReturnType<typeof listSocialBlocks>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSocialBlocks>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListSocialBlocksQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listSocialBlocks>>> = ({ signal }) => listSocialBlocks({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listSocialBlocks>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListSocialBlocksQueryResult = NonNullable<Awaited<ReturnType<typeof listSocialBlocks>>>
+export type ListSocialBlocksQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List users blocked by the current user
+ */
+
+export function useListSocialBlocks<TData = Awaited<ReturnType<typeof listSocialBlocks>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSocialBlocks>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListSocialBlocksQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateSocialBlockUrl = () => {
+
+
+
+
+  return `/api/social/blocks`
+}
+
+/**
+ * @summary Block a user and end any friendship or pending requests between them
+ */
+export const createSocialBlock = async (socialBlockInput: SocialBlockInput, options?: Parameters<typeof customFetch>[1]): Promise<SocialBlock> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<SocialBlock>(getCreateSocialBlockUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(socialBlockInput)
+  }
+);}
+
+
+
+
+
+export const getCreateSocialBlockMutationKey = () => ['createSocialBlock'] as const;
+
+export const getCreateSocialBlockMutationOptions = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createSocialBlock>>, TError,CreateSocialBlockMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createSocialBlock>>, TError,CreateSocialBlockMutationVariables, TContext> => {
+
+const mutationKey = getCreateSocialBlockMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createSocialBlock>>, CreateSocialBlockMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  createSocialBlock(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateSocialBlockMutationResult = NonNullable<Awaited<ReturnType<typeof createSocialBlock>>>
+    export type CreateSocialBlockMutationBody = BodyType<SocialBlockInput>
+    export type CreateSocialBlockMutationError = ErrorType<Error>
+    export type CreateSocialBlockMutationVariables = {data: BodyType<SocialBlockInput>}
+
+    /**
+ * @summary Block a user and end any friendship or pending requests between them
+ */
+export const useCreateSocialBlock = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createSocialBlock>>, TError,CreateSocialBlockMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createSocialBlock>>,
+        TError,
+        CreateSocialBlockMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateSocialBlockMutationOptions(options));
+    }
+
+export const getRemoveSocialBlockUrl = (blockedUserId: string,) => {
+
+
+
+
+  return `/api/social/blocks/${blockedUserId}`
+}
+
+/**
+ * @summary Unblock a user
+ */
+export const removeSocialBlock = async (blockedUserId: string, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getRemoveSocialBlockUrl(blockedUserId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getRemoveSocialBlockMutationKey = () => ['removeSocialBlock'] as const;
+
+export const getRemoveSocialBlockMutationOptions = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removeSocialBlock>>, TError,RemoveSocialBlockMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof removeSocialBlock>>, TError,RemoveSocialBlockMutationVariables, TContext> => {
+
+const mutationKey = getRemoveSocialBlockMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof removeSocialBlock>>, RemoveSocialBlockMutationVariables> = (props) => {
+          const {blockedUserId} = props ?? {};
+
+          return  removeSocialBlock(blockedUserId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RemoveSocialBlockMutationResult = NonNullable<Awaited<ReturnType<typeof removeSocialBlock>>>
+
+    export type RemoveSocialBlockMutationError = ErrorType<Error>
+    export type RemoveSocialBlockMutationVariables = {blockedUserId: string}
+
+    /**
+ * @summary Unblock a user
+ */
+export const useRemoveSocialBlock = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removeSocialBlock>>, TError,RemoveSocialBlockMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof removeSocialBlock>>,
+        TError,
+        RemoveSocialBlockMutationVariables,
+        TContext
+      > => {
+      return useMutation(getRemoveSocialBlockMutationOptions(options));
+    }
+
+export const getCreateSocialReportUrl = () => {
+
+
+
+
+  return `/api/social/reports`
+}
+
+/**
+ * Reports are not transmitted to an AI moderation service.
+ * @summary Persist a report about a user for human review
+ */
+export const createSocialReport = async (socialReportInput: SocialReportInput, options?: Parameters<typeof customFetch>[1]): Promise<SocialReportReceipt> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<SocialReportReceipt>(getCreateSocialReportUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(socialReportInput)
+  }
+);}
+
+
+
+
+
+export const getCreateSocialReportMutationKey = () => ['createSocialReport'] as const;
+
+export const getCreateSocialReportMutationOptions = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createSocialReport>>, TError,CreateSocialReportMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createSocialReport>>, TError,CreateSocialReportMutationVariables, TContext> => {
+
+const mutationKey = getCreateSocialReportMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createSocialReport>>, CreateSocialReportMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  createSocialReport(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateSocialReportMutationResult = NonNullable<Awaited<ReturnType<typeof createSocialReport>>>
+    export type CreateSocialReportMutationBody = BodyType<SocialReportInput>
+    export type CreateSocialReportMutationError = ErrorType<Error>
+    export type CreateSocialReportMutationVariables = {data: BodyType<SocialReportInput>}
+
+    /**
+ * @summary Persist a report about a user for human review
+ */
+export const useCreateSocialReport = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createSocialReport>>, TError,CreateSocialReportMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createSocialReport>>,
+        TError,
+        CreateSocialReportMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateSocialReportMutationOptions(options));
+    }
+
+export const getGetSocialProfileUrl = (userId: string,) => {
+
+
+
+
+  return `/api/social/profiles/${userId}`
+}
+
+/**
+ * Response is limited to safe identity, explicitly shared equipped character, achievements, visible journey summaries, shared Memories, and explicitly shared rewards. Access is directional: either accepted friendship plus friends visibility, or a selected-user ACL. A block in either direction denies the entire request. No time logs, cues, private habits, missed days/reasons, precise location, reward values, or private Memory fields.
+ * @summary Get only information explicitly shared with the current user
+ */
+export const getSocialProfile = async (userId: string, options?: Parameters<typeof customFetch>[1]): Promise<SocialProfile> => {
+
+  return customFetch<SocialProfile>(getGetSocialProfileUrl(userId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetSocialProfileQueryKey = (userId: string,) => {
+    return [
+    `/api/social/profiles/${userId}`
+    ] as const;
+    }
+
+
+export const getGetSocialProfileQueryOptions = <TData = Awaited<ReturnType<typeof getSocialProfile>>, TError = ErrorType<Error>>(userId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSocialProfile>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetSocialProfileQueryKey(userId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSocialProfile>>> = ({ signal }) => getSocialProfile(userId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: userId !== null && userId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSocialProfile>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetSocialProfileQueryResult = NonNullable<Awaited<ReturnType<typeof getSocialProfile>>>
+export type GetSocialProfileQueryError = ErrorType<Error>
+
+
+/**
+ * @summary Get only information explicitly shared with the current user
+ */
+
+export function useGetSocialProfile<TData = Awaited<ReturnType<typeof getSocialProfile>>, TError = ErrorType<Error>>(
+ userId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSocialProfile>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetSocialProfileQueryOptions(userId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetSocialResourceSharingUrl = (resourceType: SocialResourceType,
+    resourceId: string,) => {
+
+
+
+
+  return `/api/social/sharing/${resourceType}/${resourceId}`
+}
+
+/**
+ * Owner only. Unknown ACL rows mean private. journey resourceId is the habit ID; profile preferences use resourceId "profile" for character and achievements. selectedUserIds are explicit recipients, never public.
+ * @summary Get the current owner's ACL for one resource
+ */
+export const getSocialResourceSharing = async (resourceType: SocialResourceType,
+    resourceId: string, options?: Parameters<typeof customFetch>[1]): Promise<SocialSharing> => {
+
+  return customFetch<SocialSharing>(getGetSocialResourceSharingUrl(resourceType,resourceId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetSocialResourceSharingQueryKey = (resourceType: SocialResourceType,
+    resourceId: string,) => {
+    return [
+    `/api/social/sharing/${resourceType}/${resourceId}`
+    ] as const;
+    }
+
+
+export const getGetSocialResourceSharingQueryOptions = <TData = Awaited<ReturnType<typeof getSocialResourceSharing>>, TError = ErrorType<Error>>(resourceType: SocialResourceType,
+    resourceId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSocialResourceSharing>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetSocialResourceSharingQueryKey(resourceType,resourceId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSocialResourceSharing>>> = ({ signal }) => getSocialResourceSharing(resourceType,resourceId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: resourceType !== null && resourceType !== undefined && resourceId !== null && resourceId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSocialResourceSharing>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetSocialResourceSharingQueryResult = NonNullable<Awaited<ReturnType<typeof getSocialResourceSharing>>>
+export type GetSocialResourceSharingQueryError = ErrorType<Error>
+
+
+/**
+ * @summary Get the current owner's ACL for one resource
+ */
+
+export function useGetSocialResourceSharing<TData = Awaited<ReturnType<typeof getSocialResourceSharing>>, TError = ErrorType<Error>>(
+ resourceType: SocialResourceType,
+    resourceId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSocialResourceSharing>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetSocialResourceSharingQueryOptions(resourceType,resourceId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateSocialResourceSharingUrl = (resourceType: SocialResourceType,
+    resourceId: string,) => {
+
+
+
+
+  return `/api/social/sharing/${resourceType}/${resourceId}`
+}
+
+/**
+ * Public visibility is not supported. selectedUserIds is required when visibility is selected and must name allowed recipients; omitted or empty selectedUserIds for private/friends clears recipient rows.
+ * @summary Change private/friends/selected sharing for an owned resource
+ */
+export const updateSocialResourceSharing = async (resourceType: SocialResourceType,
+    resourceId: string,
+    socialSharingUpdate: SocialSharingUpdate, options?: Parameters<typeof customFetch>[1]): Promise<SocialSharing> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<SocialSharing>(getUpdateSocialResourceSharingUrl(resourceType,resourceId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(socialSharingUpdate)
+  }
+);}
+
+
+
+
+
+export const getUpdateSocialResourceSharingMutationKey = () => ['updateSocialResourceSharing'] as const;
+
+export const getUpdateSocialResourceSharingMutationOptions = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateSocialResourceSharing>>, TError,UpdateSocialResourceSharingMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateSocialResourceSharing>>, TError,UpdateSocialResourceSharingMutationVariables, TContext> => {
+
+const mutationKey = getUpdateSocialResourceSharingMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateSocialResourceSharing>>, UpdateSocialResourceSharingMutationVariables> = (props) => {
+          const {resourceType,resourceId,data} = props ?? {};
+
+          return  updateSocialResourceSharing(resourceType,resourceId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateSocialResourceSharingMutationResult = NonNullable<Awaited<ReturnType<typeof updateSocialResourceSharing>>>
+    export type UpdateSocialResourceSharingMutationBody = BodyType<SocialSharingUpdate>
+    export type UpdateSocialResourceSharingMutationError = ErrorType<Error>
+    export type UpdateSocialResourceSharingMutationVariables = {resourceType: SocialResourceType;resourceId: string;data: BodyType<SocialSharingUpdate>}
+
+    /**
+ * @summary Change private/friends/selected sharing for an owned resource
+ */
+export const useUpdateSocialResourceSharing = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateSocialResourceSharing>>, TError,UpdateSocialResourceSharingMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateSocialResourceSharing>>,
+        TError,
+        UpdateSocialResourceSharingMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdateSocialResourceSharingMutationOptions(options));
+    }
+
+export const getGetSocialMemoryPhotoUrl = (memoryId: number,) => {
+
+
+
+
+  return `/api/social/memories/${memoryId}/photo`
+}
+
+/**
+ * Private object bytes are returned only to the owner or a currently authorized recipient. Friendship and block state are checked on every request. Never return a public URL or use the unconditional public object route for Memory photos.
+ * @summary Stream a Memory photo only after evaluating its explicit ACL
+ */
+export const getSocialMemoryPhoto = async (memoryId: number, options?: Parameters<typeof customFetch>[1]): Promise<Blob> => {
+
+  return customFetch<Blob>(getGetSocialMemoryPhotoUrl(memoryId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetSocialMemoryPhotoQueryKey = (memoryId: number,) => {
+    return [
+    `/api/social/memories/${memoryId}/photo`
+    ] as const;
+    }
+
+
+export const getGetSocialMemoryPhotoQueryOptions = <TData = Awaited<ReturnType<typeof getSocialMemoryPhoto>>, TError = ErrorType<Error>>(memoryId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSocialMemoryPhoto>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetSocialMemoryPhotoQueryKey(memoryId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSocialMemoryPhoto>>> = ({ signal }) => getSocialMemoryPhoto(memoryId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: memoryId !== null && memoryId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSocialMemoryPhoto>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetSocialMemoryPhotoQueryResult = NonNullable<Awaited<ReturnType<typeof getSocialMemoryPhoto>>>
+export type GetSocialMemoryPhotoQueryError = ErrorType<Error>
+
+
+/**
+ * @summary Stream a Memory photo only after evaluating its explicit ACL
+ */
+
+export function useGetSocialMemoryPhoto<TData = Awaited<ReturnType<typeof getSocialMemoryPhoto>>, TError = ErrorType<Error>>(
+ memoryId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSocialMemoryPhoto>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetSocialMemoryPhotoQueryOptions(memoryId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListSocialActivityUrl = (params?: ListSocialActivityParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/social/activity?${stringifiedParams}` : `/api/social/activity`
+}
+
+/**
+ * Only successful days, milestones, and journey completions are eligible. Missed days and private details have no event contract.
+ * @summary List recent successful friend activity
+ */
+export const listSocialActivity = async (params?: ListSocialActivityParams, options?: Parameters<typeof customFetch>[1]): Promise<SocialActivity[]> => {
+
+  return customFetch<SocialActivity[]>(getListSocialActivityUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListSocialActivityQueryKey = (params?: ListSocialActivityParams,) => {
+    return [
+    `/api/social/activity`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListSocialActivityQueryOptions = <TData = Awaited<ReturnType<typeof listSocialActivity>>, TError = ErrorType<unknown>>(params?: ListSocialActivityParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSocialActivity>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListSocialActivityQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listSocialActivity>>> = ({ signal }) => listSocialActivity(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listSocialActivity>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListSocialActivityQueryResult = NonNullable<Awaited<ReturnType<typeof listSocialActivity>>>
+export type ListSocialActivityQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List recent successful friend activity
+ */
+
+export function useListSocialActivity<TData = Awaited<ReturnType<typeof listSocialActivity>>, TError = ErrorType<unknown>>(
+ params?: ListSocialActivityParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSocialActivity>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListSocialActivityQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateSocialEncouragementUrl = () => {
+
+
+
+
+  return `/api/social/encouragements`
+}
+
+/**
+ * Receiver must be an accepted friend; an optional journeyId must identify a journey currently shared with the sender. A custom message is at most 120 characters. A persisted requestId makes retries idempotent and the database enforces a sender/recipient minute cooldown. This grants no XP, coins, rewards, or other progress.
+ * @summary Send one short positive encouragement to an authorized friend
+ */
+export const createSocialEncouragement = async (socialEncouragementInput: SocialEncouragementInput, options?: Parameters<typeof customFetch>[1]): Promise<SocialEncouragement> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<SocialEncouragement>(getCreateSocialEncouragementUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(socialEncouragementInput)
+  }
+);}
+
+
+
+
+
+export const getCreateSocialEncouragementMutationKey = () => ['createSocialEncouragement'] as const;
+
+export const getCreateSocialEncouragementMutationOptions = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createSocialEncouragement>>, TError,CreateSocialEncouragementMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createSocialEncouragement>>, TError,CreateSocialEncouragementMutationVariables, TContext> => {
+
+const mutationKey = getCreateSocialEncouragementMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createSocialEncouragement>>, CreateSocialEncouragementMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  createSocialEncouragement(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateSocialEncouragementMutationResult = NonNullable<Awaited<ReturnType<typeof createSocialEncouragement>>>
+    export type CreateSocialEncouragementMutationBody = BodyType<SocialEncouragementInput>
+    export type CreateSocialEncouragementMutationError = ErrorType<Error>
+    export type CreateSocialEncouragementMutationVariables = {data: BodyType<SocialEncouragementInput>}
+
+    /**
+ * @summary Send one short positive encouragement to an authorized friend
+ */
+export const useCreateSocialEncouragement = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createSocialEncouragement>>, TError,CreateSocialEncouragementMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createSocialEncouragement>>,
+        TError,
+        CreateSocialEncouragementMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateSocialEncouragementMutationOptions(options));
+    }
+
+export const getListSocialNotificationsUrl = (params?: ListSocialNotificationsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/social/notifications?${stringifiedParams}` : `/api/social/notifications`
+}
+
+/**
+ * @summary List the current user's persisted social notifications
+ */
+export const listSocialNotifications = async (params?: ListSocialNotificationsParams, options?: Parameters<typeof customFetch>[1]): Promise<SocialNotification[]> => {
+
+  return customFetch<SocialNotification[]>(getListSocialNotificationsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListSocialNotificationsQueryKey = (params?: ListSocialNotificationsParams,) => {
+    return [
+    `/api/social/notifications`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListSocialNotificationsQueryOptions = <TData = Awaited<ReturnType<typeof listSocialNotifications>>, TError = ErrorType<unknown>>(params?: ListSocialNotificationsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSocialNotifications>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListSocialNotificationsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listSocialNotifications>>> = ({ signal }) => listSocialNotifications(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listSocialNotifications>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListSocialNotificationsQueryResult = NonNullable<Awaited<ReturnType<typeof listSocialNotifications>>>
+export type ListSocialNotificationsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List the current user's persisted social notifications
+ */
+
+export function useListSocialNotifications<TData = Awaited<ReturnType<typeof listSocialNotifications>>, TError = ErrorType<unknown>>(
+ params?: ListSocialNotificationsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSocialNotifications>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListSocialNotificationsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getMarkSocialNotificationReadUrl = (notificationId: number,) => {
+
+
+
+
+  return `/api/social/notifications/${notificationId}/read`
+}
+
+/**
+ * @summary Mark one owned notification read
+ */
+export const markSocialNotificationRead = async (notificationId: number, options?: Parameters<typeof customFetch>[1]): Promise<SocialNotification> => {
+
+  return customFetch<SocialNotification>(getMarkSocialNotificationReadUrl(notificationId),
+  {
+    ...options,
+    method: 'PATCH'
+
+
+  }
+);}
+
+
+
+
+
+export const getMarkSocialNotificationReadMutationKey = () => ['markSocialNotificationRead'] as const;
+
+export const getMarkSocialNotificationReadMutationOptions = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markSocialNotificationRead>>, TError,MarkSocialNotificationReadMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof markSocialNotificationRead>>, TError,MarkSocialNotificationReadMutationVariables, TContext> => {
+
+const mutationKey = getMarkSocialNotificationReadMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof markSocialNotificationRead>>, MarkSocialNotificationReadMutationVariables> = (props) => {
+          const {notificationId} = props ?? {};
+
+          return  markSocialNotificationRead(notificationId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type MarkSocialNotificationReadMutationResult = NonNullable<Awaited<ReturnType<typeof markSocialNotificationRead>>>
+
+    export type MarkSocialNotificationReadMutationError = ErrorType<Error>
+    export type MarkSocialNotificationReadMutationVariables = {notificationId: number}
+
+    /**
+ * @summary Mark one owned notification read
+ */
+export const useMarkSocialNotificationRead = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markSocialNotificationRead>>, TError,MarkSocialNotificationReadMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof markSocialNotificationRead>>,
+        TError,
+        MarkSocialNotificationReadMutationVariables,
+        TContext
+      > => {
+      return useMutation(getMarkSocialNotificationReadMutationOptions(options));
+    }
+
+export const getMarkAllSocialNotificationsReadUrl = () => {
+
+
+
+
+  return `/api/social/notifications/read-all`
+}
+
+/**
+ * @summary Mark all current-user notifications read
+ */
+export const markAllSocialNotificationsRead = async ( options?: Parameters<typeof customFetch>[1]): Promise<SocialReadAllResult> => {
+
+  return customFetch<SocialReadAllResult>(getMarkAllSocialNotificationsReadUrl(),
+  {
+    ...options,
+    method: 'PATCH'
+
+
+  }
+);}
+
+
+
+
+
+export const getMarkAllSocialNotificationsReadMutationKey = () => ['markAllSocialNotificationsRead'] as const;
+
+export const getMarkAllSocialNotificationsReadMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markAllSocialNotificationsRead>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof markAllSocialNotificationsRead>>, TError,void, TContext> => {
+
+const mutationKey = getMarkAllSocialNotificationsReadMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof markAllSocialNotificationsRead>>, void> = () => {
+
+
+          return  markAllSocialNotificationsRead(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type MarkAllSocialNotificationsReadMutationResult = NonNullable<Awaited<ReturnType<typeof markAllSocialNotificationsRead>>>
+
+    export type MarkAllSocialNotificationsReadMutationError = ErrorType<unknown>
+
+
+    /**
+ * @summary Mark all current-user notifications read
+ */
+export const useMarkAllSocialNotificationsRead = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markAllSocialNotificationsRead>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof markAllSocialNotificationsRead>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getMarkAllSocialNotificationsReadMutationOptions(options));
+    }
+
+export const getListSocialChallengesUrl = () => {
+
+
+
+
+  return `/api/social/challenges`
+}
+
+/**
+ * @summary List challenges involving the current user
+ */
+export const listSocialChallenges = async ( options?: Parameters<typeof customFetch>[1]): Promise<SocialChallengeSummary[]> => {
+
+  return customFetch<SocialChallengeSummary[]>(getListSocialChallengesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListSocialChallengesQueryKey = () => {
+    return [
+    `/api/social/challenges`
+    ] as const;
+    }
+
+
+export const getListSocialChallengesQueryOptions = <TData = Awaited<ReturnType<typeof listSocialChallenges>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSocialChallenges>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListSocialChallengesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listSocialChallenges>>> = ({ signal }) => listSocialChallenges({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listSocialChallenges>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListSocialChallengesQueryResult = NonNullable<Awaited<ReturnType<typeof listSocialChallenges>>>
+export type ListSocialChallengesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List challenges involving the current user
+ */
+
+export function useListSocialChallenges<TData = Awaited<ReturnType<typeof listSocialChallenges>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSocialChallenges>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListSocialChallengesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateSocialChallengeUrl = () => {
+
+
+
+
+  return `/api/social/challenges`
+}
+
+/**
+ * The server verifies ownership of sourceHabitId and snapshots only safe habit template fields (title, emoji, category, cadence, unit, execution type, goal type, difficulty, suggested target/minimum). Cues, friction, time tracking, missed reasons, rewards, and XP/coins are never copied or shared. The creator remains linked to their own habit.
+ * @summary Create an invite-only 22-day challenge from the current user's own habit
+ */
+export const createSocialChallenge = async (socialChallengeInput: SocialChallengeInput, options?: Parameters<typeof customFetch>[1]): Promise<SocialChallengeDetail> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<SocialChallengeDetail>(getCreateSocialChallengeUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(socialChallengeInput)
+  }
+);}
+
+
+
+
+
+export const getCreateSocialChallengeMutationKey = () => ['createSocialChallenge'] as const;
+
+export const getCreateSocialChallengeMutationOptions = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createSocialChallenge>>, TError,CreateSocialChallengeMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createSocialChallenge>>, TError,CreateSocialChallengeMutationVariables, TContext> => {
+
+const mutationKey = getCreateSocialChallengeMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createSocialChallenge>>, CreateSocialChallengeMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  createSocialChallenge(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateSocialChallengeMutationResult = NonNullable<Awaited<ReturnType<typeof createSocialChallenge>>>
+    export type CreateSocialChallengeMutationBody = BodyType<SocialChallengeInput>
+    export type CreateSocialChallengeMutationError = ErrorType<Error>
+    export type CreateSocialChallengeMutationVariables = {data: BodyType<SocialChallengeInput>}
+
+    /**
+ * @summary Create an invite-only 22-day challenge from the current user's own habit
+ */
+export const useCreateSocialChallenge = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createSocialChallenge>>, TError,CreateSocialChallengeMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createSocialChallenge>>,
+        TError,
+        CreateSocialChallengeMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateSocialChallengeMutationOptions(options));
+    }
+
+export const getGetSocialChallengeUrl = (challengeId: number,) => {
+
+
+
+
+  return `/api/social/challenges/${challengeId}`
+}
+
+/**
+ * @summary Get a challenge and safe progress for accepted participants
+ */
+export const getSocialChallenge = async (challengeId: number, options?: Parameters<typeof customFetch>[1]): Promise<SocialChallengeDetail> => {
+
+  return customFetch<SocialChallengeDetail>(getGetSocialChallengeUrl(challengeId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetSocialChallengeQueryKey = (challengeId: number,) => {
+    return [
+    `/api/social/challenges/${challengeId}`
+    ] as const;
+    }
+
+
+export const getGetSocialChallengeQueryOptions = <TData = Awaited<ReturnType<typeof getSocialChallenge>>, TError = ErrorType<Error>>(challengeId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSocialChallenge>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetSocialChallengeQueryKey(challengeId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSocialChallenge>>> = ({ signal }) => getSocialChallenge(challengeId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: challengeId !== null && challengeId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSocialChallenge>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetSocialChallengeQueryResult = NonNullable<Awaited<ReturnType<typeof getSocialChallenge>>>
+export type GetSocialChallengeQueryError = ErrorType<Error>
+
+
+/**
+ * @summary Get a challenge and safe progress for accepted participants
+ */
+
+export function useGetSocialChallenge<TData = Awaited<ReturnType<typeof getSocialChallenge>>, TError = ErrorType<Error>>(
+ challengeId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSocialChallenge>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetSocialChallengeQueryOptions(challengeId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getInviteUsersToSocialChallengeUrl = (challengeId: number,) => {
+
+
+
+
+  return `/api/social/challenges/${challengeId}/invitations`
+}
+
+/**
+ * Invites create pending memberships only; each invitee must accept before their separate owned habit and journey are created.
+ * @summary Invite existing friends to a challenge
+ */
+export const inviteUsersToSocialChallenge = async (challengeId: number,
+    socialChallengeInviteInput: SocialChallengeInviteInput, options?: Parameters<typeof customFetch>[1]): Promise<SocialChallengeMember[]> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<SocialChallengeMember[]>(getInviteUsersToSocialChallengeUrl(challengeId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(socialChallengeInviteInput)
+  }
+);}
+
+
+
+
+
+export const getInviteUsersToSocialChallengeMutationKey = () => ['inviteUsersToSocialChallenge'] as const;
+
+export const getInviteUsersToSocialChallengeMutationOptions = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof inviteUsersToSocialChallenge>>, TError,InviteUsersToSocialChallengeMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof inviteUsersToSocialChallenge>>, TError,InviteUsersToSocialChallengeMutationVariables, TContext> => {
+
+const mutationKey = getInviteUsersToSocialChallengeMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof inviteUsersToSocialChallenge>>, InviteUsersToSocialChallengeMutationVariables> = (props) => {
+          const {challengeId,data} = props ?? {};
+
+          return  inviteUsersToSocialChallenge(challengeId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type InviteUsersToSocialChallengeMutationResult = NonNullable<Awaited<ReturnType<typeof inviteUsersToSocialChallenge>>>
+    export type InviteUsersToSocialChallengeMutationBody = BodyType<SocialChallengeInviteInput>
+    export type InviteUsersToSocialChallengeMutationError = ErrorType<Error>
+    export type InviteUsersToSocialChallengeMutationVariables = {challengeId: number;data: BodyType<SocialChallengeInviteInput>}
+
+    /**
+ * @summary Invite existing friends to a challenge
+ */
+export const useInviteUsersToSocialChallenge = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof inviteUsersToSocialChallenge>>, TError,InviteUsersToSocialChallengeMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof inviteUsersToSocialChallenge>>,
+        TError,
+        InviteUsersToSocialChallengeMutationVariables,
+        TContext
+      > => {
+      return useMutation(getInviteUsersToSocialChallengeMutationOptions(options));
+    }
+
+export const getRespondToSocialChallengeUrl = (challengeId: number,) => {
+
+
+
+
+  return `/api/social/challenges/${challengeId}/respond`
+}
+
+/**
+ * Accept creates a distinct owned habit, derives the current timezone and local start date from the authenticated user, and persists 22 immutable habit_days snapshots. Target/minimum/cadence may be personalized. The new habit has no reward and no private cues copied from the inviter.
+ * @summary Accept or decline the current user's challenge invitation
+ */
+export const respondToSocialChallenge = async (challengeId: number,
+    socialChallengeResponse: SocialChallengeResponse, options?: Parameters<typeof customFetch>[1]): Promise<SocialChallengeDetail> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<SocialChallengeDetail>(getRespondToSocialChallengeUrl(challengeId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(socialChallengeResponse)
+  }
+);}
+
+
+
+
+
+export const getRespondToSocialChallengeMutationKey = () => ['respondToSocialChallenge'] as const;
+
+export const getRespondToSocialChallengeMutationOptions = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof respondToSocialChallenge>>, TError,RespondToSocialChallengeMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof respondToSocialChallenge>>, TError,RespondToSocialChallengeMutationVariables, TContext> => {
+
+const mutationKey = getRespondToSocialChallengeMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof respondToSocialChallenge>>, RespondToSocialChallengeMutationVariables> = (props) => {
+          const {challengeId,data} = props ?? {};
+
+          return  respondToSocialChallenge(challengeId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RespondToSocialChallengeMutationResult = NonNullable<Awaited<ReturnType<typeof respondToSocialChallenge>>>
+    export type RespondToSocialChallengeMutationBody = BodyType<SocialChallengeResponse>
+    export type RespondToSocialChallengeMutationError = ErrorType<Error>
+    export type RespondToSocialChallengeMutationVariables = {challengeId: number;data: BodyType<SocialChallengeResponse>}
+
+    /**
+ * @summary Accept or decline the current user's challenge invitation
+ */
+export const useRespondToSocialChallenge = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof respondToSocialChallenge>>, TError,RespondToSocialChallengeMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof respondToSocialChallenge>>,
+        TError,
+        RespondToSocialChallengeMutationVariables,
+        TContext
+      > => {
+      return useMutation(getRespondToSocialChallengeMutationOptions(options));
+    }
+
+export const getLeaveSocialChallengeUrl = (challengeId: number,) => {
+
+
+
+
+  return `/api/social/challenges/${challengeId}/leave`
+}
+
+/**
+ * @summary Leave a challenge without deleting or changing the user's own habit
+ */
+export const leaveSocialChallenge = async (challengeId: number, options?: Parameters<typeof customFetch>[1]): Promise<SocialChallengeDetail> => {
+
+  return customFetch<SocialChallengeDetail>(getLeaveSocialChallengeUrl(challengeId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getLeaveSocialChallengeMutationKey = () => ['leaveSocialChallenge'] as const;
+
+export const getLeaveSocialChallengeMutationOptions = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof leaveSocialChallenge>>, TError,LeaveSocialChallengeMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof leaveSocialChallenge>>, TError,LeaveSocialChallengeMutationVariables, TContext> => {
+
+const mutationKey = getLeaveSocialChallengeMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof leaveSocialChallenge>>, LeaveSocialChallengeMutationVariables> = (props) => {
+          const {challengeId} = props ?? {};
+
+          return  leaveSocialChallenge(challengeId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type LeaveSocialChallengeMutationResult = NonNullable<Awaited<ReturnType<typeof leaveSocialChallenge>>>
+
+    export type LeaveSocialChallengeMutationError = ErrorType<Error>
+    export type LeaveSocialChallengeMutationVariables = {challengeId: number}
+
+    /**
+ * @summary Leave a challenge without deleting or changing the user's own habit
+ */
+export const useLeaveSocialChallenge = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof leaveSocialChallenge>>, TError,LeaveSocialChallengeMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof leaveSocialChallenge>>,
+        TError,
+        LeaveSocialChallengeMutationVariables,
+        TContext
+      > => {
+      return useMutation(getLeaveSocialChallengeMutationOptions(options));
+    }
+
+export const getListSocialGroupsUrl = () => {
+
+
+
+
+  return `/api/social/groups`
+}
+
+/**
+ * @summary List invite-only groups the current user belongs to
+ */
+export const listSocialGroups = async ( options?: Parameters<typeof customFetch>[1]): Promise<SocialGroupSummary[]> => {
+
+  return customFetch<SocialGroupSummary[]>(getListSocialGroupsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListSocialGroupsQueryKey = () => {
+    return [
+    `/api/social/groups`
+    ] as const;
+    }
+
+
+export const getListSocialGroupsQueryOptions = <TData = Awaited<ReturnType<typeof listSocialGroups>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSocialGroups>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListSocialGroupsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listSocialGroups>>> = ({ signal }) => listSocialGroups({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listSocialGroups>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListSocialGroupsQueryResult = NonNullable<Awaited<ReturnType<typeof listSocialGroups>>>
+export type ListSocialGroupsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List invite-only groups the current user belongs to
+ */
+
+export function useListSocialGroups<TData = Awaited<ReturnType<typeof listSocialGroups>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSocialGroups>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListSocialGroupsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateSocialGroupUrl = () => {
+
+
+
+
+  return `/api/social/groups`
+}
+
+/**
+ * Owner is auto-added as the first member. maxMembers is configurable from 2 to 30; membership does not share any habits or check-ins.
+ * @summary Create a private invite-only circle
+ */
+export const createSocialGroup = async (socialGroupInput: SocialGroupInput, options?: Parameters<typeof customFetch>[1]): Promise<SocialGroupDetail> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<SocialGroupDetail>(getCreateSocialGroupUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(socialGroupInput)
+  }
+);}
+
+
+
+
+
+export const getCreateSocialGroupMutationKey = () => ['createSocialGroup'] as const;
+
+export const getCreateSocialGroupMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createSocialGroup>>, TError,CreateSocialGroupMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createSocialGroup>>, TError,CreateSocialGroupMutationVariables, TContext> => {
+
+const mutationKey = getCreateSocialGroupMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createSocialGroup>>, CreateSocialGroupMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  createSocialGroup(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateSocialGroupMutationResult = NonNullable<Awaited<ReturnType<typeof createSocialGroup>>>
+    export type CreateSocialGroupMutationBody = BodyType<SocialGroupInput>
+    export type CreateSocialGroupMutationError = ErrorType<unknown>
+    export type CreateSocialGroupMutationVariables = {data: BodyType<SocialGroupInput>}
+
+    /**
+ * @summary Create a private invite-only circle
+ */
+export const useCreateSocialGroup = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createSocialGroup>>, TError,CreateSocialGroupMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createSocialGroup>>,
+        TError,
+        CreateSocialGroupMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateSocialGroupMutationOptions(options));
+    }
+
+export const getGetSocialGroupUrl = (groupId: number,) => {
+
+
+
+
+  return `/api/social/groups/${groupId}`
+}
+
+/**
+ * @summary Get an invite-only group and only members' explicitly shared journeys
+ */
+export const getSocialGroup = async (groupId: number, options?: Parameters<typeof customFetch>[1]): Promise<SocialGroupDetail> => {
+
+  return customFetch<SocialGroupDetail>(getGetSocialGroupUrl(groupId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetSocialGroupQueryKey = (groupId: number,) => {
+    return [
+    `/api/social/groups/${groupId}`
+    ] as const;
+    }
+
+
+export const getGetSocialGroupQueryOptions = <TData = Awaited<ReturnType<typeof getSocialGroup>>, TError = ErrorType<Error>>(groupId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSocialGroup>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetSocialGroupQueryKey(groupId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSocialGroup>>> = ({ signal }) => getSocialGroup(groupId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: groupId !== null && groupId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSocialGroup>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetSocialGroupQueryResult = NonNullable<Awaited<ReturnType<typeof getSocialGroup>>>
+export type GetSocialGroupQueryError = ErrorType<Error>
+
+
+/**
+ * @summary Get an invite-only group and only members' explicitly shared journeys
+ */
+
+export function useGetSocialGroup<TData = Awaited<ReturnType<typeof getSocialGroup>>, TError = ErrorType<Error>>(
+ groupId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSocialGroup>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetSocialGroupQueryOptions(groupId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getInviteUsersToSocialGroupUrl = (groupId: number,) => {
+
+
+
+
+  return `/api/social/groups/${groupId}/invitations`
+}
+
+/**
+ * Only existing members may invite; the server enforces the configured member cap and block state.
+ * @summary Invite existing friends to an invite-only group
+ */
+export const inviteUsersToSocialGroup = async (groupId: number,
+    socialGroupInviteInput: SocialGroupInviteInput, options?: Parameters<typeof customFetch>[1]): Promise<SocialGroupInvitation[]> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<SocialGroupInvitation[]>(getInviteUsersToSocialGroupUrl(groupId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(socialGroupInviteInput)
+  }
+);}
+
+
+
+
+
+export const getInviteUsersToSocialGroupMutationKey = () => ['inviteUsersToSocialGroup'] as const;
+
+export const getInviteUsersToSocialGroupMutationOptions = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof inviteUsersToSocialGroup>>, TError,InviteUsersToSocialGroupMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof inviteUsersToSocialGroup>>, TError,InviteUsersToSocialGroupMutationVariables, TContext> => {
+
+const mutationKey = getInviteUsersToSocialGroupMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof inviteUsersToSocialGroup>>, InviteUsersToSocialGroupMutationVariables> = (props) => {
+          const {groupId,data} = props ?? {};
+
+          return  inviteUsersToSocialGroup(groupId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type InviteUsersToSocialGroupMutationResult = NonNullable<Awaited<ReturnType<typeof inviteUsersToSocialGroup>>>
+    export type InviteUsersToSocialGroupMutationBody = BodyType<SocialGroupInviteInput>
+    export type InviteUsersToSocialGroupMutationError = ErrorType<Error>
+    export type InviteUsersToSocialGroupMutationVariables = {groupId: number;data: BodyType<SocialGroupInviteInput>}
+
+    /**
+ * @summary Invite existing friends to an invite-only group
+ */
+export const useInviteUsersToSocialGroup = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof inviteUsersToSocialGroup>>, TError,InviteUsersToSocialGroupMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof inviteUsersToSocialGroup>>,
+        TError,
+        InviteUsersToSocialGroupMutationVariables,
+        TContext
+      > => {
+      return useMutation(getInviteUsersToSocialGroupMutationOptions(options));
+    }
+
+export const getRespondToSocialGroupInvitationUrl = (invitationId: number,) => {
+
+
+
+
+  return `/api/social/group-invitations/${invitationId}/respond`
+}
+
+/**
+ * @summary Accept or decline an invite-only group invitation
+ */
+export const respondToSocialGroupInvitation = async (invitationId: number,
+    socialGroupInvitationResponse: SocialGroupInvitationResponse, options?: Parameters<typeof customFetch>[1]): Promise<SocialGroupInvitation> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<SocialGroupInvitation>(getRespondToSocialGroupInvitationUrl(invitationId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(socialGroupInvitationResponse)
+  }
+);}
+
+
+
+
+
+export const getRespondToSocialGroupInvitationMutationKey = () => ['respondToSocialGroupInvitation'] as const;
+
+export const getRespondToSocialGroupInvitationMutationOptions = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof respondToSocialGroupInvitation>>, TError,RespondToSocialGroupInvitationMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof respondToSocialGroupInvitation>>, TError,RespondToSocialGroupInvitationMutationVariables, TContext> => {
+
+const mutationKey = getRespondToSocialGroupInvitationMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof respondToSocialGroupInvitation>>, RespondToSocialGroupInvitationMutationVariables> = (props) => {
+          const {invitationId,data} = props ?? {};
+
+          return  respondToSocialGroupInvitation(invitationId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RespondToSocialGroupInvitationMutationResult = NonNullable<Awaited<ReturnType<typeof respondToSocialGroupInvitation>>>
+    export type RespondToSocialGroupInvitationMutationBody = BodyType<SocialGroupInvitationResponse>
+    export type RespondToSocialGroupInvitationMutationError = ErrorType<Error>
+    export type RespondToSocialGroupInvitationMutationVariables = {invitationId: number;data: BodyType<SocialGroupInvitationResponse>}
+
+    /**
+ * @summary Accept or decline an invite-only group invitation
+ */
+export const useRespondToSocialGroupInvitation = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof respondToSocialGroupInvitation>>, TError,RespondToSocialGroupInvitationMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof respondToSocialGroupInvitation>>,
+        TError,
+        RespondToSocialGroupInvitationMutationVariables,
+        TContext
+      > => {
+      return useMutation(getRespondToSocialGroupInvitationMutationOptions(options));
+    }
+
+export const getListIncomingSocialGroupInvitationsUrl = () => {
+
+
+
+
+  return `/api/social/group-invitations/incoming`
+}
+
+/**
+ * @summary List pending invite-only group invitations addressed to the current user
+ */
+export const listIncomingSocialGroupInvitations = async ( options?: Parameters<typeof customFetch>[1]): Promise<SocialGroupInvitation[]> => {
+
+  return customFetch<SocialGroupInvitation[]>(getListIncomingSocialGroupInvitationsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListIncomingSocialGroupInvitationsQueryKey = () => {
+    return [
+    `/api/social/group-invitations/incoming`
+    ] as const;
+    }
+
+
+export const getListIncomingSocialGroupInvitationsQueryOptions = <TData = Awaited<ReturnType<typeof listIncomingSocialGroupInvitations>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listIncomingSocialGroupInvitations>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListIncomingSocialGroupInvitationsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listIncomingSocialGroupInvitations>>> = ({ signal }) => listIncomingSocialGroupInvitations({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listIncomingSocialGroupInvitations>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListIncomingSocialGroupInvitationsQueryResult = NonNullable<Awaited<ReturnType<typeof listIncomingSocialGroupInvitations>>>
+export type ListIncomingSocialGroupInvitationsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List pending invite-only group invitations addressed to the current user
+ */
+
+export function useListIncomingSocialGroupInvitations<TData = Awaited<ReturnType<typeof listIncomingSocialGroupInvitations>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listIncomingSocialGroupInvitations>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListIncomingSocialGroupInvitationsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getLeaveSocialGroupUrl = (groupId: number,) => {
+
+
+
+
+  return `/api/social/groups/${groupId}/leave`
+}
+
+/**
+ * @summary Leave a group; leaving an owner-only group closes it
+ */
+export const leaveSocialGroup = async (groupId: number, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getLeaveSocialGroupUrl(groupId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getLeaveSocialGroupMutationKey = () => ['leaveSocialGroup'] as const;
+
+export const getLeaveSocialGroupMutationOptions = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof leaveSocialGroup>>, TError,LeaveSocialGroupMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof leaveSocialGroup>>, TError,LeaveSocialGroupMutationVariables, TContext> => {
+
+const mutationKey = getLeaveSocialGroupMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof leaveSocialGroup>>, LeaveSocialGroupMutationVariables> = (props) => {
+          const {groupId} = props ?? {};
+
+          return  leaveSocialGroup(groupId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type LeaveSocialGroupMutationResult = NonNullable<Awaited<ReturnType<typeof leaveSocialGroup>>>
+
+    export type LeaveSocialGroupMutationError = ErrorType<Error>
+    export type LeaveSocialGroupMutationVariables = {groupId: number}
+
+    /**
+ * @summary Leave a group; leaving an owner-only group closes it
+ */
+export const useLeaveSocialGroup = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof leaveSocialGroup>>, TError,LeaveSocialGroupMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof leaveSocialGroup>>,
+        TError,
+        LeaveSocialGroupMutationVariables,
+        TContext
+      > => {
+      return useMutation(getLeaveSocialGroupMutationOptions(options));
+    }
+
+export const getListSocialGroupActivityUrl = (groupId: number,) => {
+
+
+
+
+  return `/api/social/groups/${groupId}/activity`
+}
+
+/**
+ * May contain member_joined, successful_day, milestone, and journey_completed only; never a missed-day, failure reason, cue, or private time record.
+ * @summary List positive group activity after enforcing each member's per-group journey consent
+ */
+export const listSocialGroupActivity = async (groupId: number, options?: Parameters<typeof customFetch>[1]): Promise<SocialGroupActivity[]> => {
+
+  return customFetch<SocialGroupActivity[]>(getListSocialGroupActivityUrl(groupId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListSocialGroupActivityQueryKey = (groupId: number,) => {
+    return [
+    `/api/social/groups/${groupId}/activity`
+    ] as const;
+    }
+
+
+export const getListSocialGroupActivityQueryOptions = <TData = Awaited<ReturnType<typeof listSocialGroupActivity>>, TError = ErrorType<Error>>(groupId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSocialGroupActivity>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListSocialGroupActivityQueryKey(groupId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listSocialGroupActivity>>> = ({ signal }) => listSocialGroupActivity(groupId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: groupId !== null && groupId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listSocialGroupActivity>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListSocialGroupActivityQueryResult = NonNullable<Awaited<ReturnType<typeof listSocialGroupActivity>>>
+export type ListSocialGroupActivityQueryError = ErrorType<Error>
+
+
+/**
+ * @summary List positive group activity after enforcing each member's per-group journey consent
+ */
+
+export function useListSocialGroupActivity<TData = Awaited<ReturnType<typeof listSocialGroupActivity>>, TError = ErrorType<Error>>(
+ groupId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSocialGroupActivity>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListSocialGroupActivityQueryOptions(groupId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListMySocialGroupJourneySharesUrl = (groupId: number,) => {
+
+
+
+
+  return `/api/social/groups/${groupId}/shares`
+}
+
+/**
+ * This endpoint lists only the authenticated user's own choices; group membership alone grants no check-in or journey access.
+ * @summary List the current user's explicit per-group journey shares
+ */
+export const listMySocialGroupJourneyShares = async (groupId: number, options?: Parameters<typeof customFetch>[1]): Promise<SocialGroupJourneyShare[]> => {
+
+  return customFetch<SocialGroupJourneyShare[]>(getListMySocialGroupJourneySharesUrl(groupId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListMySocialGroupJourneySharesQueryKey = (groupId: number,) => {
+    return [
+    `/api/social/groups/${groupId}/shares`
+    ] as const;
+    }
+
+
+export const getListMySocialGroupJourneySharesQueryOptions = <TData = Awaited<ReturnType<typeof listMySocialGroupJourneyShares>>, TError = ErrorType<Error>>(groupId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMySocialGroupJourneyShares>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListMySocialGroupJourneySharesQueryKey(groupId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listMySocialGroupJourneyShares>>> = ({ signal }) => listMySocialGroupJourneyShares(groupId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: groupId !== null && groupId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listMySocialGroupJourneyShares>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListMySocialGroupJourneySharesQueryResult = NonNullable<Awaited<ReturnType<typeof listMySocialGroupJourneyShares>>>
+export type ListMySocialGroupJourneySharesQueryError = ErrorType<Error>
+
+
+/**
+ * @summary List the current user's explicit per-group journey shares
+ */
+
+export function useListMySocialGroupJourneyShares<TData = Awaited<ReturnType<typeof listMySocialGroupJourneyShares>>, TError = ErrorType<Error>>(
+ groupId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMySocialGroupJourneyShares>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListMySocialGroupJourneySharesQueryOptions(groupId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getShareMyJourneyWithSocialGroupUrl = (groupId: number,) => {
+
+
+
+
+  return `/api/social/groups/${groupId}/shares`
+}
+
+/**
+ * The server validates habit ownership and group membership; sharing exposes only safe success progress, never cues, missed days, or time logs.
+ * @summary Explicitly share one of the current user's journeys with a group
+ */
+export const shareMyJourneyWithSocialGroup = async (groupId: number,
+    socialGroupJourneyShareInput: SocialGroupJourneyShareInput, options?: Parameters<typeof customFetch>[1]): Promise<SocialGroupJourneyShare> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<SocialGroupJourneyShare>(getShareMyJourneyWithSocialGroupUrl(groupId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(socialGroupJourneyShareInput)
+  }
+);}
+
+
+
+
+
+export const getShareMyJourneyWithSocialGroupMutationKey = () => ['shareMyJourneyWithSocialGroup'] as const;
+
+export const getShareMyJourneyWithSocialGroupMutationOptions = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof shareMyJourneyWithSocialGroup>>, TError,ShareMyJourneyWithSocialGroupMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof shareMyJourneyWithSocialGroup>>, TError,ShareMyJourneyWithSocialGroupMutationVariables, TContext> => {
+
+const mutationKey = getShareMyJourneyWithSocialGroupMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof shareMyJourneyWithSocialGroup>>, ShareMyJourneyWithSocialGroupMutationVariables> = (props) => {
+          const {groupId,data} = props ?? {};
+
+          return  shareMyJourneyWithSocialGroup(groupId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ShareMyJourneyWithSocialGroupMutationResult = NonNullable<Awaited<ReturnType<typeof shareMyJourneyWithSocialGroup>>>
+    export type ShareMyJourneyWithSocialGroupMutationBody = BodyType<SocialGroupJourneyShareInput>
+    export type ShareMyJourneyWithSocialGroupMutationError = ErrorType<Error>
+    export type ShareMyJourneyWithSocialGroupMutationVariables = {groupId: number;data: BodyType<SocialGroupJourneyShareInput>}
+
+    /**
+ * @summary Explicitly share one of the current user's journeys with a group
+ */
+export const useShareMyJourneyWithSocialGroup = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof shareMyJourneyWithSocialGroup>>, TError,ShareMyJourneyWithSocialGroupMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof shareMyJourneyWithSocialGroup>>,
+        TError,
+        ShareMyJourneyWithSocialGroupMutationVariables,
+        TContext
+      > => {
+      return useMutation(getShareMyJourneyWithSocialGroupMutationOptions(options));
+    }
+
+export const getRevokeMySocialGroupJourneyShareUrl = (groupId: number,
+    journeyId: number,) => {
+
+
+
+
+  return `/api/social/groups/${groupId}/shares/${journeyId}`
+}
+
+/**
+ * @summary Revoke the current user's per-group journey consent
+ */
+export const revokeMySocialGroupJourneyShare = async (groupId: number,
+    journeyId: number, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getRevokeMySocialGroupJourneyShareUrl(groupId,journeyId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getRevokeMySocialGroupJourneyShareMutationKey = () => ['revokeMySocialGroupJourneyShare'] as const;
+
+export const getRevokeMySocialGroupJourneyShareMutationOptions = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof revokeMySocialGroupJourneyShare>>, TError,RevokeMySocialGroupJourneyShareMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof revokeMySocialGroupJourneyShare>>, TError,RevokeMySocialGroupJourneyShareMutationVariables, TContext> => {
+
+const mutationKey = getRevokeMySocialGroupJourneyShareMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof revokeMySocialGroupJourneyShare>>, RevokeMySocialGroupJourneyShareMutationVariables> = (props) => {
+          const {groupId,journeyId} = props ?? {};
+
+          return  revokeMySocialGroupJourneyShare(groupId,journeyId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RevokeMySocialGroupJourneyShareMutationResult = NonNullable<Awaited<ReturnType<typeof revokeMySocialGroupJourneyShare>>>
+
+    export type RevokeMySocialGroupJourneyShareMutationError = ErrorType<Error>
+    export type RevokeMySocialGroupJourneyShareMutationVariables = {groupId: number;journeyId: number}
+
+    /**
+ * @summary Revoke the current user's per-group journey consent
+ */
+export const useRevokeMySocialGroupJourneyShare = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof revokeMySocialGroupJourneyShare>>, TError,RevokeMySocialGroupJourneyShareMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof revokeMySocialGroupJourneyShare>>,
+        TError,
+        RevokeMySocialGroupJourneyShareMutationVariables,
+        TContext
+      > => {
+      return useMutation(getRevokeMySocialGroupJourneyShareMutationOptions(options));
+    }
+
+export const getListSocialGroupEncouragementsUrl = (groupId: number,) => {
+
+
+
+
+  return `/api/social/groups/${groupId}/encouragements`
+}
+
+/**
+ * @summary List recent group cheers using the existing group reactions store
+ */
+export const listSocialGroupEncouragements = async (groupId: number, options?: Parameters<typeof customFetch>[1]): Promise<SocialGroupEncouragement[]> => {
+
+  return customFetch<SocialGroupEncouragement[]>(getListSocialGroupEncouragementsUrl(groupId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListSocialGroupEncouragementsQueryKey = (groupId: number,) => {
+    return [
+    `/api/social/groups/${groupId}/encouragements`
+    ] as const;
+    }
+
+
+export const getListSocialGroupEncouragementsQueryOptions = <TData = Awaited<ReturnType<typeof listSocialGroupEncouragements>>, TError = ErrorType<Error>>(groupId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSocialGroupEncouragements>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListSocialGroupEncouragementsQueryKey(groupId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listSocialGroupEncouragements>>> = ({ signal }) => listSocialGroupEncouragements(groupId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: groupId !== null && groupId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listSocialGroupEncouragements>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListSocialGroupEncouragementsQueryResult = NonNullable<Awaited<ReturnType<typeof listSocialGroupEncouragements>>>
+export type ListSocialGroupEncouragementsQueryError = ErrorType<Error>
+
+
+/**
+ * @summary List recent group cheers using the existing group reactions store
+ */
+
+export function useListSocialGroupEncouragements<TData = Awaited<ReturnType<typeof listSocialGroupEncouragements>>, TError = ErrorType<Error>>(
+ groupId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSocialGroupEncouragements>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListSocialGroupEncouragementsQueryOptions(groupId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateSocialGroupEncouragementUrl = (groupId: number,) => {
+
+
+
+
+  return `/api/social/groups/${groupId}/encouragements`
+}
+
+/**
+ * Uses group_reactions; requestId and a persisted per-recipient minute cooldown prevent retry duplicates and spam. No rewards or XP are granted.
+ * @summary Send a short group cheer to a member or the group
+ */
+export const createSocialGroupEncouragement = async (groupId: number,
+    socialGroupEncouragementInput: SocialGroupEncouragementInput, options?: Parameters<typeof customFetch>[1]): Promise<SocialGroupEncouragement> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<SocialGroupEncouragement>(getCreateSocialGroupEncouragementUrl(groupId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(socialGroupEncouragementInput)
+  }
+);}
+
+
+
+
+
+export const getCreateSocialGroupEncouragementMutationKey = () => ['createSocialGroupEncouragement'] as const;
+
+export const getCreateSocialGroupEncouragementMutationOptions = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createSocialGroupEncouragement>>, TError,CreateSocialGroupEncouragementMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createSocialGroupEncouragement>>, TError,CreateSocialGroupEncouragementMutationVariables, TContext> => {
+
+const mutationKey = getCreateSocialGroupEncouragementMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createSocialGroupEncouragement>>, CreateSocialGroupEncouragementMutationVariables> = (props) => {
+          const {groupId,data} = props ?? {};
+
+          return  createSocialGroupEncouragement(groupId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateSocialGroupEncouragementMutationResult = NonNullable<Awaited<ReturnType<typeof createSocialGroupEncouragement>>>
+    export type CreateSocialGroupEncouragementMutationBody = BodyType<SocialGroupEncouragementInput>
+    export type CreateSocialGroupEncouragementMutationError = ErrorType<Error>
+    export type CreateSocialGroupEncouragementMutationVariables = {groupId: number;data: BodyType<SocialGroupEncouragementInput>}
+
+    /**
+ * @summary Send a short group cheer to a member or the group
+ */
+export const useCreateSocialGroupEncouragement = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createSocialGroupEncouragement>>, TError,CreateSocialGroupEncouragementMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createSocialGroupEncouragement>>,
+        TError,
+        CreateSocialGroupEncouragementMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateSocialGroupEncouragementMutationOptions(options));
+    }
+
+export const getGetSocialGroupCoverUrl = (groupId: number,) => {
+
+
+
+
+  return `/api/social/groups/${groupId}/cover`
+}
+
+/**
+ * Cover bytes are served only after membership authorization; never use a public object URL.
+ * @summary Stream the private group cover image to current group members
+ */
+export const getSocialGroupCover = async (groupId: number, options?: Parameters<typeof customFetch>[1]): Promise<Blob> => {
+
+  return customFetch<Blob>(getGetSocialGroupCoverUrl(groupId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetSocialGroupCoverQueryKey = (groupId: number,) => {
+    return [
+    `/api/social/groups/${groupId}/cover`
+    ] as const;
+    }
+
+
+export const getGetSocialGroupCoverQueryOptions = <TData = Awaited<ReturnType<typeof getSocialGroupCover>>, TError = ErrorType<Error>>(groupId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSocialGroupCover>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetSocialGroupCoverQueryKey(groupId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSocialGroupCover>>> = ({ signal }) => getSocialGroupCover(groupId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: groupId !== null && groupId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSocialGroupCover>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetSocialGroupCoverQueryResult = NonNullable<Awaited<ReturnType<typeof getSocialGroupCover>>>
+export type GetSocialGroupCoverQueryError = ErrorType<Error>
+
+
+/**
+ * @summary Stream the private group cover image to current group members
+ */
+
+export function useGetSocialGroupCover<TData = Awaited<ReturnType<typeof getSocialGroupCover>>, TError = ErrorType<Error>>(
+ groupId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSocialGroupCover>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetSocialGroupCoverQueryOptions(groupId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateSocialGroupCoverUrl = (groupId: number,) => {
+
+
+
+
+  return `/api/social/groups/${groupId}/cover`
+}
+
+/**
+ * Owner only. The object path must belong to an authenticated upload; null removes the cover.
+ * @summary Set or remove the private group cover image
+ */
+export const updateSocialGroupCover = async (groupId: number,
+    socialGroupCoverUpdate: SocialGroupCoverUpdate, options?: Parameters<typeof customFetch>[1]): Promise<SocialGroupCover> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<SocialGroupCover>(getUpdateSocialGroupCoverUrl(groupId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(socialGroupCoverUpdate)
+  }
+);}
+
+
+
+
+
+export const getUpdateSocialGroupCoverMutationKey = () => ['updateSocialGroupCover'] as const;
+
+export const getUpdateSocialGroupCoverMutationOptions = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateSocialGroupCover>>, TError,UpdateSocialGroupCoverMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateSocialGroupCover>>, TError,UpdateSocialGroupCoverMutationVariables, TContext> => {
+
+const mutationKey = getUpdateSocialGroupCoverMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateSocialGroupCover>>, UpdateSocialGroupCoverMutationVariables> = (props) => {
+          const {groupId,data} = props ?? {};
+
+          return  updateSocialGroupCover(groupId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateSocialGroupCoverMutationResult = NonNullable<Awaited<ReturnType<typeof updateSocialGroupCover>>>
+    export type UpdateSocialGroupCoverMutationBody = BodyType<SocialGroupCoverUpdate>
+    export type UpdateSocialGroupCoverMutationError = ErrorType<Error>
+    export type UpdateSocialGroupCoverMutationVariables = {groupId: number;data: BodyType<SocialGroupCoverUpdate>}
+
+    /**
+ * @summary Set or remove the private group cover image
+ */
+export const useUpdateSocialGroupCover = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateSocialGroupCover>>, TError,UpdateSocialGroupCoverMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateSocialGroupCover>>,
+        TError,
+        UpdateSocialGroupCoverMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdateSocialGroupCoverMutationOptions(options));
+    }
+
 export const getListMyGroupsUrl = () => {
 
 
@@ -4897,7 +8789,8 @@ export const getListMyGroupsUrl = () => {
 }
 
 /**
- * @summary List groups/challenges the current user belongs to
+ * @deprecated
+ * @summary Legacy: list groups the current user belongs to
  */
 export const listMyGroups = async ( options?: Parameters<typeof customFetch>[1]): Promise<Group[]> => {
 
@@ -4944,7 +8837,8 @@ export type ListMyGroupsQueryError = ErrorType<unknown>
 
 
 /**
- * @summary List groups/challenges the current user belongs to
+ * @deprecated
+ * @summary Legacy: list groups the current user belongs to
  */
 
 export function useListMyGroups<TData = Awaited<ReturnType<typeof listMyGroups>>, TError = ErrorType<unknown>>(
@@ -4974,6 +8868,7 @@ export const getCreateGroupUrl = () => {
 }
 
 /**
+ * @deprecated
  * @summary Create a group challenge (creator auto-joins)
  */
 export const createGroup = async (groupInput: GroupInput, options?: Parameters<typeof customFetch>[1]): Promise<Group> => {
@@ -5040,6 +8935,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type CreateGroupMutationVariables = {data: BodyType<GroupInput>}
 
     /**
+ * @deprecated
  * @summary Create a group challenge (creator auto-joins)
  */
 export const useCreateGroup = <TError = ErrorType<unknown>,
@@ -5062,7 +8958,9 @@ export const getJoinGroupUrl = () => {
 }
 
 /**
- * @summary Join a group challenge by invite code
+ * Compatibility for existing legacy groups only. New invite-only social groups must not be joinable through shareable codes.
+ * @deprecated
+ * @summary Legacy invite-code join; new social circles use invitation acceptance
  */
 export const joinGroup = async (joinGroupInput: JoinGroupInput, options?: Parameters<typeof customFetch>[1]): Promise<Group> => {
 
@@ -5128,7 +9026,8 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type JoinGroupMutationVariables = {data: BodyType<JoinGroupInput>}
 
     /**
- * @summary Join a group challenge by invite code
+ * @deprecated
+ * @summary Legacy invite-code join; new social circles use invitation acceptance
  */
 export const useJoinGroup = <TError = ErrorType<Error>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof joinGroup>>, TError,JoinGroupMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
@@ -5150,7 +9049,8 @@ export const getGetGroupUrl = (groupId: number,) => {
 }
 
 /**
- * @summary Get group detail with members ranked by progress (leaderboard)
+ * @deprecated
+ * @summary Legacy group detail without member ranking or unconsented progress
  */
 export const getGroup = async (groupId: number, options?: Parameters<typeof customFetch>[1]): Promise<GroupDetail> => {
 
@@ -5197,7 +9097,8 @@ export type GetGroupQueryError = ErrorType<Error>
 
 
 /**
- * @summary Get group detail with members ranked by progress (leaderboard)
+ * @deprecated
+ * @summary Legacy group detail without member ranking or unconsented progress
  */
 
 export function useGetGroup<TData = Awaited<ReturnType<typeof getGroup>>, TError = ErrorType<Error>>(
@@ -5227,6 +9128,7 @@ export const getListGroupReactionsUrl = (groupId: number,) => {
 }
 
 /**
+ * @deprecated
  * @summary List recent cheer reactions in a group
  */
 export const listGroupReactions = async (groupId: number, options?: Parameters<typeof customFetch>[1]): Promise<GroupReaction[]> => {
@@ -5274,6 +9176,7 @@ export type ListGroupReactionsQueryError = ErrorType<unknown>
 
 
 /**
+ * @deprecated
  * @summary List recent cheer reactions in a group
  */
 
@@ -5304,6 +9207,7 @@ export const getCreateGroupReactionUrl = (groupId: number,) => {
 }
 
 /**
+ * @deprecated
  * @summary Send a cheer/reaction to the group or a specific member
  */
 export const createGroupReaction = async (groupId: number,
@@ -5371,6 +9275,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type CreateGroupReactionMutationVariables = {groupId: number;data: BodyType<GroupReactionInput>}
 
     /**
+ * @deprecated
  * @summary Send a cheer/reaction to the group or a specific member
  */
 export const useCreateGroupReaction = <TError = ErrorType<unknown>,

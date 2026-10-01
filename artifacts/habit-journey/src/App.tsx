@@ -18,6 +18,11 @@ import { JourneyEntryPage } from '@/pages/journey-entry';
 import { HabitJourneyPage } from '@/pages/habit-journey';
 import { HabitJourneyCompletePage } from '@/pages/habit-journey-complete';
 import { GroupsPage, GroupDetailPage } from '@/pages/groups';
+import { ChallengesPage, ChallengeDetailPage } from '@/pages/challenges';
+import { FriendsPage } from '@/pages/friends';
+import { FriendProfilePage } from '@/pages/friend-profile';
+import { NotificationsPage } from '@/pages/notifications';
+import { PostHabitChallengePrompt } from '@/components/social/circles';
 
 const clerkPubKey = publishableKeyFromHost(
   window.location.hostname,
@@ -98,7 +103,7 @@ function ProtectedContent({children,onboarding}: {children:(user:User)=>ReactNod
   if(user.isError||!user.data)return <div className="max-w-2xl mx-auto p-10"><ErrorBlock retry={()=>user.refetch()}/></div>;
   if(!user.data.onboardingCompleted&&!onboarding)return <Redirect to="/onboarding"/>;
   if(user.data.onboardingCompleted&&onboarding)return <Redirect to="/home"/>;
-  return onboarding?<>{children(user.data)}</>:<Shell user={user.data}>{children(user.data)}</Shell>;
+  return onboarding?<>{children(user.data)}</>:<Shell user={user.data}>{children(user.data)}<PostHabitChallengePrompt /></Shell>;
 }
 function NotFound(){return <div className="min-h-[100dvh] flex flex-col justify-center items-center text-center p-5"><div className="eyebrow">طريق غير موجود</div><h1 className="text-4xl font-black mt-4">يبدو أننا ابتعدنا قليلًا.</h1><p className="muted my-5">لا بأس، الطريق إلى البداية ما زال هنا.</p><Link href="/" className="btn">العودة للبداية</Link></div>}
 function Routes(){
@@ -119,6 +124,11 @@ function Routes(){
     <Route path="/character">{()=><Protected>{()=><JourneyPage/>}</Protected>}</Route>
     <Route path="/groups">{()=><Protected>{()=><GroupsPage/>}</Protected>}</Route>
     <Route path="/groups/:groupId">{()=><Protected>{()=><GroupDetailPage/>}</Protected>}</Route>
+    <Route path="/friends">{()=><Protected>{()=><FriendsPage/>}</Protected>}</Route>
+    <Route path="/friends/:userId">{()=><Protected>{()=><FriendProfilePage/>}</Protected>}</Route>
+    <Route path="/notifications">{()=><Protected>{()=><NotificationsPage/>}</Protected>}</Route>
+    <Route path="/challenges">{()=><Protected>{()=><ChallengesPage/>}</Protected>}</Route>
+    <Route path="/challenges/:challengeId">{()=><Protected>{()=><ChallengeDetailPage/>}</Protected>}</Route>
     <Route path="/settings">{()=><Protected>{user=><SettingsPage user={user}/>}</Protected>}</Route>
     <Route component={NotFound}/>
   </Switch>;

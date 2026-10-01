@@ -7,6 +7,7 @@ import { randomUUID } from "node:crypto";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { build } from "esbuild";
 import express from "express";
+import sharp from "sharp";
 
 const apiDir = dirname(dirname(fileURLToPath(import.meta.url)));
 const repositoryDir = resolve(apiDir, "../..");
@@ -58,8 +59,18 @@ const ddl = [
   `CREATE TYPE ${quote("coin_transaction_reason")} AS ENUM ('checkin', 'streak_bonus', 'streak_recovery', 'reward_redemption', 'item_purchase', 'challenge_bonus', 'manual')`,
   `CREATE TYPE ${quote("journey_reward_type")} AS ENUM ('physical', 'experience')`,
   `CREATE TYPE ${quote("journey_reward_status")} AS ENUM ('pending', 'unlocked', 'claimed')`,
+  `CREATE TYPE ${quote("memory_visibility")} AS ENUM ('private', 'friends', 'selected', 'public')`,
+  `CREATE TYPE ${quote("social_activity_type")} AS ENUM ('successful_day', 'milestone', 'journey_completed')`,
+  `CREATE TYPE ${quote("social_resource_type")} AS ENUM ('journey', 'memory', 'reward', 'character', 'achievements')`,
+  `CREATE TYPE ${quote("social_sharing_visibility")} AS ENUM ('private', 'friends', 'selected')`,
+  `CREATE TYPE ${quote("social_group_activity_type")} AS ENUM ('member_joined', 'successful_day', 'milestone', 'journey_completed')`,
+  `CREATE TYPE ${quote("social_notification_type")} AS ENUM ('friend_request_received', 'friend_request_accepted', 'challenge_invitation', 'challenge_accepted', 'challenge_declined', 'group_invitation', 'group_member_joined', 'encouragement_received', 'shared_milestone', 'group_milestone')`,
+  `CREATE TYPE ${quote("group_privacy")} AS ENUM ('invite_only')`,
+  `CREATE TYPE ${quote("group_member_role")} AS ENUM ('owner', 'member')`,
+  `CREATE TYPE ${quote("character_item_slot")} AS ENUM ('outfit', 'hat', 'accessory', 'pet', 'background')`,
   `CREATE TABLE ${quote("users")} (
     id text PRIMARY KEY,
+    username text UNIQUE,
     display_name text NOT NULL,
     avatar_emoji text NOT NULL DEFAULT '🌱',
     level integer NOT NULL DEFAULT 1,
@@ -70,6 +81,29 @@ const ddl = [
     onboarding_completed boolean NOT NULL DEFAULT false,
     timezone text NOT NULL DEFAULT 'UTC',
     created_at timestamptz NOT NULL DEFAULT now()
+  )`,
+  `CREATE TABLE ${quote("character_items")} (
+    id serial PRIMARY KEY, name text NOT NULL UNIQUE,
+    slot ${quote("character_item_slot")} NOT NULL, emoji text NOT NULL,
+    coin_cost integer NOT NULL, level_required integer NOT NULL DEFAULT 0
+  )`,
+  `CREATE TABLE ${quote("user_character_items")} (
+    id serial PRIMARY KEY, user_id text NOT NULL REFERENCES ${quote("users")}(id) ON DELETE CASCADE,
+    item_id integer NOT NULL REFERENCES ${quote("character_items")}(id) ON DELETE CASCADE,
+    equipped boolean NOT NULL DEFAULT false, purchased_at timestamptz NOT NULL DEFAULT now(),
+    UNIQUE(user_id, item_id)
+  )`,
+  `CREATE TABLE ${quote("tracking_sessions")} (
+    id serial PRIMARY KEY, user_id text NOT NULL REFERENCES ${quote("users")}(id) ON DELETE CASCADE,
+    date date NOT NULL, status text NOT NULL DEFAULT 'active',
+    interval_minutes integer NOT NULL DEFAULT 15, started_at timestamptz NOT NULL DEFAULT now(),
+    last_checkin_at timestamptz, next_checkin_at timestamptz, finished_at timestamptz,
+    UNIQUE(user_id, date)
+  )`,
+  `CREATE TABLE ${quote("day_analysis_cache")} (
+    user_id text NOT NULL REFERENCES ${quote("users")}(id) ON DELETE CASCADE,
+    date date NOT NULL, data_hash text NOT NULL, analysis jsonb NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now(), UNIQUE(user_id, date)
   )`,
   `CREATE TABLE ${quote("habits")} (
     id serial PRIMARY KEY,
@@ -110,6 +144,81 @@ const ddl = [
     milestones jsonb NOT NULL,
     created_at timestamptz NOT NULL DEFAULT now()
   )`,
+  `CREATE TABLE ${quote("social_activity_events")} (
+    id serial PRIMARY KEY,
+    actor_user_id text NOT NULL REFERENCES ${quote("users")}(id) ON DELETE CASCADE,
+    event_type ${quote("social_activity_type")} NOT NULL,
+    journey_id integer REFERENCES ${quote("habits")}(id) ON DELETE SET NULL,
+    idempotency_key text NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    UNIQUE (actor_user_id, idempotency_key)
+  )`,
+  `CREATE TABLE ${quote("social_shares")} (
+    id serial PRIMARY KEY,
+    owner_user_id text NOT NULL REFERENCES ${quote("users")}(id) ON DELETE CASCADE,
+    resource_type ${quote("social_resource_type")} NOT NULL,
+    resource_id text NOT NULL,
+    visibility ${quote("social_sharing_visibility")} NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    UNIQUE (owner_user_id, resource_type, resource_id)
+  )`,
+  `CREATE TABLE ${quote("social_share_recipients")} (
+    id serial PRIMARY KEY,
+    share_id integer NOT NULL REFERENCES ${quote("social_shares")}(id) ON DELETE CASCADE,
+    recipient_user_id text NOT NULL REFERENCES ${quote("users")}(id) ON DELETE CASCADE,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    UNIQUE (share_id, recipient_user_id)
+  )`,
+  `CREATE TABLE ${quote("social_friendships")} (
+    id serial PRIMARY KEY, user_low_id text NOT NULL REFERENCES ${quote("users")}(id) ON DELETE CASCADE,
+    user_high_id text NOT NULL REFERENCES ${quote("users")}(id) ON DELETE CASCADE,
+    created_from_request_id integer,
+    created_at timestamptz NOT NULL DEFAULT now(), UNIQUE(user_low_id, user_high_id)
+  )`,
+  `CREATE TABLE ${quote("social_blocks")} (
+    id serial PRIMARY KEY, blocker_user_id text NOT NULL REFERENCES ${quote("users")}(id) ON DELETE CASCADE,
+    blocked_user_id text NOT NULL REFERENCES ${quote("users")}(id) ON DELETE CASCADE,
+    created_at timestamptz NOT NULL DEFAULT now(), UNIQUE(blocker_user_id, blocked_user_id)
+  )`,
+  `CREATE TABLE ${quote("groups")} (
+    id serial PRIMARY KEY, name text NOT NULL, invite_code text NOT NULL UNIQUE,
+    goal_description text NOT NULL, description text,
+    privacy ${quote("group_privacy")} NOT NULL DEFAULT 'invite_only',
+    max_members integer NOT NULL DEFAULT 30, cover_object_path text,
+    cover_updated_at timestamptz, start_date date NOT NULL, end_date date,
+    created_by text NOT NULL REFERENCES ${quote("users")}(id) ON DELETE CASCADE,
+    created_at timestamptz NOT NULL DEFAULT now()
+  )`,
+  `CREATE TABLE ${quote("group_members")} (
+    id serial PRIMARY KEY, group_id integer NOT NULL REFERENCES ${quote("groups")}(id) ON DELETE CASCADE,
+    user_id text NOT NULL REFERENCES ${quote("users")}(id) ON DELETE CASCADE,
+    role ${quote("group_member_role")} NOT NULL DEFAULT 'member',
+    joined_at timestamptz NOT NULL DEFAULT now(), UNIQUE(group_id, user_id)
+  )`,
+  `CREATE TABLE ${quote("social_group_journey_shares")} (
+    id serial PRIMARY KEY, group_id integer NOT NULL REFERENCES ${quote("groups")}(id) ON DELETE CASCADE,
+    user_id text NOT NULL REFERENCES ${quote("users")}(id) ON DELETE CASCADE,
+    habit_id integer NOT NULL REFERENCES ${quote("habits")}(id) ON DELETE CASCADE,
+    created_at timestamptz NOT NULL DEFAULT now(), UNIQUE(group_id, user_id, habit_id)
+  )`,
+  `CREATE TABLE ${quote("social_group_activity_events")} (
+    id serial PRIMARY KEY, group_id integer NOT NULL REFERENCES ${quote("groups")}(id) ON DELETE CASCADE,
+    actor_user_id text NOT NULL REFERENCES ${quote("users")}(id) ON DELETE CASCADE,
+    event_type ${quote("social_group_activity_type")} NOT NULL,
+    journey_id integer REFERENCES ${quote("habits")}(id) ON DELETE SET NULL,
+    idempotency_key text NOT NULL, created_at timestamptz NOT NULL DEFAULT now(),
+    UNIQUE(group_id, idempotency_key)
+  )`,
+  `CREATE TABLE ${quote("social_notifications")} (
+    id serial PRIMARY KEY, recipient_user_id text NOT NULL REFERENCES ${quote("users")}(id) ON DELETE CASCADE,
+    actor_user_id text REFERENCES ${quote("users")}(id) ON DELETE SET NULL,
+    type ${quote("social_notification_type")} NOT NULL, event_key text NOT NULL,
+    friend_request_id integer, group_invitation_id integer, group_id integer,
+    challenge_id integer, encouragement_id integer, safe_data jsonb, read_at timestamptz,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    UNIQUE(recipient_user_id, event_key)
+  )`,
   `CREATE TABLE ${quote("time_entries")} (
     id serial PRIMARY KEY,
     user_id text NOT NULL REFERENCES ${quote("users")}(id) ON DELETE CASCADE,
@@ -128,10 +237,14 @@ const ddl = [
     id serial PRIMARY KEY,
     user_id text NOT NULL REFERENCES ${quote("users")}(id) ON DELETE CASCADE,
     habit_id integer REFERENCES ${quote("habits")}(id) ON DELETE SET NULL,
+    habit_day_id integer,
     note text NOT NULL,
+    caption text,
+    visibility ${quote("memory_visibility")} NOT NULL DEFAULT 'private',
     photo_object_path text,
     date date NOT NULL,
-    created_at timestamptz NOT NULL DEFAULT now()
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now()
   )`,
   `CREATE TABLE ${quote("journey_rewards")} (
     id serial PRIMARY KEY,
@@ -191,6 +304,11 @@ const ddl = [
     CONSTRAINT habit_days_habit_day_unique UNIQUE (habit_id, day_number),
     CONSTRAINT habit_days_habit_date_unique UNIQUE (habit_id, date)
   )`,
+  `ALTER TABLE ${quote("memories")}
+     ADD CONSTRAINT memories_habit_day_fk FOREIGN KEY (habit_day_id)
+       REFERENCES ${quote("habit_days")}(id) ON DELETE SET NULL`,
+  `CREATE UNIQUE INDEX memories_habit_day_unique ON ${quote("memories")} (habit_day_id)
+     WHERE habit_day_id IS NOT NULL`,
   `CREATE TABLE ${quote("habit_plan_revisions")} (
     id serial PRIMARY KEY,
     habit_id integer NOT NULL REFERENCES ${quote("habits")}(id) ON DELETE CASCADE,
@@ -293,6 +411,9 @@ const ddl = [
     reached_at timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT user_journey_milestones_user_milestone_unique UNIQUE (user_id, milestone_id)
   )`,
+  `CREATE TABLE ${quote("dashboard_write_audit")} (
+    table_name text NOT NULL, operation text NOT NULL, recorded_at timestamptz NOT NULL DEFAULT now()
+  )`,
 ];
 
 async function cleanup() {
@@ -314,6 +435,30 @@ async function cleanup() {
 
 async function prepare() {
   for (const statement of ddl) await adminPool.query(statement);
+  await adminPool.query(`
+    CREATE FUNCTION "${schema}".record_dashboard_write() RETURNS trigger
+    LANGUAGE plpgsql AS $$
+    BEGIN
+      INSERT INTO "${schema}".dashboard_write_audit (table_name, operation)
+      VALUES (TG_TABLE_NAME, TG_OP);
+      IF TG_OP = 'DELETE' THEN RETURN OLD; END IF;
+      RETURN NEW;
+    END
+    $$
+  `);
+  const applicationTables = await adminPool.query(
+    `SELECT table_name FROM information_schema.tables
+     WHERE table_schema = $1 AND table_type = 'BASE TABLE'
+       AND table_name <> 'dashboard_write_audit'`,
+    [schema],
+  );
+  for (const { table_name: tableName } of applicationTables.rows) {
+    await adminPool.query(
+      `CREATE TRIGGER dashboard_write_audit
+       AFTER INSERT OR UPDATE OR DELETE ON ${quote(tableName)}
+       FOR EACH ROW EXECUTE FUNCTION "${schema}".record_dashboard_write()`,
+    );
+  }
   await adminPool.query(
     `ALTER TABLE ${quote("habit_days")} DROP CONSTRAINT IF EXISTS habit_days_habit_day_unique`,
   );
@@ -345,6 +490,9 @@ async function prepare() {
       } from ${JSON.stringify(join(apiDir, "src/lib/dailyExecutionService.ts"))};
       export { mockStorageObjects } from "@google-cloud/storage";
       export { db, pool } from "@workspace/db";
+      export { GetDashboardHomeResponse } from "@workspace/api-zod";
+      export { getCurrentTrackedAnalysisHash } from ${JSON.stringify(join(apiDir, "src/lib/trackedAnalysisCache.ts"))};
+      export { geminiProvider } from ${JSON.stringify(join(apiDir, "src/lib/gemini.ts"))};
     `,
   );
   const adapterPlugin = {
@@ -364,6 +512,10 @@ async function prepare() {
       esbuild.onResolve({ filter: /^@google-cloud\/storage$/ }, () => ({
         path: "isolated-google-storage",
         namespace: "isolated-google-storage",
+      }));
+      esbuild.onResolve({ filter: /^sharp$/ }, () => ({
+        path: createRequire(join(apiDir, "package.json")).resolve("sharp"),
+        external: true,
       }));
       esbuild.onResolve({ filter: /^pg$/ }, () => ({
         path: pgEntry,
@@ -420,8 +572,23 @@ async function prepare() {
               };
               return [structuredClone(object.metadata)];
             }
+            async save(contents, options = {}) {
+              mockStorageObjects.set(this.key, {
+                data: Buffer.from(contents),
+                metadata: {
+                  contentType: options.metadata?.contentType,
+                  size: String(contents.length),
+                  metadata: structuredClone(options.metadata?.metadata ?? {}),
+                },
+              });
+            }
+            async delete() {
+              mockStorageObjects.delete(this.key);
+            }
             createReadStream() {
-              return Readable.from([Buffer.from("mock private image")]);
+              const object = mockStorageObjects.get(this.key);
+              object.readCount = (object.readCount ?? 0) + 1;
+              return Readable.from([Buffer.from(object.data ?? "mock private image")]);
             }
           }
           export class Storage {
@@ -480,6 +647,7 @@ async function reset() {
   await adminPool.query(
     `TRUNCATE ${quote("user_journey_milestones")}, ${quote("journey_milestones")},
      ${quote("coin_transactions")}, ${quote("habit_daily_action_keys")}, ${quote("habit_daily_executions")},
+     ${quote("tracking_sessions")}, ${quote("day_analysis_cache")}, ${quote("user_character_items")},
      ${quote("habit_plan_revisions")}, ${quote("habit_days")},
       ${quote("checkins")}, ${quote("memories")}, ${quote("time_entries")},
       ${quote("object_uploads")},
@@ -525,18 +693,119 @@ function addDays(date, days) {
   return result.toISOString().slice(0, 10);
 }
 
+function dateInTimezone(date, timezone) {
+  const parts = Object.fromEntries(new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit",
+  }).formatToParts(date).map((part) => [part.type, part.value]));
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
+
+async function dashboardSnapshot() {
+  const tables = await adminPool.query(
+    `SELECT table_name FROM information_schema.tables
+     WHERE table_schema = $1 AND table_type = 'BASE TABLE'
+       AND table_name <> 'dashboard_write_audit' ORDER BY table_name`,
+    [schema],
+  );
+  const snapshot = {};
+  for (const { table_name: tableName } of tables.rows) {
+    const result = await adminPool.query(
+      `SELECT COALESCE(jsonb_agg(to_jsonb(row_data) ORDER BY to_jsonb(row_data)::text), '[]'::jsonb) AS rows
+       FROM ${quote(tableName)} AS row_data`,
+    );
+    snapshot[tableName] = result.rows[0].rows;
+  }
+  return snapshot;
+}
+
+async function assertDashboardReadOnly(action) {
+  await adminPool.query(`TRUNCATE ${quote("dashboard_write_audit")}`);
+  const before = await dashboardSnapshot();
+  const result = await action();
+  const after = await dashboardSnapshot();
+  const writes = await adminPool.query(`SELECT * FROM ${quote("dashboard_write_audit")}`);
+  assert.deepEqual(after, before, "dashboard GET changed an application table");
+  assert.deepEqual(writes.rows, [], "dashboard GET issued a captured INSERT, UPDATE, or DELETE");
+  return result;
+}
+
+async function seedDashboardUser({
+  id = "dashboard-test-owner",
+  timezone = "UTC",
+  onboardingCompleted = true,
+  level = 1,
+  xp = 0,
+  coins = 0,
+} = {}) {
+  await seedUser({ id, level, xp, coins });
+  await adminPool.query(
+    `UPDATE ${quote("users")} SET timezone = $2, onboarding_completed = $3 WHERE id = $1`,
+    [id, timezone, onboardingCompleted],
+  );
+  return id;
+}
+
+async function seedDashboardExecution(habitId, date, {
+  status = "pending",
+  executionType = "duration",
+  unit = "minutes",
+  goalType = "build",
+  planRevision = 0,
+  targetValue = 10,
+  minimumValue = 5,
+  revision = 0,
+  actualValue = null,
+  actualSeconds = null,
+  startedAt = null,
+  lastResumedAt = null,
+  missedReason = null,
+  adaptationDecision = null,
+  finishedAt = null,
+} = {}) {
+  const dayNumber = Math.max(1, Math.min(22, Math.floor(
+    (Date.parse(`${date}T00:00:00Z`) - Date.parse(`${dailyToday}T00:00:00Z`)) / 86_400_000,
+  ) + 1));
+  await adminPool.query(
+    `INSERT INTO ${quote("habit_daily_executions")} (
+       habit_id, date, day_number, title, target_value, minimum_value, goal_type,
+       execution_type, unit, plan_revision, status, revision, actual_value, actual_seconds,
+       started_at, last_resumed_at, missed_reason, adaptation_decision, finished_at
+     ) VALUES ($1,$2,$3,'Walk',$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)`,
+    [habitId, date, dayNumber, targetValue, minimumValue, goalType, executionType, unit, planRevision, status,
+      revision, actualValue, actualSeconds, startedAt, lastResumedAt, missedReason,
+      adaptationDecision, finishedAt],
+  );
+}
+
+async function currentDashboardResponse(api) {
+  const response = await api.request("/dashboard");
+  assert.equal(response.status, 200, await response.clone().text());
+  const body = await response.json();
+  service.GetDashboardHomeResponse.parse(body);
+  return body;
+}
+
 const dailyNow = new Date();
 dailyNow.setUTCHours(12, 0, 0, 0);
 const dailyToday = dailyNow.toISOString().slice(0, 10);
+const validMemoryPng = await sharp({
+  create: { width: 8, height: 6, channels: 3, background: { r: 45, g: 120, b: 190 } },
+}).png().toBuffer();
 
 async function startJourneyApi(userId) {
   const app = express();
+  const requestErrors = [];
   app.use(express.json());
+  app.use((req, _res, next) => {
+    req.log = { error: (...args) => requestErrors.push(args) };
+    next();
+  });
   app.use(
     service.habitsRouter,
     service.rewardsRouter,
     service.journeyRewardsRouter,
     service.dashboardRouter,
+    service.dailyRouter,
     service.memoriesRouter,
     service.storageRouter,
   );
@@ -544,13 +813,17 @@ async function startJourneyApi(userId) {
   await new Promise((resolve) => server.once("listening", resolve));
   const baseUrl = `http://127.0.0.1:${server.address().port}`;
   return {
-    request: (path, method = "GET", body) => fetch(`${baseUrl}${path}`, {
+    request: (path, method = "GET", body, authUser = userId) => fetch(`${baseUrl}${path}`, {
       method,
-      headers: { "content-type": "application/json", "x-test-user": userId },
+      headers: {
+        "content-type": "application/json",
+        ...(authUser == null ? {} : { "x-test-user": authUser }),
+      },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     }),
     close: () => new Promise((resolve, reject) =>
       server.close((error) => error ? reject(error) : resolve())),
+    requestErrors,
   };
 }
 
@@ -2798,88 +3071,312 @@ test("minimum-success final check-in, private unlock, and coin grant roll back t
   }
 });
 
-test("memory photo ACL adoption preserves foreign ownership and accepts owned private uploads", async () => {
+function memoryStorageKey(objectPath) {
+  return `test-bucket/private/${objectPath.slice("/objects/".length)}`;
+}
+
+function setMemoryStorageObject(objectPath, {
+  userId,
+  contentType = "image/png",
+  contents = validMemoryPng,
+  acl = userId ? { owner: userId, visibility: "private" } : null,
+  retainedMetadata = undefined,
+  reportedSize = contents.length,
+} = {}) {
+  const metadata = {
+    contentType,
+    size: String(reportedSize),
+    metadata: {
+      ...(acl ? { "custom:aclPolicy": JSON.stringify(acl) } : {}),
+      ...(retainedMetadata ? { "custom:retained": retainedMetadata } : {}),
+    },
+  };
+  service.mockStorageObjects.set(memoryStorageKey(objectPath), {
+    data: Buffer.from(contents),
+    metadata,
+  });
+  return service.mockStorageObjects.get(memoryStorageKey(objectPath));
+}
+
+async function seedMemoryJourney(userId, id, startDate = addDays(dailyToday, -3)) {
+  await seedUser({ id });
+  const habitId = await seedHabit({ userId: id });
+  await seedDailyJourney(habitId, startDate);
+  await seedCheckin({
+    userId: id,
+    habitId,
+    date: startDate,
+    value: 12,
+    difficulty: "hard",
+    xpEarned: 7,
+    coinsEarned: 3,
+    rewardGranted: true,
+  });
+  return { userId: id, habitId, startDate };
+}
+
+async function memoryFinancialAndCompletionState(userId, habitId, date) {
+  const result = await adminPool.query(
+    `SELECT u.coins, u.xp, h.current_streak, h.longest_streak,
+            h.last_checkin_date, h.journey_completed_at,
+            c.completed, c.value, c.difficulty, c.xp_earned,
+            c.coins_earned, c.reward_granted,
+            (SELECT count(*)::int FROM ${quote("coin_transactions")} t WHERE t.user_id = u.id) AS ledger_count
+     FROM ${quote("users")} u
+     JOIN ${quote("habits")} h ON h.user_id = u.id AND h.id = $2
+     JOIN ${quote("checkins")} c ON c.habit_id = h.id AND c.user_id = u.id AND c.date = $3
+     WHERE u.id = $1`,
+    [userId, habitId, date],
+  );
+  return result.rows[0];
+}
+
+test("private memory CRUD preserves ownership, saved-day context, and financial/check-in invariants", async () => {
   await reset();
-  const ownerId = await seedUser({ id: "memory-photo-owner" });
-  const attackerId = await seedUser({ id: "memory-photo-attacker" });
+  const owner = await seedMemoryJourney("memory-photo-owner", "memory-photo-owner");
+  const attacker = await seedMemoryJourney("memory-photo-attacker", "memory-photo-attacker");
+  await seedCheckin({
+    userId: owner.userId,
+    habitId: owner.habitId,
+    date: addDays(owner.startDate, 1),
+    value: 8,
+    difficulty: "normal",
+  });
+
   const originalPrivateObjectDir = process.env.PRIVATE_OBJECT_DIR;
   process.env.PRIVATE_OBJECT_DIR = "/test-bucket/private";
   const foreignPhotoPath = "/objects/uploads/owner-photo";
   const ownerUploadPath = "/objects/uploads/owner-upload";
-  const storageKey = (objectPath) =>
-    `test-bucket/private/${objectPath.slice("/objects/".length)}`;
-  const foreignMetadata = {
-    metadata: {
-      "custom:aclPolicy": JSON.stringify({ owner: ownerId, visibility: "private" }),
-      "custom:retained": "owner metadata",
-    },
-    contentType: "image/png",
-  };
-  service.mockStorageObjects.set(storageKey(foreignPhotoPath), {
-    metadata: structuredClone(foreignMetadata),
+  const foreignObject = setMemoryStorageObject(foreignPhotoPath, {
+    userId: owner.userId,
+    retainedMetadata: "owner metadata",
   });
-  service.mockStorageObjects.set(storageKey(ownerUploadPath), {
-    metadata: { metadata: {}, contentType: "image/jpeg" },
+  const ownerUpload = setMemoryStorageObject(ownerUploadPath, {
+    userId: owner.userId,
+    acl: null,
+    contentType: "image/png",
+    contents: validMemoryPng,
   });
   await adminPool.query(
     `INSERT INTO ${quote("object_uploads")} (object_path, user_id) VALUES ($1, $2)`,
-    [ownerUploadPath, ownerId],
+    [ownerUploadPath, owner.userId],
   );
 
-  const ownerApi = await startJourneyApi(ownerId);
-  const attackerApi = await startJourneyApi(attackerId);
+  const ownerApi = await startJourneyApi(owner.userId);
+  const attackerApi = await startJourneyApi(attacker.userId);
   try {
-    const originalMetadata = structuredClone(
-      service.mockStorageObjects.get(storageKey(foreignPhotoPath)).metadata,
+    const before = await memoryFinancialAndCompletionState(
+      owner.userId, owner.habitId, owner.startDate,
     );
-    const attackResponse = await attackerApi.request("/memories", "POST", {
-      note: "Try to adopt someone else's image",
+    const originalMetadata = structuredClone(foreignObject.metadata);
+
+    const forgedCreate = await ownerApi.request("/memories", "POST", {
+      habitId: owner.habitId,
+      date: owner.startDate,
       photoObjectPath: foreignPhotoPath,
-      date: dailyToday,
+      journeyId: owner.habitId,
+      userId: owner.userId,
+    });
+    assert.equal(forgedCreate.status, 400, "server-derived association and identity fields are rejected");
+    assert.equal(foreignObject.readCount ?? 0, 0, "invalid requests never read object bytes");
+
+    const attackResponse = await attackerApi.request("/memories", "POST", {
+      habitId: attacker.habitId,
+      date: attacker.startDate,
+      photoObjectPath: foreignPhotoPath,
+      caption: "Try to attach someone else's image",
     });
     assert.equal(attackResponse.status, 403);
     assert.match((await attackResponse.json()).error, /owned by this user/i);
-    const attackerMemories = (await adminPool.query(
+    assert.equal(foreignObject.readCount ?? 0, 0, "foreign object bytes are never read");
+    assert.deepEqual(foreignObject.metadata, originalMetadata,
+      "foreign rejection preserves the original object metadata");
+    assert.equal((await adminPool.query(
       `SELECT count(*)::int AS count FROM ${quote("memories")} WHERE user_id = $1`,
-      [attackerId],
-    )).rows[0];
-    assert.equal(attackerMemories.count, 0, "rejected ACL adoption creates no memory");
+      [attacker.userId],
+    )).rows[0].count, 0);
+
+    const createdResponse = await ownerApi.request("/memories", "POST", {
+      habitId: owner.habitId,
+      date: owner.startDate,
+      photoObjectPath: foreignPhotoPath,
+      caption: "A saved-day memory",
+    });
+    assert.equal(createdResponse.status, 201);
+    const created = await createdResponse.json();
+    assert.equal(created.note, "A saved-day memory");
+    assert.equal(created.caption, "A saved-day memory");
+    assert.equal(created.visibility, "private");
+    assert.equal(created.habitId, owner.habitId);
+    assert.equal(created.journeyId, owner.habitId);
+    assert.equal(created.dayNumber, 1);
+    assert.equal(created.journeyLength, 22);
+    assert.equal(created.habitTitle, "Walk");
+    assert.equal(created.targetValue, 10);
+    assert.equal(created.actualValue, 12);
+    assert.equal(created.unit, "minutes");
+    assert.equal(created.difficulty, "hard");
+    assert.ok(created.habitDayId > 0);
+    assert.ok(created.updatedAt);
+
+    const optimizedPath = created.photoUrl.replace("/api/storage", "");
+    assert.notEqual(optimizedPath, foreignPhotoPath, "the source object is never overwritten");
+    const optimizedObject = service.mockStorageObjects.get(memoryStorageKey(optimizedPath));
+    assert.ok(optimizedObject, "a new optimized object is saved");
+    assert.equal(optimizedObject.metadata.contentType, "image/webp");
+    assert.deepEqual(JSON.parse(optimizedObject.metadata.metadata["custom:aclPolicy"]), {
+      owner: owner.userId,
+      visibility: "private",
+    });
+    assert.equal((await sharp(optimizedObject.data).metadata()).format, "webp");
+    const derivedMetadata = await sharp(optimizedObject.data).metadata();
+    assert.ok(derivedMetadata.width <= 1920 && derivedMetadata.height <= 1920);
+    const storageRouteForPhoto = created.photoUrl.replace("/api", "");
+    const optimizedOwnerRead = await ownerApi.request(storageRouteForPhoto);
+    assert.equal(optimizedOwnerRead.status, 200);
+    assert.deepEqual(Buffer.from(await optimizedOwnerRead.arrayBuffer()), optimizedObject.data);
+    assert.equal((await attackerApi.request(storageRouteForPhoto)).status, 403,
+      "the optimized memory photo is served only through its owner ACL");
+    assert.equal((await adminPool.query(
+      `SELECT count(*)::int AS count FROM ${quote("object_uploads")} WHERE object_path = $1 AND user_id = $2`,
+      [optimizedPath, owner.userId],
+    )).rows[0].count, 1, "optimized output provenance is registered");
+    assert.deepEqual(foreignObject.metadata, originalMetadata,
+      "processing a same-owner private object retains its source metadata");
+
+    const uploadedResponse = await ownerApi.request("/memories", "POST", {
+      habitId: owner.habitId,
+      date: addDays(owner.startDate, 1),
+      photoObjectPath: ownerUploadPath,
+      caption: null,
+    });
+    assert.equal(uploadedResponse.status, 201);
+    const uploaded = await uploadedResponse.json();
+    assert.equal(uploaded.caption, null);
+    assert.equal(uploaded.note, "");
+    assert.equal(uploaded.dayNumber, 2);
+    assert.deepEqual(ownerUpload.metadata, {
+      contentType: "image/png",
+      size: String(validMemoryPng.length),
+      metadata: {},
+    }, "a provenance-verified source upload is not modified");
+
+    const legacyNote = `Preserved legacy memory note: ${"old note ".repeat(45)}`;
+    const legacyCreatedAt = new Date("2020-01-02T03:04:05.000Z");
+    const legacyId = (await adminPool.query(
+      `INSERT INTO ${quote("memories")}
+         (user_id, habit_id, note, photo_object_path, date, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING id`,
+      [owner.userId, owner.habitId, legacyNote, foreignPhotoPath, owner.startDate, legacyCreatedAt],
+    )).rows[0].id;
+    const legacyResponse = await ownerApi.request(`/memories/${legacyId}`);
+    assert.equal(legacyResponse.status, 200);
+    const legacyMemory = await legacyResponse.json();
+    assert.equal(legacyMemory.note, legacyNote);
+    assert.equal(legacyMemory.caption, null,
+      "oversized legacy notes remain intact as the note alias without violating the new caption limit");
+    assert.equal(legacyMemory.photoUrl, `/api/storage${foreignPhotoPath}`);
+    assert.equal(new Date(legacyMemory.createdAt).toISOString(), legacyCreatedAt.toISOString());
+    assert.equal(legacyMemory.habitDayId, null);
+    assert.equal(legacyMemory.journeyId, null,
+      "a same-date legacy row is not inferred to belong to a journey day");
+    assert.equal(legacyMemory.dayNumber, null);
+
+    const duplicate = await ownerApi.request("/memories", "POST", {
+      habitId: owner.habitId,
+      date: owner.startDate,
+      photoObjectPath: foreignPhotoPath,
+    });
+    assert.equal(duplicate.status, 409, "only one linked memory is allowed per saved day");
+
+    const listed = await ownerApi.request(
+      `/memories?habitId=${owner.habitId}&journeyId=${owner.habitId}`,
+    );
+    assert.equal(listed.status, 200);
+    const list = await listed.json();
+    assert.equal(list.length, 2);
+    assert.ok(list.every((memory) => memory.visibility === "private"));
+    assert.equal((await (await ownerApi.request(`/memories?habitId=${owner.habitId}`)).json()).length, 3);
     assert.deepEqual(
-      service.mockStorageObjects.get(storageKey(foreignPhotoPath)).metadata,
-      originalMetadata,
-      "rejected ACL adoption does not mutate original metadata",
+      await (await ownerApi.request(`/memories?journeyId=${owner.habitId + 1}`)).json(),
+      [],
+      "journey filters do not infer associations from legacy habit/date fields",
+    );
+    assert.equal((await attackerApi.request("/memories")).status, 200);
+    assert.deepEqual(await (await attackerApi.request("/memories")).json(), []);
+    assert.equal((await attackerApi.request(`/memories/${created.id}`)).status, 404);
+    assert.equal((await attackerApi.request(`/memories/${created.id}`, "PATCH", {
+      caption: "unauthorized",
+    })).status, 404);
+    assert.equal((await attackerApi.request(`/memories/${created.id}`, "DELETE")).status, 404);
+
+    const detailResponse = await ownerApi.request(`/memories/${created.id}`);
+    assert.equal(detailResponse.status, 200);
+    assert.equal((await detailResponse.json()).habitDayId, created.habitDayId);
+
+    const forgedUpdate = await ownerApi.request(`/memories/${created.id}`, "PATCH", {
+      caption: "forged",
+      photoObjectPath: "/objects/uploads/another-file",
+    });
+    assert.equal(forgedUpdate.status, 400);
+    const updatedResponse = await ownerApi.request(`/memories/${created.id}`, "PATCH", {
+      caption: "Updated caption",
+    });
+    assert.equal(updatedResponse.status, 200);
+    const updated = await updatedResponse.json();
+    assert.equal(updated.caption, "Updated caption");
+    assert.equal(updated.note, "Updated caption");
+    assert.ok(new Date(updated.updatedAt).getTime() >= new Date(created.updatedAt).getTime());
+    const clearedResponse = await ownerApi.request(`/memories/${created.id}`, "PATCH", {
+      caption: null,
+    });
+    assert.equal(clearedResponse.status, 200);
+    const cleared = await clearedResponse.json();
+    assert.equal(cleared.caption, null);
+    assert.equal(cleared.note, "");
+
+    const journey = await ownerApi.request(`/habits/${owner.habitId}/journey`);
+    assert.equal(journey.status, 200);
+    const journeyPayload = await journey.json();
+    const journeyDay = journeyPayload.days.find((day) => day.habitDayId === created.habitDayId);
+    assert.equal(journeyDay.memoryId, created.id, "journey map exposes the owner-associated memory ID");
+    const dailyState = await service.getDailyHabitState(
+      owner.userId,
+      owner.habitId,
+      owner.startDate,
+      dailyNow,
+    );
+    assert.equal(dailyState.habitDayId, created.habitDayId);
+    assert.equal(dailyState.memoryId, created.id, "daily detail exposes the owner-associated memory ID");
+
+    const beforeDelete = await memoryFinancialAndCompletionState(
+      owner.userId, owner.habitId, owner.startDate,
+    );
+    const deleteResponse = await ownerApi.request(`/memories/${created.id}`, "DELETE");
+    assert.equal(deleteResponse.status, 204);
+    assert.equal((await ownerApi.request(`/memories/${created.id}`)).status, 404);
+    assert.ok(service.mockStorageObjects.has(memoryStorageKey(optimizedPath)),
+      "deleting a memory does not delete its potentially shared private object");
+    const afterDelete = await memoryFinancialAndCompletionState(
+      owner.userId, owner.habitId, owner.startDate,
+    );
+    assert.deepEqual(afterDelete, beforeDelete,
+      "memory create/update/delete never changes check-ins, difficulty, XP, coins, or reward ledger");
+    assert.deepEqual(afterDelete, before,
+      "memory operations leave the original completion and financial state unchanged");
+    const updatedJourney = await ownerApi.request(`/habits/${owner.habitId}/journey`);
+    const updatedJourneyPayload = await updatedJourney.json();
+    assert.equal(
+      updatedJourneyPayload.days.find((day) => day.habitDayId === created.habitDayId).memoryId,
+      null,
     );
 
     const ownerRead = await ownerApi.request("/storage/objects/uploads/owner-photo");
-    assert.equal(ownerRead.status, 200, "the original owner retains read access");
-    assert.equal(await ownerRead.text(), "mock private image");
+    assert.equal(ownerRead.status, 200, "the original owner retains access to their unchanged source");
+    assert.deepEqual(Buffer.from(await ownerRead.arrayBuffer()), validMemoryPng);
     const attackerRead = await attackerApi.request("/storage/objects/uploads/owner-photo");
-    assert.equal(attackerRead.status, 403, "the foreign caller cannot read the object");
-
-    const existingOwnerMemory = await ownerApi.request("/memories", "POST", {
-      note: "Attach my existing private photo",
-      photoObjectPath: foreignPhotoPath,
-      date: dailyToday,
-    });
-    assert.equal(existingOwnerMemory.status, 201,
-      "same-owner private ACLs remain compatible with existing memory photos");
-    assert.deepEqual(
-      service.mockStorageObjects.get(storageKey(foreignPhotoPath)).metadata,
-      originalMetadata,
-      "same-owner adoption is idempotent and preserves metadata",
-    );
-
-    const uploadedMemory = await ownerApi.request("/memories", "POST", {
-      note: "Attach my authenticated upload",
-      photoObjectPath: ownerUploadPath,
-      date: dailyToday,
-    });
-    assert.equal(uploadedMemory.status, 201,
-      "the authenticated owner can adopt a path issued by the upload endpoint");
-    const uploadedAcl = JSON.parse(
-      service.mockStorageObjects.get(storageKey(ownerUploadPath)).metadata.metadata["custom:aclPolicy"],
-    );
-    assert.deepEqual(uploadedAcl, { owner: ownerId, visibility: "private" });
+    assert.equal(attackerRead.status, 403, "the foreign caller cannot read the original object");
     const foreignUploadRead = await attackerApi.request("/storage/objects/uploads/owner-upload");
     assert.equal(foreignUploadRead.status, 403);
   } finally {
@@ -2887,4 +3384,1146 @@ test("memory photo ACL adoption preserves foreign ownership and accepts owned pr
     if (originalPrivateObjectDir === undefined) delete process.env.PRIVATE_OBJECT_DIR;
     else process.env.PRIVATE_OBJECT_DIR = originalPrivateObjectDir;
   }
+});
+
+test("memory capture rejects forged, future, rest, missing, unsuccessful, and out-of-journey days", async () => {
+  await reset();
+  const owner = await seedMemoryJourney("memory-eligibility-owner", "memory-eligibility-owner");
+  const start = owner.startDate;
+  const restDate = addDays(start, 2);
+  const unsuccessfulDate = addDays(start, 1);
+  const missingDate = addDays(start, 3);
+  await adminPool.query(
+    `UPDATE ${quote("habit_days")} SET scheduled = false WHERE habit_id = $1 AND date = $2`,
+    [owner.habitId, restDate],
+  );
+  await seedCheckin({
+    userId: owner.userId,
+    habitId: owner.habitId,
+    date: unsuccessfulDate,
+    completed: false,
+    value: 0,
+  });
+  await adminPool.query(
+    `DELETE FROM ${quote("habit_days")} WHERE habit_id = $1 AND date = $2`,
+    [owner.habitId, missingDate],
+  );
+
+  const originalPrivateObjectDir = process.env.PRIVATE_OBJECT_DIR;
+  process.env.PRIVATE_OBJECT_DIR = "/test-bucket/private";
+  const sourcePath = "/objects/uploads/eligibility-source";
+  const source = setMemoryStorageObject(sourcePath, { userId: owner.userId });
+  const api = await startJourneyApi(owner.userId);
+  try {
+    const cases = [
+      [{ habitId: owner.habitId, date: start, photoObjectPath: sourcePath, habitDayId: 1 }, 400],
+      [{ habitId: owner.habitId, date: addDays(dailyToday, 1), photoObjectPath: sourcePath }, 400],
+      [{ habitId: owner.habitId, date: restDate, photoObjectPath: sourcePath }, 400],
+      [{ habitId: owner.habitId, date: missingDate, photoObjectPath: sourcePath }, 400],
+      [{ habitId: owner.habitId, date: unsuccessfulDate, photoObjectPath: sourcePath }, 400],
+      [{ habitId: owner.habitId, date: addDays(start, -1), photoObjectPath: sourcePath }, 400],
+      [{ habitId: 999999, date: start, photoObjectPath: sourcePath }, 404],
+      [{ habitId: owner.habitId, date: start, photoObjectPath: sourcePath, visibility: "friends" }, 400],
+    ];
+    for (const [body, expectedStatus] of cases) {
+      const response = await api.request("/memories", "POST", body);
+      assert.equal(response.status, expectedStatus, JSON.stringify(body));
+    }
+    assert.equal(source.readCount ?? 0, 0,
+      "eligibility and unsupported fields are checked before any source bytes are read");
+    assert.equal((await adminPool.query(
+      `SELECT count(*)::int AS count FROM ${quote("memories")}`,
+    )).rows[0].count, 0);
+
+    const validHistorical = await api.request("/memories", "POST", {
+      habitId: owner.habitId,
+      date: start,
+      photoObjectPath: sourcePath,
+    });
+    assert.equal(validHistorical.status, 201,
+      "a historical successful day in the saved journey remains eligible");
+  } finally {
+    await api.close();
+    if (originalPrivateObjectDir === undefined) delete process.env.PRIVATE_OBJECT_DIR;
+    else process.env.PRIVATE_OBJECT_DIR = originalPrivateObjectDir;
+  }
+});
+
+test("memory photo validation enforces MIME/signature, size, pixels, and optimized private output", async () => {
+  await reset();
+  const userId = await seedUser({ id: "memory-image-validation" });
+  const habitId = await seedHabit({ userId });
+  const startDate = addDays(dailyToday, -5);
+  await seedDailyJourney(habitId, startDate);
+  for (let offset = 0; offset < 5; offset++) {
+    await seedCheckin({
+      userId,
+      habitId,
+      date: addDays(startDate, offset),
+      value: 10 + offset,
+      difficulty: "normal",
+    });
+  }
+
+  const originalPrivateObjectDir = process.env.PRIVATE_OBJECT_DIR;
+  process.env.PRIVATE_OBJECT_DIR = "/test-bucket/private";
+  const jpeg = await sharp(validMemoryPng).jpeg().toBuffer();
+  const webp = await sharp(validMemoryPng).webp().toBuffer();
+  const tooManyPixels = await sharp({
+    create: { width: 6400, height: 6400, channels: 3, background: { r: 20, g: 30, b: 40 } },
+  }).png().toBuffer();
+  const oneByteOver = Buffer.concat([
+    jpeg,
+    Buffer.alloc(10 * 1024 * 1024 + 1 - jpeg.length),
+  ]);
+  const exactLimit = Buffer.concat([
+    jpeg,
+    Buffer.alloc(10 * 1024 * 1024 - jpeg.length),
+  ]);
+  const cases = [
+    { path: "/objects/uploads/valid-png", contents: validMemoryPng, contentType: "image/png", date: startDate, expected: 201 },
+    { path: "/objects/uploads/valid-jpeg", contents: jpeg, contentType: "image/jpeg", date: addDays(startDate, 1), expected: 201 },
+    { path: "/objects/uploads/valid-webp", contents: webp, contentType: "image/webp", date: addDays(startDate, 2), expected: 201 },
+    { path: "/objects/uploads/exact-limit", contents: exactLimit, contentType: "image/jpeg", date: addDays(startDate, 3), expected: 201 },
+  ];
+  const objects = new Map();
+  for (const item of cases) {
+    objects.set(item.path, setMemoryStorageObject(item.path, {
+      userId,
+      contents: item.contents,
+      contentType: item.contentType,
+    }));
+  }
+  const overPath = "/objects/uploads/over-limit";
+  const overObject = setMemoryStorageObject(overPath, {
+    userId,
+    contents: oneByteOver,
+    contentType: "image/jpeg",
+  });
+  const corruptPath = "/objects/uploads/corrupt";
+  const corruptObject = setMemoryStorageObject(corruptPath, {
+    userId,
+    contents: Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00]),
+    contentType: "image/png",
+  });
+  const mismatchPath = "/objects/uploads/mime-mismatch";
+  const mismatchObject = setMemoryStorageObject(mismatchPath, {
+    userId,
+    contents: jpeg,
+    contentType: "image/png",
+  });
+  const unsupportedPath = "/objects/uploads/unsupported";
+  const unsupportedObject = setMemoryStorageObject(unsupportedPath, {
+    userId,
+    contents: validMemoryPng,
+    contentType: "image/gif",
+  });
+  const pixelsPath = "/objects/uploads/pixel-limit";
+  const pixelsObject = setMemoryStorageObject(pixelsPath, {
+    userId,
+    contents: tooManyPixels,
+    contentType: "image/png",
+  });
+  const api = await startJourneyApi(userId);
+  try {
+    for (const item of cases) {
+      const response = await api.request("/memories", "POST", {
+        habitId,
+        date: item.date,
+        photoObjectPath: item.path,
+      });
+      assert.equal(response.status, item.expected, item.path);
+      const memory = await response.json();
+      const optimizedPath = memory.photoUrl.replace("/api/storage", "");
+      const optimizedObject = service.mockStorageObjects.get(memoryStorageKey(optimizedPath));
+      assert.equal(optimizedObject.metadata.contentType, "image/webp");
+      assert.equal((await sharp(optimizedObject.data).metadata()).format, "webp");
+      assert.ok(optimizedObject.data.length <= 10 * 1024 * 1024);
+      assert.deepEqual(JSON.parse(optimizedObject.metadata.metadata["custom:aclPolicy"]), {
+        owner: userId,
+        visibility: "private",
+      });
+    }
+
+    const invalidCases = [
+      { path: overPath, date: addDays(startDate, 4), status: 413 },
+      { path: corruptPath, date: addDays(startDate, 4), status: 400 },
+      { path: mismatchPath, date: addDays(startDate, 4), status: 415 },
+      { path: unsupportedPath, date: addDays(startDate, 4), status: 415 },
+      { path: pixelsPath, date: addDays(startDate, 4), status: 413 },
+    ];
+    for (const item of invalidCases) {
+      const response = await api.request("/memories", "POST", {
+        habitId,
+        date: item.date,
+        photoObjectPath: item.path,
+      });
+      assert.equal(response.status, item.status, item.path);
+      assert.ok((await response.json()).error);
+    }
+    assert.equal(overObject.readCount ?? 0, 0, "oversized input is rejected from metadata before reading bytes");
+    assert.equal(unsupportedObject.readCount ?? 0, 0, "unsupported declared MIME is rejected before reading bytes");
+    assert.ok(corruptObject.readCount > 0);
+    assert.ok(mismatchObject.readCount > 0);
+    assert.ok(pixelsObject.readCount > 0);
+    assert.equal(objects.get(cases[0].path).metadata.contentType, "image/png");
+    assert.equal((await adminPool.query(
+      `SELECT count(*)::int AS count FROM ${quote("memories")}`,
+    )).rows[0].count, cases.length);
+  } finally {
+    await api.close();
+    if (originalPrivateObjectDir === undefined) delete process.env.PRIVATE_OBJECT_DIR;
+    else process.env.PRIVATE_OBJECT_DIR = originalPrivateObjectDir;
+  }
+});
+
+test("memory database failure cleans only its unreferenced derived object and cannot touch check-in rewards", async () => {
+  await reset();
+  const owner = await seedMemoryJourney("memory-write-failure", "memory-write-failure");
+  const originalPrivateObjectDir = process.env.PRIVATE_OBJECT_DIR;
+  process.env.PRIVATE_OBJECT_DIR = "/test-bucket/private";
+  const sourcePath = "/objects/uploads/write-failure-source";
+  const source = setMemoryStorageObject(sourcePath, {
+    userId: owner.userId,
+    retainedMetadata: "source stays intact",
+  });
+  const sourceMetadata = structuredClone(source.metadata);
+  await adminPool.query(
+    `CREATE FUNCTION ${quote("reject_memory_insert")}() RETURNS trigger
+     LANGUAGE plpgsql AS $$
+     BEGIN
+       RAISE EXCEPTION 'injected memory insert failure';
+     END;
+     $$`,
+  );
+  await adminPool.query(
+    `CREATE TRIGGER reject_memory_insert BEFORE INSERT ON ${quote("memories")}
+     FOR EACH ROW EXECUTE FUNCTION ${quote("reject_memory_insert")}()`,
+  );
+  const api = await startJourneyApi(owner.userId);
+  try {
+    const before = await memoryFinancialAndCompletionState(
+      owner.userId, owner.habitId, owner.startDate,
+    );
+    const response = await api.request("/memories", "POST", {
+      habitId: owner.habitId,
+      date: owner.startDate,
+      photoObjectPath: sourcePath,
+      caption: "The database insert will fail",
+    });
+    assert.equal(response.status, 500);
+    assert.equal((await adminPool.query(
+      `SELECT count(*)::int AS count FROM ${quote("memories")}`,
+    )).rows[0].count, 0);
+    assert.equal((await adminPool.query(
+      `SELECT count(*)::int AS count FROM ${quote("object_uploads")}
+       WHERE object_path LIKE '/objects/memory-images/%'`,
+    )).rows[0].count, 0, "verified unreferenced output provenance is cleaned on insert failure");
+    assert.equal([...service.mockStorageObjects.keys()]
+      .some((key) => key.includes("/memory-images/")), false,
+    "the unique unreferenced derived image is removed");
+    assert.deepEqual(source.metadata, sourceMetadata, "failed persistence never modifies source metadata");
+    assert.deepEqual(source.data, validMemoryPng, "failed persistence never modifies source bytes");
+    assert.deepEqual(
+      await memoryFinancialAndCompletionState(owner.userId, owner.habitId, owner.startDate),
+      before,
+      "memory persistence failure does not alter successful check-in, XP, coins, or reward state",
+    );
+  } finally {
+    await api.close();
+    await adminPool.query(`DROP TRIGGER IF EXISTS reject_memory_insert ON ${quote("memories")}`);
+    await adminPool.query(`DROP FUNCTION IF EXISTS ${quote("reject_memory_insert")}()`);
+    if (originalPrivateObjectDir === undefined) delete process.env.PRIVATE_OBJECT_DIR;
+    else process.env.PRIVATE_OBJECT_DIR = originalPrivateObjectDir;
+  }
+});
+
+test("social check-in fanout is event-time, transition-only, and includes current group shares", async () => {
+  await reset();
+  const ownerId = await seedUser({ id: "social-checkin-owner" });
+  await seedUser({ id: "social-checkin-friend" });
+  await adminPool.query(
+    `INSERT INTO ${quote("social_friendships")} (user_low_id, user_high_id)
+     VALUES ('social-checkin-friend', 'social-checkin-owner')`,
+  );
+  const privateHabitId = await seedHabit({ userId: ownerId });
+  await seedDailyJourney(privateHabitId, dailyToday);
+  await service.recordCheckin(ownerId, privateHabitId, input(dailyToday));
+  await adminPool.query(
+    `INSERT INTO ${quote("social_shares")} (owner_user_id, resource_type, resource_id, visibility)
+     VALUES ($1, 'journey', $2, 'friends')`,
+    [ownerId, String(privateHabitId)],
+  );
+  await service.recordCheckin(ownerId, privateHabitId, input(dailyToday));
+  assert.equal((await adminPool.query(
+    `SELECT count(*)::int AS n FROM ${quote("social_activity_events")} WHERE journey_id = $1`,
+    [privateHabitId],
+  )).rows[0].n, 0, "sharing enabled after a success does not publish or backfill the historical transition");
+
+  const sharedHabitId = await seedHabit({ userId: ownerId });
+  const journeyStart = addDays(dailyToday, -4);
+  await seedDailyJourney(sharedHabitId, journeyStart);
+  for (let dayOffset = 0; dayOffset < 4; dayOffset++) {
+    await adminPool.query(
+      `INSERT INTO ${quote("checkins")} (habit_id, user_id, date, completed, value)
+       VALUES ($1, $2, $3, true, 10)`,
+      [sharedHabitId, ownerId, addDays(journeyStart, dayOffset)],
+    );
+  }
+  await adminPool.query(
+    `INSERT INTO ${quote("social_shares")} (owner_user_id, resource_type, resource_id, visibility)
+     VALUES ($1, 'journey', $2, 'friends')`,
+    [ownerId, String(sharedHabitId)],
+  );
+  const group = (await adminPool.query(
+    `INSERT INTO ${quote("groups")}
+       (name, invite_code, goal_description, start_date, created_by)
+     VALUES ('Shared journey group', 'SOCIAL-CHECKIN', 'Make progress', $1, $2)
+     RETURNING id`,
+    [dailyToday, ownerId],
+  )).rows[0];
+  await adminPool.query(
+    `INSERT INTO ${quote("group_members")} (group_id, user_id, role)
+     VALUES ($1, $2, 'owner'), ($1, 'social-checkin-friend', 'member')`,
+    [group.id, ownerId],
+  );
+  await adminPool.query(
+    `INSERT INTO ${quote("social_group_journey_shares")} (group_id, user_id, habit_id)
+     VALUES ($1, $2, $3)`,
+    [group.id, ownerId, sharedHabitId],
+  );
+  await service.recordCheckin(ownerId, sharedHabitId, input(dailyToday));
+  await service.recordCheckin(ownerId, sharedHabitId, input(dailyToday));
+  assert.equal((await adminPool.query(
+    `SELECT count(*)::int AS n FROM ${quote("social_activity_events")}
+     WHERE journey_id = $1 AND event_type = 'successful_day'`,
+    [sharedHabitId],
+  )).rows[0].n, 1);
+  assert.equal((await adminPool.query(
+    `SELECT count(*)::int AS n FROM ${quote("social_group_activity_events")}
+     WHERE group_id = $1 AND journey_id = $2 AND event_type = 'successful_day'`,
+    [group.id, sharedHabitId],
+  )).rows[0].n, 1, "a current group journey share emits only one successful-day event");
+  assert.equal((await adminPool.query(
+    `SELECT count(*)::int AS n FROM ${quote("social_group_activity_events")}
+     WHERE group_id = $1 AND journey_id = $2 AND event_type = 'milestone'`,
+    [group.id, sharedHabitId],
+  )).rows[0].n, 1, "the fifth scheduled success emits one group milestone");
+  assert.equal((await adminPool.query(
+    `SELECT count(*)::int AS n FROM ${quote("social_notifications")}
+     WHERE recipient_user_id = 'social-checkin-friend'
+       AND type = 'shared_milestone'`,
+  )).rows[0].n, 1, "the live friend audience receives the milestone notification once");
+  assert.equal((await adminPool.query(
+    `SELECT count(*)::int AS n FROM ${quote("social_notifications")}
+     WHERE recipient_user_id = 'social-checkin-friend'
+       AND type = 'group_milestone'`,
+  )).rows[0].n, 1, "the current group audience receives its milestone notification once");
+});
+
+test("Feature 10 dashboard PostgreSQL HTTP acceptance matrix", async (t) => {
+  await t.test("authentication, empty/new/no-habit, concurrency, and the whole-row no-write boundary", async () => {
+    await reset();
+    const ownerId = await seedDashboardUser({ onboardingCompleted: false });
+    const api = await startJourneyApi(ownerId);
+    try {
+      const unauthorized = await api.request("/dashboard", "GET", undefined, null);
+      assert.equal(unauthorized.status, 401);
+      await adminPool.query(`TRUNCATE ${quote("dashboard_write_audit")}`);
+      const before = await dashboardSnapshot();
+      const responses = await Promise.all([
+        api.request("/dashboard"),
+        api.request("/dashboard"),
+        api.request("/dashboard"),
+      ]);
+      const homes = await Promise.all(responses.map(async (response) => {
+        assert.equal(response.status, 200, await response.clone().text());
+        const body = await response.json();
+        service.GetDashboardHomeResponse.parse(body);
+        return body;
+      }));
+      assert.ok(homes.every((home) => home.state === "new_user"));
+      assert.ok(homes.every((home) => home.sectionStatus.habits === "empty"));
+      assert.ok(homes.every((home) => home.focus === null && home.missedDay === null));
+      assert.ok(homes.every((home) => home.completion === null));
+      assert.deepEqual(await dashboardSnapshot(), before);
+      assert.deepEqual((await adminPool.query(`SELECT * FROM ${quote("dashboard_write_audit")}`)).rows, []);
+
+      await adminPool.query(`UPDATE ${quote("users")} SET onboarding_completed = true WHERE id = $1`, [ownerId]);
+      const noHabit = await assertDashboardReadOnly(() => currentDashboardResponse(api));
+      assert.equal(noHabit.state, "no_habit");
+      assert.equal(noHabit.completion, null);
+      assert.equal(noHabit.profile.coins, 0);
+      assert.equal(noHabit.character.walletCoins, 0);
+    } finally {
+      await api.close();
+    }
+  });
+
+  await t.test("tracking active/paused contexts and analysis-available versus rest-day states", async () => {
+    await reset();
+    const ownerId = await seedDashboardUser({ id: "dashboard-context-owner" });
+    const habit = await seedHabit({ userId: ownerId });
+    await seedDailyJourney(habit, dailyToday);
+    await adminPool.query(
+      `UPDATE ${quote("habit_days")} SET scheduled = false WHERE habit_id = $1 AND date = $2`,
+      [habit, dailyToday],
+    );
+    await adminPool.query(
+      `INSERT INTO ${quote("tracking_sessions")} (user_id, date, status, interval_minutes)
+       VALUES ($1,$2,'active',15)`,
+      [ownerId, dailyToday],
+    );
+    const api = await startJourneyApi(ownerId);
+    try {
+      const active = await assertDashboardReadOnly(() => currentDashboardResponse(api));
+      assert.equal(active.focus, null);
+      assert.equal(active.state, "tracking_active");
+      await adminPool.query(
+        `UPDATE ${quote("tracking_sessions")} SET status = 'paused' WHERE user_id = $1 AND date = $2`,
+        [ownerId, dailyToday],
+      );
+      const paused = await assertDashboardReadOnly(() => currentDashboardResponse(api));
+      assert.equal(paused.state, "tracking_paused");
+      await adminPool.query(`DELETE FROM ${quote("tracking_sessions")} WHERE user_id = $1`, [ownerId]);
+      const rest = await assertDashboardReadOnly(() => currentDashboardResponse(api));
+      assert.equal(rest.state, "rest_day");
+      const analysis = {
+        status: "ready", headline: "Saved", observation: "", pattern: "", opportunity: "",
+        suggestedChange: null, replacements: [],
+      };
+      await adminPool.query(
+        `INSERT INTO ${quote("day_analysis_cache")} (user_id, date, data_hash, analysis)
+         VALUES ($1,$2,'old-hash',$3::jsonb)`,
+        [ownerId, dailyToday, JSON.stringify(analysis)],
+      );
+      const available = await assertDashboardReadOnly(() => currentDashboardResponse(api));
+      assert.equal(available.state, "analysis_available");
+      await adminPool.query(
+        `UPDATE ${quote("habit_days")} SET scheduled = true WHERE habit_id = $1 AND date = $2`,
+        [habit, dailyToday],
+      );
+      const journeyFocus = await assertDashboardReadOnly(() => currentDashboardResponse(api));
+      assert.equal(journeyFocus.focus.habit.id, habit);
+      assert.equal(journeyFocus.journey.habitId, habit, "the focused 22-day journey owns the primary journey preview");
+      assert.equal(journeyFocus.journey.status, "active");
+    } finally {
+      await api.close();
+    }
+  });
+
+  await t.test("confirmed time, Arabic categories, cached/stale coach inputs, and owner-only character/memory/social projections", async () => {
+    await reset();
+    const ownerId = await seedDashboardUser({
+      id: "dashboard-owner-projection", timezone: "Asia/Riyadh", level: 4, xp: 55, coins: 123,
+    });
+    const friendId = await seedDashboardUser({ id: "dashboard-friend-projection", level: 9, xp: 88, coins: 777 });
+    const ownerHabit = await seedHabit({ userId: ownerId });
+    const riyadhToday = dateInTimezone(new Date(), "Asia/Riyadh");
+    await adminPool.query(
+      `INSERT INTO ${quote("time_entries")} (user_id, label, duration_minutes, date, category, source)
+       VALUES ($1,'Study',25,$2,'study','manual'),($1,'Study 2',15,$2,'study','manual'),
+             ($1,'Exercise',20,$2,'exercise','manual')`,
+      [ownerId, riyadhToday],
+    );
+    await adminPool.query(
+      `INSERT INTO ${quote("tracking_sessions")} (user_id, date, status, interval_minutes, started_at)
+       VALUES ($1,$2,'active',15,now())`,
+      [ownerId, riyadhToday],
+    );
+    await adminPool.query(
+      `INSERT INTO ${quote("memories")} (user_id, habit_id, note, caption, visibility, date)
+       VALUES ($1,$2,'owner-private-memory','Owner caption','private',$3),
+             ($4,$2,'foreign-private-memory','Foreign caption','private',$3)`,
+      [ownerId, ownerHabit, riyadhToday, friendId],
+    );
+    const [item] = (await adminPool.query(
+      `INSERT INTO ${quote("character_items")} (name, slot, emoji, coin_cost, level_required)
+       VALUES ('Dashboard Hat','hat','🎩',20,2) RETURNING id`,
+    )).rows;
+    await adminPool.query(
+      `INSERT INTO ${quote("user_character_items")} (user_id, item_id, equipped) VALUES ($1,$2,true)`,
+      [ownerId, item.id],
+    );
+    await adminPool.query(
+      `INSERT INTO ${quote("social_friendships")} (user_low_id, user_high_id) VALUES ($1,$2)`,
+      [ownerId < friendId ? ownerId : friendId, ownerId < friendId ? friendId : ownerId],
+    );
+    const friendHabit = await seedHabit({ userId: friendId });
+    await seedDailyJourney(friendHabit, dailyToday);
+    await adminPool.query(
+      `INSERT INTO ${quote("social_shares")} (owner_user_id, resource_type, resource_id, visibility)
+       VALUES ($1,'journey',$2,'friends'),($1,'character','profile','private')`,
+      [friendId, String(friendHabit)],
+    );
+    const hash = await service.getCurrentTrackedAnalysisHash(ownerId, riyadhToday, "Asia/Riyadh", null);
+    const analysis = {
+      status: "ready", headline: "A steady day", observation: "Confirmed work was logged.",
+      pattern: "Study led today's time.", opportunity: "Keep the routine.",
+      suggestedChange: null, replacements: [],
+    };
+    await adminPool.query(
+      `INSERT INTO ${quote("day_analysis_cache")} (user_id, date, data_hash, analysis)
+       VALUES ($1,$2,$3,$4::jsonb)`,
+      [ownerId, riyadhToday, hash, JSON.stringify(analysis)],
+    );
+    let providerCalls = 0;
+    const originalGenerateText = service.geminiProvider.generateText;
+    service.geminiProvider.generateText = async () => {
+      providerCalls += 1;
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      return JSON.stringify(analysis);
+    };
+    const api = await startJourneyApi(ownerId);
+    try {
+      const home = await assertDashboardReadOnly(() => currentDashboardResponse(api));
+      assert.equal(home.time.trackedMinutes, 60);
+      assert.deepEqual(home.time.categoryTotals.map(({ category }) => category), ["study", "exercise"]);
+      assert.equal(home.time.categoryTotals[0].label, "الدراسة");
+      assert.equal(home.time.categoryTotals[1].label, "الرياضة");
+      assert.equal(home.time.session.status, "active");
+      assert.equal(home.coach.analysis.headline, analysis.headline);
+      assert.equal(home.coach.isStale, false);
+      assert.equal(home.profile.coins, 123);
+      assert.equal(home.character.walletCoins, 123);
+      assert.equal(home.character.level, 4);
+      assert.equal(home.character.totalXp, 415);
+      assert.deepEqual(home.character.equippedItems.map(({ name }) => name), ["Dashboard Hat"]);
+      assert.equal(home.memory.note, "owner-private-memory");
+      assert.equal(JSON.stringify(home).includes("foreign-private-memory"), false);
+      assert.equal(home.friends.length, 1);
+      assert.equal(home.friends[0].journey.title, "Walk");
+      assert.deepEqual(home.friends[0].character, [], "private character ACL does not hide independently shared journey");
+      assert.equal(providerCalls, 0, "dashboard must never call the analysis provider");
+
+      await adminPool.query(
+        `INSERT INTO ${quote("time_entries")} (user_id, label, duration_minutes, date, category, source)
+         VALUES ($1,'New confirmed category',1,$2,'rest','manual')`,
+        [ownerId, riyadhToday],
+      );
+      await adminPool.query(`TRUNCATE ${quote("dashboard_write_audit")}`);
+      const stale = await assertDashboardReadOnly(() => currentDashboardResponse(api));
+      assert.equal(stale.coach.isStale, true, "confirmed analysis-input change marks saved analysis stale");
+      assert.equal(stale.time.trackedMinutes, 61);
+      assert.equal(providerCalls, 0);
+
+      await adminPool.query(
+        `UPDATE ${quote("social_shares")} SET visibility = 'friends'
+         WHERE owner_user_id = $1 AND resource_type = 'character'`,
+        [friendId],
+      );
+      const friendItem = (await adminPool.query(
+        `INSERT INTO ${quote("character_items")} (name, slot, emoji, coin_cost, level_required)
+         VALUES ('Friend Hoodie','outfit','🧥',30,3) RETURNING id`,
+      )).rows[0];
+      await adminPool.query(
+        `INSERT INTO ${quote("user_character_items")} (user_id, item_id, equipped) VALUES ($1,$2,true)`,
+        [friendId, friendItem.id],
+      );
+      const sharedCharacter = await assertDashboardReadOnly(() => currentDashboardResponse(api));
+      assert.ok(sharedCharacter.friends[0].character.length > 0);
+      assert.equal(sharedCharacter.friends[0].journey.title, "Walk");
+      await adminPool.query(
+        `UPDATE ${quote("social_shares")} SET visibility = 'private'
+         WHERE owner_user_id = $1 AND resource_type = 'journey'`,
+        [friendId],
+      );
+      const revokedJourney = await assertDashboardReadOnly(() => currentDashboardResponse(api));
+      assert.equal(revokedJourney.friends[0].journey, null);
+      assert.ok(revokedJourney.friends[0].character.length > 0, "journey revocation does not revoke separately shared character");
+      await adminPool.query(
+        `INSERT INTO ${quote("social_blocks")} (blocker_user_id, blocked_user_id) VALUES ($1,$2)`,
+        [friendId, ownerId],
+      );
+      const blocked = await assertDashboardReadOnly(() => currentDashboardResponse(api));
+      assert.deepEqual(blocked.friends, []);
+    } finally {
+      service.geminiProvider.generateText = originalGenerateText;
+      await api.close();
+    }
+  });
+
+  await t.test("active and paused tracking, deterministic multiple focus, snapshot types, and virtual revision-zero start/finish", async () => {
+    await reset();
+    const ownerId = await seedDashboardUser({ id: "dashboard-focus-owner" });
+    const ids = [];
+    for (let index = 0; index < 6; index++) ids.push(await seedHabit({ userId: ownerId }));
+    await seedDashboardExecution(ids[0], dailyToday, { status: "completed" });
+    await seedDashboardExecution(ids[1], dailyToday, { status: "pending", executionType: "count", unit: "count" });
+    await seedDashboardExecution(ids[2], dailyToday, { status: "paused", executionType: "boolean", unit: "custom", goalType: "quit" });
+    await seedDashboardExecution(ids[3], dailyToday, {
+      status: "in_progress", lastResumedAt: new Date(Date.now() - 30_000),
+      startedAt: new Date(Date.now() - 60_000), executionType: "duration",
+    });
+    await seedDashboardExecution(ids[4], dailyToday, { status: "minimum_reached", executionType: "limit", unit: "count", goalType: "quit" });
+    await seedDashboardExecution(ids[5], dailyToday, {
+      status: "target_reached", targetValue: 0.5, minimumValue: 0.25, actualValue: 0.5,
+    });
+    const api = await startJourneyApi(ownerId);
+    try {
+      const active = await assertDashboardReadOnly(() => currentDashboardResponse(api));
+      assert.equal(active.state, "habit_in_progress", JSON.stringify(active));
+      assert.equal(active.focus.habit.id, ids[3]);
+      assert.equal(active.focus.execution.actualValue, null, "elapsed timer time is not recorded activity");
+      assert.ok(active.focus.execution.elapsedSeconds > 0);
+      assert.equal(active.otherHabits.length, 5);
+      assert.deepEqual(active.otherHabits.map(({ habit }) => habit.id), [ids[2], ids[1], ids[4], ids[0], ids[5]]);
+      assert.equal(active.otherHabits[0].execution.executionType, "boolean");
+      assert.equal(active.otherHabits[1].execution.status, "pending");
+      assert.equal(active.otherHabits[2].execution.status, "minimum_reached");
+      assert.equal(active.otherHabits[2].execution.executionType, "limit");
+      assert.equal(active.otherHabits[2].execution.goalType, "quit");
+      assert.equal(active.otherHabits[4].execution.status, "target_reached");
+      assert.equal(active.otherHabits[4].execution.targetValue, 0.5);
+      assert.equal(active.otherHabits[4].execution.actualValue, 0.5);
+
+      await reset();
+      const adaptedOwner = await seedDashboardUser({ id: "dashboard-adapted-snapshot-owner" });
+      const adaptedHabit = await seedHabit({ userId: adaptedOwner });
+      await seedDailyJourney(adaptedHabit, dailyToday, {
+        targetValue: 0.5, minimumValue: 0.25, unit: "minutes", executionType: "duration",
+      });
+      await applyFuturePlanRevision(adaptedHabit, 17);
+      const adaptedApi = await startJourneyApi(adaptedOwner);
+      try {
+        const adapted = await assertDashboardReadOnly(() => currentDashboardResponse(adaptedApi));
+        assert.equal(adapted.focus.execution.planRevision, 1);
+        assert.equal(adapted.focus.execution.targetValue, 0.5);
+        assert.equal(adapted.focus.execution.minimumValue, 0.25);
+        const future = await adminPool.query(
+          `SELECT plan_revision, target_value, minimum_value FROM ${quote("habit_days")}
+           WHERE habit_id = $1 AND date = $2`,
+          [adaptedHabit, addDays(dailyToday, 1)],
+        );
+        assert.deepEqual(future.rows[0], { plan_revision: 2, target_value: 17, minimum_value: 5 });
+      } finally {
+        await adaptedApi.close();
+      }
+
+      await reset();
+      const freshOwner = await seedDashboardUser({ id: "dashboard-virtual-owner" });
+      const virtualHabit = await seedHabit({ userId: freshOwner });
+      await seedDailyJourney(virtualHabit, dailyToday, {
+        targetValue: 0.0001, minimumValue: 0.0001, unit: "minutes", executionType: "duration",
+      });
+      const virtualApi = await startJourneyApi(freshOwner);
+      try {
+        const virtual = await assertDashboardReadOnly(() => currentDashboardResponse(virtualApi));
+        assert.equal(virtual.focus.execution.revision, 0);
+        assert.equal(virtual.focus.execution.planRevision, 1);
+        assert.equal(virtual.focus.execution.status, "pending");
+        const started = await virtualApi.request(`/habits/${virtualHabit}/daily/actions`, "POST", {
+          date: dailyToday, action: "start", expectedRevision: 0,
+        });
+        assert.equal(started.status, 200, await started.clone().text());
+        const startedBody = await started.json();
+        assert.equal(startedBody.execution.revision, 1);
+        await new Promise((resolve) => setTimeout(resolve, 1_100));
+        const finished = await virtualApi.request(`/habits/${virtualHabit}/daily/actions`, "POST", {
+          date: dailyToday, action: "finish", expectedRevision: 1,
+        });
+        assert.equal(finished.status, 200, await finished.clone().text());
+        assert.equal((await finished.json()).execution.status, "target_reached");
+        const row = await adminPool.query(
+          `SELECT revision, status FROM ${quote("habit_daily_executions")} WHERE habit_id = $1 AND date = $2`,
+          [virtualHabit, dailyToday],
+        );
+        assert.deepEqual(row.rows[0], { revision: 2, status: "target_reached" });
+      } finally {
+        await virtualApi.close();
+      }
+
+      await reset();
+      const countOwner = await seedDashboardUser({ id: "dashboard-paid-count-owner", coins: 40 });
+      const countHabit = await seedHabit({ userId: countOwner });
+      await seedDailyJourney(countHabit, dailyToday, {
+        targetValue: 10, minimumValue: 5, unit: "count", executionType: "count",
+      });
+      const countApi = await startJourneyApi(countOwner);
+      try {
+        const initial = await assertDashboardReadOnly(() => currentDashboardResponse(countApi));
+        let revision = initial.focus.execution.revision;
+        const paid = await countApi.request(`/habits/${countHabit}/daily/actions`, "POST", {
+          date: dailyToday, action: "done", value: 5, expectedRevision: revision,
+        });
+        assert.equal(paid.status, 200, await paid.clone().text());
+        let result = await paid.json();
+        assert.equal(result.execution.status, "pending_reflection");
+        assert.equal(result.execution.actualValue, 5);
+        assert.ok(result.rewardDelta.coins > 0);
+        assert.ok(result.rewardDelta.xp > 0);
+        const initialReward = result.rewardDelta;
+        revision = result.execution.revision;
+        for (let value = 6; value <= 10; value++) {
+          const updated = await countApi.request(`/habits/${countHabit}/daily/actions`, "POST", {
+            date: dailyToday, action: "update_progress", value, expectedRevision: revision,
+          });
+          assert.equal(updated.status, 200, `count update ${value}: ${await updated.clone().text()}`);
+          result = await updated.json();
+          assert.equal(result.execution.status, "pending_reflection");
+          assert.equal(result.execution.actualValue, value);
+          assert.deepEqual(result.rewardDelta, { xp: 0, coins: 0 });
+          revision = result.execution.revision;
+        }
+        const [checkin] = (await adminPool.query(
+          `SELECT completed, value, coins_earned, xp_earned, reward_granted, note
+           FROM ${quote("checkins")} WHERE habit_id = $1 AND date = $2`,
+          [countHabit, dailyToday],
+        )).rows;
+        assert.deepEqual(checkin, {
+          completed: true,
+          value: 10,
+          coins_earned: initialReward.coins,
+          xp_earned: initialReward.xp,
+          reward_granted: true,
+          note: null,
+        });
+        assert.equal((await adminPool.query(
+          `SELECT coins FROM ${quote("users")} WHERE id = $1`, [countOwner],
+        )).rows[0].coins, 40 + initialReward.coins);
+        assert.equal((await adminPool.query(
+          `SELECT count(*)::int AS count FROM ${quote("coin_transactions")} WHERE user_id = $1`,
+          [countOwner],
+        )).rows[0].count, 1);
+      } finally {
+        await countApi.close();
+      }
+
+      await reset();
+      const durationOwner = await seedDashboardUser({ id: "dashboard-paid-duration-owner", coins: 40 });
+      const durationHabit = await seedHabit({ userId: durationOwner });
+      await seedDailyJourney(durationHabit, dailyToday, {
+        targetValue: 10, minimumValue: 5, unit: "minutes", executionType: "duration",
+      });
+      const durationApi = await startJourneyApi(durationOwner);
+      try {
+        const initial = await assertDashboardReadOnly(() => currentDashboardResponse(durationApi));
+        const paid = await durationApi.request(`/habits/${durationHabit}/daily/actions`, "POST", {
+          date: dailyToday, action: "done", value: 300, expectedRevision: initial.focus.execution.revision,
+        });
+        assert.equal(paid.status, 200, await paid.clone().text());
+        const paidState = await paid.json();
+        assert.equal(paidState.execution.status, "pending_reflection");
+        assert.equal(paidState.execution.actualValue, 5);
+        assert.ok(paidState.rewardDelta.coins > 0);
+        const initialReward = paidState.rewardDelta;
+        const started = await durationApi.request(`/habits/${durationHabit}/daily/actions`, "POST", {
+          date: dailyToday, action: "start", expectedRevision: paidState.execution.revision,
+        });
+        assert.equal(started.status, 200, await started.clone().text());
+        const startedState = await started.json();
+        await new Promise((resolve) => setTimeout(resolve, 1_100));
+        const finished = await durationApi.request(`/habits/${durationHabit}/daily/actions`, "POST", {
+          date: dailyToday, action: "finish", expectedRevision: startedState.execution.revision,
+        });
+        assert.equal(finished.status, 200, await finished.clone().text());
+        const finishedState = await finished.json();
+        assert.equal(finishedState.execution.status, "minimum_reached");
+        assert.ok(finishedState.execution.actualValue >= 5);
+        assert.ok(finishedState.execution.actualValue < 10);
+        assert.deepEqual(finishedState.rewardDelta, { xp: 0, coins: 0 });
+        const [checkin] = (await adminPool.query(
+          `SELECT value, coins_earned, xp_earned, reward_granted FROM ${quote("checkins")}
+           WHERE habit_id = $1 AND date = $2`,
+          [durationHabit, dailyToday],
+        )).rows;
+        assert.equal(checkin.value, finishedState.execution.actualValue);
+        assert.deepEqual(
+          { coins: checkin.coins_earned, xp: checkin.xp_earned, rewardGranted: checkin.reward_granted },
+          { coins: initialReward.coins, xp: initialReward.xp, rewardGranted: true },
+        );
+        assert.equal((await adminPool.query(
+          `SELECT coins FROM ${quote("users")} WHERE id = $1`, [durationOwner],
+        )).rows[0].coins, 40 + initialReward.coins);
+        assert.equal((await adminPool.query(
+          `SELECT count(*)::int AS count FROM ${quote("coin_transactions")} WHERE user_id = $1`,
+          [durationOwner],
+        )).rows[0].count, 1);
+      } finally {
+        await durationApi.close();
+      }
+    } finally {
+      await api.close();
+    }
+  });
+
+  await t.test("missed-day reflection/adaptation API, valid 22nd success, expiration, rest, and persisted reward are read-only on GET", async () => {
+    await reset();
+    const ownerId = await seedDashboardUser({ id: "dashboard-lifecycle-owner", coins: 50 });
+    const adaptationHabit = await seedHabit({ userId: ownerId });
+    const adaptationStart = addDays(dailyToday, -3);
+    await seedDailyJourney(adaptationHabit, adaptationStart);
+    const missedDate = addDays(dailyToday, -1);
+    await seedDashboardExecution(adaptationHabit, missedDate, { status: "missed", missedReason: "no_time" });
+    const api = await startJourneyApi(ownerId);
+    try {
+      let home = await assertDashboardReadOnly(() => currentDashboardResponse(api));
+      assert.equal(home.missedDay.execution.missedReason, "no_time");
+      assert.equal(home.missedDay.execution.adaptationDecision, null);
+      assert.equal(home.state, "adaptation_required");
+      const reflection = await api.request(
+        `/habits/${adaptationHabit}/daily/${missedDate}/reflection`, "PATCH",
+        { missedReason: "no_time", note: "Schedule was unexpectedly full." },
+      );
+      assert.equal(reflection.status, 200, await reflection.clone().text());
+      const decision = await api.request(
+        `/habits/${adaptationHabit}/daily/${missedDate}/adaptation-decision`, "POST",
+        { decision: "rejected" },
+      );
+      assert.equal(decision.status, 200, await decision.clone().text());
+      const changedMiss = await adminPool.query(
+        `SELECT missed_reason, adaptation_decision FROM ${quote("habit_daily_executions")}
+         WHERE habit_id = $1 AND date = $2`,
+        [adaptationHabit, missedDate],
+      );
+      assert.deepEqual(changedMiss.rows[0], { missed_reason: "no_time", adaptation_decision: "rejected" });
+
+      await reset();
+      const completionOwner = await seedDashboardUser({ id: "dashboard-completion-owner", coins: 19 });
+      const completedHabit = await seedHabit({ userId: completionOwner });
+      const completionStart = addDays(dailyToday, -21);
+      await seedDailyJourney(completedHabit, completionStart);
+      for (let dayNumber = 1; dayNumber <= 22; dayNumber++) {
+        if (dayNumber === 5) continue;
+        const date = addDays(completionStart, dayNumber - 1);
+        await adminPool.query(
+          `INSERT INTO ${quote("checkins")} (
+             habit_id, user_id, date, completed, value, target_completed, coins_earned, xp_earned
+           ) VALUES ($1,$2,$3,true,10,true,0,5)`,
+          [completedHabit, completionOwner, date],
+        );
+      }
+      const legacyFocusHabit = await seedHabit({ userId: completionOwner });
+      await adminPool.query(
+        `UPDATE ${quote("habits")} SET created_at = created_at - interval '7 days' WHERE id = $1`,
+        [legacyFocusHabit],
+      );
+      await seedDashboardExecution(legacyFocusHabit, addDays(dailyToday, -1), { status: "missed" });
+      const activeJourneyHabit = await seedHabit({ userId: completionOwner });
+      await seedDailyJourney(activeJourneyHabit, addDays(dailyToday, -3));
+      for (let offset = 1; offset <= 3; offset++) {
+        await adminPool.query(
+          `INSERT INTO ${quote("checkins")} (habit_id, user_id, date, completed, value)
+           VALUES ($1,$2,$3,true,10)`,
+          [activeJourneyHabit, completionOwner, addDays(dailyToday, -offset)],
+        );
+      }
+      await adminPool.query(
+        `INSERT INTO ${quote("journey_rewards")} (user_id, habit_id, title, type, status)
+         VALUES ($1,$2,'Persisted reward','experience','pending')`,
+        [completionOwner, completedHabit],
+      );
+      await adminPool.query(
+        `INSERT INTO ${quote("journey_rewards")} (user_id, habit_id, title, type, status)
+         VALUES ($1,$2,'Active context reward','experience','pending')`,
+        [completionOwner, activeJourneyHabit],
+      );
+      await adminPool.query(
+        `UPDATE ${quote("habits")} SET is_active = false WHERE id = $1`,
+        [completedHabit],
+      );
+      const foreignOwner = await seedDashboardUser({ id: "dashboard-foreign-reward-owner" });
+      const foreignHabit = await seedHabit({ userId: foreignOwner });
+      await seedDailyJourney(foreignHabit, addDays(dailyToday, -21));
+      await adminPool.query(
+        `INSERT INTO ${quote("journey_rewards")} (user_id, habit_id, title, type, status)
+         VALUES ($1,$2,'foreign-secret-reward','experience','claimed')`,
+        [foreignOwner, foreignHabit],
+      );
+      const completionApi = await startJourneyApi(completionOwner);
+      try {
+        await adminPool.query(`TRUNCATE ${quote("dashboard_write_audit")}`);
+        const persistedRewards = await adminPool.query(`SELECT * FROM ${quote("journey_rewards")} ORDER BY id`);
+        await adminPool.query(
+          `ALTER TABLE ${quote("journey_rewards")} RENAME TO "journey_rewards_dashboard_completion_failure"`,
+        );
+        try {
+          const response = await completionApi.request("/dashboard");
+          assert.equal(response.status, 200, await response.clone().text());
+          const rewardUnavailable = service.GetDashboardHomeResponse.parse(await response.json());
+          assert.equal(rewardUnavailable.sectionStatus.reward, "unavailable");
+          assert.equal(rewardUnavailable.completion?.journey.habitId, completedHabit,
+            `${JSON.stringify(rewardUnavailable)} errors=${JSON.stringify(completionApi.requestErrors)}`);
+          assert.equal(rewardUnavailable.completion.reward, null);
+          assert.equal(rewardUnavailable.journey.habitId, activeJourneyHabit);
+          assert.deepEqual((await adminPool.query(`SELECT * FROM ${quote("dashboard_write_audit")}`)).rows, []);
+          assert.deepEqual(
+            (await adminPool.query(
+              `SELECT * FROM ${quote("journey_rewards_dashboard_completion_failure")} ORDER BY id`,
+            )).rows,
+            persistedRewards.rows,
+          );
+        } finally {
+          await adminPool.query(
+            `ALTER TABLE ${quote("journey_rewards_dashboard_completion_failure")} RENAME TO "journey_rewards"`,
+          );
+        }
+        const completion = await assertDashboardReadOnly(() => currentDashboardResponse(completionApi));
+        assert.equal(completion.focus.habit.id, legacyFocusHabit, "the different current action remains the primary focus");
+        assert.equal(completion.journey.status, "active", "the separate current active journey remains the main journey context");
+        assert.equal(completion.journey.habitId, activeJourneyHabit);
+        assert.equal(completion.reward.title, "Active context reward");
+        assert.equal(completion.completion.journey.status, "completed");
+        assert.equal(completion.completion.journey.habitId, completedHabit);
+        assert.equal(completion.completion.journey.currentDay, 22);
+        assert.equal(completion.completion.reward.currentDay, 22);
+        assert.equal(completion.completion.reward.daysRemaining, 0);
+        assert.equal(completion.completion.reward.title, "Persisted reward", "completion reward belongs to the completed habit, not the active context");
+        assert.equal(completion.state, "missed_day", "the completion celebration does not hide the current action or earlier reflection");
+        assert.equal(String(completion.missedDay.execution.date).slice(0, 10), addDays(dailyToday, -1));
+        assert.equal(completion.completion.reward.status, "pending", "GET does not unlock persisted rewards");
+        assert.equal(JSON.stringify(completion).includes("foreign-secret-reward"), false);
+        const reward = await adminPool.query(
+          `SELECT status FROM ${quote("journey_rewards")} WHERE user_id = $1 AND habit_id = $2`,
+          [completionOwner, completedHabit],
+        );
+        assert.equal(reward.rows[0].status, "pending");
+        const wallet = await adminPool.query(`SELECT coins FROM ${quote("users")} WHERE id = $1`, [completionOwner]);
+        assert.equal(wallet.rows[0].coins, 19);
+      } finally {
+        await completionApi.close();
+      }
+
+      await reset();
+      const expiredOwner = await seedDashboardUser({ id: "dashboard-expired-owner" });
+      const expiredHabit = await seedHabit({ userId: expiredOwner });
+      const expiredStart = addDays(dailyToday, -22);
+      await seedDailyJourney(expiredHabit, expiredStart);
+      for (let dayNumber = 1; dayNumber <= 21; dayNumber++) {
+        await adminPool.query(
+          `INSERT INTO ${quote("checkins")} (habit_id, user_id, date, completed, value)
+           VALUES ($1,$2,$3,true,10)`,
+          [expiredHabit, expiredOwner, addDays(expiredStart, dayNumber - 1)],
+        );
+      }
+      const oldCompletedHabit = await seedHabit({ userId: expiredOwner });
+      const oldCompletedStart = addDays(dailyToday, -45);
+      await seedDailyJourney(oldCompletedHabit, oldCompletedStart);
+      for (let dayNumber = 1; dayNumber <= 22; dayNumber++) {
+        await adminPool.query(
+          `INSERT INTO ${quote("checkins")} (habit_id, user_id, date, completed, value)
+           VALUES ($1,$2,$3,true,10)`,
+          [oldCompletedHabit, expiredOwner, addDays(oldCompletedStart, dayNumber - 1)],
+        );
+      }
+      const renewedHabit = await seedHabit({ userId: expiredOwner });
+      await seedDailyJourney(renewedHabit, addDays(dailyToday, -2));
+      const expiredApi = await startJourneyApi(expiredOwner);
+      try {
+        const expired = await assertDashboardReadOnly(() => currentDashboardResponse(expiredApi));
+        assert.equal(expired.journey.status, "active", "an expired older journey does not replace the active current journey");
+        assert.equal(expired.journey.habitId, renewedHabit);
+        assert.equal(expired.completion, null);
+        assert.equal(expired.state, "missed_day");
+        assert.equal(expired.missedDay.habit.id, expiredHabit, "the old expired journey remains available as its own unresolved missed day");
+        assert.equal(expired.journey.successfulDays, 0);
+      } finally {
+        await expiredApi.close();
+      }
+
+      await reset();
+      const restOwner = await seedDashboardUser({ id: "dashboard-final-rest-owner" });
+      const restHabit = await seedHabit({ userId: restOwner });
+      let finalRestDate = addDays(dailyToday, -1);
+      while (new Date(`${finalRestDate}T00:00:00Z`).getUTCDay() !== 6) {
+        finalRestDate = addDays(finalRestDate, -1);
+      }
+      const restStart = addDays(finalRestDate, -21);
+      await seedDailyJourney(restHabit, restStart, { cadence: "weekdays" });
+      const scheduledDays = await adminPool.query(
+        `SELECT date FROM ${quote("habit_days")} WHERE habit_id = $1 AND scheduled = true ORDER BY date`,
+        [restHabit],
+      );
+      for (const { date } of scheduledDays.rows) {
+        await adminPool.query(
+          `INSERT INTO ${quote("checkins")} (habit_id, user_id, date, completed, value)
+           VALUES ($1,$2,$3,true,10)`,
+          [restHabit, restOwner, date],
+        );
+      }
+      const restApi = await startJourneyApi(restOwner);
+      try {
+        const finalRest = await assertDashboardReadOnly(() => currentDashboardResponse(restApi));
+        assert.equal(finalRest.journey.status, "completed");
+        assert.equal(finalRest.journey.currentDay, 22);
+        assert.equal(finalRest.completion.journey.habitId, restHabit);
+        assert.equal(finalRest.completion.journey.currentDay, 22);
+        assert.equal(finalRest.focus, null, "day 22 is a saved rest day with no action");
+        assert.equal(finalRest.state, "journey_complete");
+      } finally {
+        await restApi.close();
+      }
+    } finally {
+      await api.close();
+    }
+  });
+
+  await t.test("read-only expired-timer virtual revision remains compatible with real reflection materialization", async () => {
+    await reset();
+    const ownerId = await seedDashboardUser({ id: "dashboard-expired-timer-owner" });
+    const habit = await seedHabit({ userId: ownerId });
+    const yesterday = addDays(dailyToday, -1);
+    await seedDailyJourney(habit, yesterday);
+    const resumedAt = new Date(`${yesterday}T12:00:00.000Z`);
+    await seedDashboardExecution(habit, yesterday, {
+      status: "in_progress", planRevision: 1, revision: 7,
+      executionType: "duration", startedAt: resumedAt, lastResumedAt: resumedAt,
+    });
+    const api = await startJourneyApi(ownerId);
+    try {
+      const home = await assertDashboardReadOnly(() => currentDashboardResponse(api));
+      assert.equal(home.missedDay.execution.status, "missed");
+      assert.equal(home.missedDay.execution.revision, 7);
+      assert.equal(new Date(home.missedDay.execution.lastResumedAt).toISOString(), resumedAt.toISOString());
+      assert.equal(home.missedDay.execution.actualSeconds, null);
+      const persistedBefore = await adminPool.query(
+        `SELECT status, revision, last_resumed_at, actual_seconds FROM ${quote("habit_daily_executions")}
+         WHERE habit_id = $1 AND date = $2`,
+        [habit, yesterday],
+      );
+      assert.equal(persistedBefore.rows[0].status, "in_progress");
+      assert.equal(persistedBefore.rows[0].revision, 7);
+      const materialized = await api.request(`/habits/${habit}/daily/${yesterday}`);
+      assert.equal(materialized.status, 200, await materialized.clone().text());
+      const materializedState = await materialized.json();
+      assert.equal(materializedState.revision, home.missedDay.execution.revision);
+      assert.equal(materializedState.status, "missed");
+      const persistedMaterialized = await adminPool.query(
+        `SELECT revision, status, last_resumed_at FROM ${quote("habit_daily_executions")}
+         WHERE habit_id = $1 AND date = $2`,
+        [habit, yesterday],
+      );
+      assert.equal(persistedMaterialized.rows[0].revision, 7);
+      assert.equal(persistedMaterialized.rows[0].status, "missed");
+      assert.equal(persistedMaterialized.rows[0].last_resumed_at, null);
+      const reflection = await api.request(
+        `/habits/${habit}/daily/${yesterday}/reflection`, "PATCH",
+        { missedReason: "forgot", note: "A historical timer expired locally." },
+      );
+      assert.equal(reflection.status, 200, await reflection.clone().text());
+      const persistedAfter = await adminPool.query(
+        `SELECT status, revision, last_resumed_at, actual_seconds FROM ${quote("habit_daily_executions")}
+         WHERE habit_id = $1 AND date = $2`,
+        [habit, yesterday],
+      );
+      assert.equal(persistedAfter.rows[0].status, "missed");
+      assert.equal(persistedAfter.rows[0].revision, 8, "only the reflection mutation increments the revision after virtual expiry");
+      assert.equal(persistedAfter.rows[0].last_resumed_at, null);
+      assert.ok(persistedAfter.rows[0].actual_seconds > 0);
+    } finally {
+      await api.close();
+    }
+  });
+
+  await t.test("every independently-read section contains SQL failure; profile failure is a generic 500", async () => {
+    const cases = [
+      { section: "habits", table: "habit_days", expected: 200 },
+      { section: "character", table: "character_items", expected: 200 },
+      { section: "character", table: "user_character_items", expected: 200 },
+      { section: "time", table: "time_entries", expected: 200 },
+      { section: "time", table: "tracking_sessions", expected: 200 },
+      { section: "coach", table: "day_analysis_cache", expected: 200 },
+      { section: "social", table: "social_friendships", expected: 200 },
+      { section: "social", table: "social_blocks", expected: 200 },
+      { section: "social", table: "social_shares", expected: 200 },
+      { section: "social", table: "social_share_recipients", expected: 200 },
+      { section: "social", table: "user_character_items", expected: 200 },
+      { section: "social", table: "character_items", expected: 200 },
+      { section: "memory", table: "memories", expected: 200 },
+      { section: "reward", table: "journey_rewards", expected: 200 },
+    ];
+    await reset();
+    const ownerId = await seedDashboardUser({ id: "dashboard-failure-owner" });
+    const habit = await seedHabit({ userId: ownerId });
+    await seedDailyJourney(habit, dailyToday);
+    const friendId = await seedDashboardUser({ id: "dashboard-failure-friend" });
+    const [userLowId, userHighId] = [ownerId, friendId].sort();
+    await adminPool.query(
+      `INSERT INTO ${quote("social_friendships")} (user_low_id, user_high_id) VALUES ($1,$2)`,
+      [userLowId, userHighId],
+    );
+    const friendHabit = await seedHabit({ userId: friendId });
+    await seedDailyJourney(friendHabit, dailyToday);
+    const [friendItem] = (await adminPool.query(
+      `INSERT INTO ${quote("character_items")} (name, slot, emoji, coin_cost)
+       VALUES ('failure-projection-item','hat','🎩',0) RETURNING id`,
+    )).rows;
+    await adminPool.query(
+      `INSERT INTO ${quote("user_character_items")} (user_id, item_id, equipped) VALUES ($1,$2,true)`,
+      [friendId, friendItem.id],
+    );
+    const [journeyShare] = (await adminPool.query(
+      `INSERT INTO ${quote("social_shares")} (owner_user_id, resource_type, resource_id, visibility)
+       VALUES ($1,'journey',$2,'selected') RETURNING id`,
+      [friendId, String(friendHabit)],
+    )).rows;
+    await adminPool.query(
+      `INSERT INTO ${quote("social_share_recipients")} (share_id, recipient_user_id) VALUES ($1,$2)`,
+      [journeyShare.id, ownerId],
+    );
+    await adminPool.query(
+      `INSERT INTO ${quote("social_shares")} (owner_user_id, resource_type, resource_id, visibility)
+       VALUES ($1,'character','profile','friends')`,
+      [friendId],
+    );
+    const api = await startJourneyApi(ownerId);
+    try {
+      const baseline = await assertDashboardReadOnly(() => currentDashboardResponse(api));
+      assert.equal(baseline.friends.length, 1);
+      assert.ok(baseline.friends[0].journey);
+      assert.ok(baseline.friends[0].character.length);
+      for (const { section, table } of cases) {
+        await adminPool.query(`TRUNCATE ${quote("dashboard_write_audit")}`);
+        const hiddenName = `${table}_dashboard_failure`;
+        await adminPool.query(`ALTER TABLE ${quote(table)} RENAME TO "${hiddenName}"`);
+        try {
+          const response = await api.request("/dashboard");
+          assert.equal(response.status, 200, `${section} failure should not fail dashboard: ${await response.clone().text()}`);
+          const body = service.GetDashboardHomeResponse.parse(await response.json());
+          assert.equal(body.sectionStatus[section], "unavailable", `${section} must expose its partial failure`);
+          assert.ok(body.profile, `${section} failure retains owner profile`);
+          if (!["habits", "reward"].includes(section)) {
+            assert.ok(body.focus, `${section} failure retains independently-loaded habit actions`);
+          }
+          if (section === "memory") {
+            assert.equal(body.sectionStatus.habits, "ready");
+            assert.equal(body.focus.execution.memoryId, null);
+          }
+          if (section === "habits") {
+            assert.equal(body.state, "unavailable");
+            assert.equal(body.sectionStatus.journey, "unavailable", "shared saved-plan SQL failure is isolated but accurately marked");
+          }
+          assert.deepEqual((await adminPool.query(`SELECT * FROM ${quote("dashboard_write_audit")}`)).rows, []);
+        } finally {
+          await adminPool.query(`ALTER TABLE ${quote(hiddenName)} RENAME TO "${table}"`);
+        }
+      }
+
+      await adminPool.query(`TRUNCATE ${quote("dashboard_write_audit")}`);
+      await adminPool.query(`ALTER TABLE ${quote("checkins")} RENAME TO "checkins_dashboard_failure"`);
+      try {
+        const response = await api.request("/dashboard");
+        assert.equal(response.status, 200);
+        const body = service.GetDashboardHomeResponse.parse(await response.json());
+        assert.equal(body.sectionStatus.habits, "unavailable");
+        assert.equal(body.sectionStatus.journey, "unavailable");
+        assert.equal(body.sectionStatus.time, "empty");
+        assert.equal(body.profile.id, ownerId);
+        assert.deepEqual((await adminPool.query(`SELECT * FROM ${quote("dashboard_write_audit")}`)).rows, []);
+      } finally {
+        await adminPool.query(`ALTER TABLE "${schema}"."checkins_dashboard_failure" RENAME TO "checkins"`);
+      }
+
+      await adminPool.query(`ALTER TABLE ${quote("users")} RENAME TO "users_dashboard_failure"`);
+      try {
+        const response = await api.request("/dashboard");
+        assert.equal(response.status, 500);
+        assert.deepEqual(await response.json(), { error: "Dashboard unavailable" });
+      } finally {
+        await adminPool.query(`ALTER TABLE "${schema}"."users_dashboard_failure" RENAME TO "users"`);
+      }
+    } finally {
+      await api.close();
+    }
+  });
 });

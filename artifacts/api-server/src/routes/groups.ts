@@ -1,14 +1,15 @@
 import { Router, type IRouter } from "express";
 import { randomBytes } from "crypto";
-import { eq, and, gte, lte, desc } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 import {
   db,
   groupsTable,
   groupMembersTable,
   groupReactionsTable,
   usersTable,
-  checkinsTable,
 } from "@workspace/db";
+import { SocialHttpError } from "../services/social-common";
+import { createLegacyGroupReactionWithCooldown } from "../services/social-circles";
 import {
   ListMyGroupsResponse,
   CreateGroupBody,
@@ -26,6 +27,7 @@ import {
 import { requireAuth } from "../middlewares/requireAuth";
 import { ensureUser } from "../lib/userService";
 import { toDateOnly } from "../lib/dates";
+import { assertNoSocialBlock } from "../services/social-common";
 
 const router: IRouter = Router();
 router.use(requireAuth);
@@ -57,7 +59,7 @@ router.get("/groups", async (req, res): Promise<void> => {
   const groups = [];
   for (const membership of memberships) {
     const [group] = await db.select().from(groupsTable).where(eq(groupsTable.id, membership.groupId));
-    if (group) groups.push({ ...group, memberCount: await countMembers(group.id) });
+    if (group) groups.push({ ...group, inviteCode: "", memberCount: await countMembers(group.id) });
   }
 
   res.json(ListMyGroupsResponse.parse(groups));
@@ -90,9 +92,9 @@ router.post("/groups", async (req, res): Promise<void> => {
     })
     .returning();
 
-  await db.insert(groupMembersTable).values({ groupId: group.id, userId: req.userId! });
+  await db.insert(groupMembersTable).values({ groupId: group.id, userId: req.userId!, role: "owner" });
 
-  res.status(201).json(CreateGroupResponse.parse({ ...group, memberCount: 1 }));
+  res.status(201).json(CreateGroupResponse.parse({ ...group, inviteCode: "", memberCount: 1 }));
 });
 
 router.post("/groups/join", async (req, res): Promise<void> => {
@@ -109,12 +111,17 @@ router.post("/groups/join", async (req, res): Promise<void> => {
     return;
   }
 
-  await db
-    .insert(groupMembersTable)
-    .values({ groupId: group.id, userId: req.userId! })
-    .onConflictDoNothing();
-
-  res.json(JoinGroupResponse.parse({ ...group, memberCount: await countMembers(group.id) }));
+  // Invite codes are retained for legacy rows only. New circles are invite-only,
+  // and this deprecated route cannot be used to add a member to any group.
+  if (!(await isMember(group.id, req.userId!))) {
+    res.status(403).json({ error: "Groups can only be joined through an invitation" });
+    return;
+  }
+  res.json(JoinGroupResponse.parse({
+    ...group,
+    inviteCode: "",
+    memberCount: await countMembers(group.id),
+  }));
 });
 
 router.get("/groups/:groupId", async (req, res): Promise<void> => {
@@ -134,6 +141,7 @@ router.get("/groups/:groupId", async (req, res): Promise<void> => {
   const memberRows = await db
     .select({
       userId: groupMembersTable.userId,
+      role: groupMembersTable.role,
       displayName: usersTable.displayName,
       avatarEmoji: usersTable.avatarEmoji,
     })
@@ -141,32 +149,31 @@ router.get("/groups/:groupId", async (req, res): Promise<void> => {
     .innerJoin(usersTable, eq(groupMembersTable.userId, usersTable.id))
     .where(eq(groupMembersTable.groupId, group.id));
 
-  const members = [];
+  const visibleMembers = [];
   for (const m of memberRows) {
-    const conditions = [
-      eq(checkinsTable.userId, m.userId),
-      eq(checkinsTable.completed, true),
-      gte(checkinsTable.date, group.startDate),
-    ];
-    if (group.endDate) conditions.push(lte(checkinsTable.date, group.endDate));
-
-    const progressRows = await db
-      .select()
-      .from(checkinsTable)
-      .where(and(...conditions));
-
-    members.push({
+    if (m.userId !== req.userId) {
+      let blocked = false;
+      try {
+        await db.transaction((tx) => assertNoSocialBlock(tx, req.userId!, m.userId));
+      } catch {
+        blocked = true;
+      }
+      if (blocked) continue;
+    }
+    visibleMembers.push({
       userId: m.userId,
       displayName: m.displayName,
       avatarEmoji: m.avatarEmoji,
-      progressCount: progressRows.length,
       isMe: m.userId === req.userId,
     });
   }
 
-  members.sort((a, b) => b.progressCount - a.progressCount);
-
-  res.json(GetGroupResponse.parse({ ...group, memberCount: memberRows.length, members }));
+  res.json(GetGroupResponse.parse({
+    ...group,
+    inviteCode: "",
+    memberCount: memberRows.length,
+    members: visibleMembers,
+  }));
 });
 
 router.get("/groups/:groupId/reactions", async (req, res): Promise<void> => {
@@ -182,7 +189,7 @@ router.get("/groups/:groupId/reactions", async (req, res): Promise<void> => {
     return;
   }
 
-  const reactions = await db
+  const reactionRows = await db
     .select({
       id: groupReactionsTable.id,
       fromUserId: groupReactionsTable.fromUserId,
@@ -197,6 +204,30 @@ router.get("/groups/:groupId/reactions", async (req, res): Promise<void> => {
     .orderBy(desc(groupReactionsTable.createdAt))
     .limit(50);
 
+  const reactions = [];
+  for (const reaction of reactionRows) {
+    const [senderMember] = await db.select({ id: groupMembersTable.id })
+      .from(groupMembersTable).where(and(
+        eq(groupMembersTable.groupId, params.data.groupId),
+        eq(groupMembersTable.userId, reaction.fromUserId),
+      )).limit(1);
+    const [receiverMember] = reaction.toUserId
+      ? await db.select({ id: groupMembersTable.id }).from(groupMembersTable).where(and(
+        eq(groupMembersTable.groupId, params.data.groupId),
+        eq(groupMembersTable.userId, reaction.toUserId),
+      )).limit(1)
+      : [true];
+    if (!senderMember || !receiverMember) continue;
+    try {
+      await db.transaction(async (tx) => {
+        await assertNoSocialBlock(tx, req.userId!, reaction.fromUserId);
+        if (reaction.toUserId) await assertNoSocialBlock(tx, req.userId!, reaction.toUserId);
+      });
+    } catch {
+      continue;
+    }
+    reactions.push(reaction);
+  }
   res.json(ListGroupReactionsResponse.parse(reactions));
 });
 
@@ -217,16 +248,35 @@ router.post("/groups/:groupId/reactions", async (req, res): Promise<void> => {
     res.status(404).json({ error: "Group not found" });
     return;
   }
+  if (parsed.data.toUserId) {
+    if (parsed.data.toUserId === req.userId
+      || !(await isMember(params.data.groupId, parsed.data.toUserId))) {
+      res.status(400).json({ error: "Recipient must be another current group member" });
+      return;
+    }
+    try {
+      await db.transaction((tx) => assertNoSocialBlock(tx, req.userId!, parsed.data.toUserId!));
+    } catch {
+      res.status(404).json({ error: "Recipient not found" });
+      return;
+    }
+  }
 
-  const [reaction] = await db
-    .insert(groupReactionsTable)
-    .values({
+  let reaction;
+  try {
+    reaction = await db.transaction((tx) => createLegacyGroupReactionWithCooldown(tx, {
       groupId: params.data.groupId,
-      fromUserId: req.userId!,
-      toUserId: parsed.data.toUserId ?? null,
+      senderUserId: req.userId!,
+      receiverUserId: parsed.data.toUserId,
       emoji: parsed.data.emoji,
-    })
-    .returning();
+    }));
+  } catch (error) {
+    if (error instanceof SocialHttpError) {
+      res.status(error.status).json({ error: error.message });
+      return;
+    }
+    throw error;
+  }
 
   const [fromUser] = await db.select().from(usersTable).where(eq(usersTable.id, req.userId!));
 

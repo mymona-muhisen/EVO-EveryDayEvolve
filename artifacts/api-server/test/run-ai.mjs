@@ -9,12 +9,13 @@ const smoke = process.argv[2] === "smoke";
 const daily = process.argv[2] === "daily";
 const journey = process.argv[2] === "journey";
 const display = process.argv[2] === "display";
+const dashboard = process.argv[2] === "dashboard";
 const tempDir = await mkdtemp(join(artifactDir, ".ai-test-"));
 
 try {
   const output = join(tempDir, "run.mjs");
   await build({
-    entryPoints: [join(artifactDir, smoke ? "src/lib/geminiSmoke.ts" : daily ? "src/lib/dailyExecution.test.ts" : journey ? "src/lib/journeyLifecycle.test.ts" : display ? "../habit-journey/test/daily-display.test.mjs" : "src/lib/aiMessages.test.ts")],
+    entryPoints: [join(artifactDir, smoke ? "src/lib/geminiSmoke.ts" : daily ? "src/lib/dailyExecution.test.ts" : journey ? "src/lib/journeyLifecycle.test.ts" : dashboard ? "src/lib/dashboardRules.test.ts" : display ? "../habit-journey/test/daily-display.test.mjs" : "src/lib/aiMessages.test.ts")],
     outfile: output,
     bundle: true,
     platform: "node",

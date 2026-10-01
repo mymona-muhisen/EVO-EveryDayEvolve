@@ -5,14 +5,74 @@
  * Habit Journey API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { MemoryDifficulty } from './memoryDifficulty';
+import type { MemoryUnit } from './memoryUnit';
+import type { MemoryVisibility } from './memoryVisibility';
 
 export interface Memory {
   id: number;
   /** @nullable */
   habitId: number | null;
-  note: string;
-  /** @nullable */
+  /**
+     * Deprecated compatibility alias for caption; legacy note content is preserved
+     * @nullable
+     */
+  note: string | null;
+  /**
+     * Existing authenticated private-object URL behavior; a URL does not make the image public
+     * @nullable
+     */
   photoUrl: string | null;
   date: Date;
   createdAt: Date;
+  /**
+     * @maxLength 300
+     * @nullable
+     */
+  caption: string | null;
+  /** Private for all V1 memories; other values are reserved for future social support */
+  visibility: MemoryVisibility;
+  updatedAt: Date;
+  /**
+     * Server-derived journey identity (the habit ID); null for legacy memories not linked to a saved journey day
+     * @nullable
+     */
+  journeyId: number | null;
+  /**
+     * Saved habit_days row ID; null for legacy memories not linked to a saved journey day
+     * @nullable
+     */
+  habitDayId: number | null;
+  /**
+     * Saved journey day number; null for legacy memories
+     * @nullable
+     */
+  dayNumber: number | null;
+  /**
+     * Saved journey length; null for legacy memories
+     * @nullable
+     */
+  journeyLength: number | null;
+  /**
+     * Habit title from the saved day context; null for legacy memories
+     * @nullable
+     */
+  habitTitle: string | null;
+  /**
+     * Target from the immutable saved day plan; null for legacy memories
+     * @nullable
+     */
+  targetValue: number | null;
+  /**
+     * Actual value from the real successful check-in; null for legacy memories
+     * @nullable
+     */
+  actualValue: number | null;
+  /** @nullable */
+  unit: MemoryUnit;
+  /**
+     * Stored difficulty from the successful check-in; never created or changed by a memory
+     * @nullable
+     */
+  difficulty: MemoryDifficulty;
 }

@@ -49,6 +49,7 @@ const ddl = [
   `CREATE TYPE ${quote("character_item_slot")} AS ENUM ('outfit', 'hat', 'accessory', 'pet', 'background')`,
   `CREATE TABLE ${quote("users")} (
     id text PRIMARY KEY,
+    username text UNIQUE,
     display_name text NOT NULL,
     avatar_emoji text NOT NULL DEFAULT '🌱',
     level integer NOT NULL DEFAULT 1,

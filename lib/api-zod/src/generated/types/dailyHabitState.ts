@@ -20,6 +20,16 @@ export interface DailyHabitState {
   habitId: number;
   date: Date;
   dayNumber: number;
+  /**
+     * Saved habit_days row ID when a saved plan snapshot exists
+     * @nullable
+     */
+  habitDayId?: number | null;
+  /**
+     * Owner's private memory ID for this day
+     * @nullable
+     */
+  memoryId?: number | null;
   scheduled: boolean;
   eligible: boolean;
   /** @minimum 0 */

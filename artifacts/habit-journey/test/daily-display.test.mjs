@@ -16,6 +16,25 @@ const state = (extra = {}) => ({
   ...extra,
 });
 
+test('a paid minimum can continue toward the target without mandatory reflection', () => {
+  for (const executionType of ['count', 'duration']) {
+    for (const status of ['pending_reflection', 'completed']) {
+      assert.equal(isOpen(state({ executionType, status, actualValue: 5, checkin: { completed: true } })), true);
+    }
+  }
+});
+
+test('unknown historical actuals and finished target claims are not reopened', () => {
+  assert.equal(isOpen(state({ status: 'completed', checkin: { completed: true } })), false);
+  assert.equal(isOpen(state({ status: 'completed', actualValue: 10, checkin: { completed: true } })), false);
+});
+
+test('paid boolean and quit claims do not acquire numeric continuation semantics', () => {
+  for (const extra of [{ executionType: 'boolean' }, { executionType: 'limit', goalType: 'quit' }]) {
+    assert.equal(isOpen(state({ ...extra, status: 'completed', actualValue: 5, checkin: { completed: true } })), false);
+  }
+});
+
 test('expired timer seconds do not invent confirmed activity or completion', () => {
   const missed = state({ status: 'missed', actualSeconds: 900, finishedAt: '2026-10-01T00:00:00Z' });
   assert.equal(actualUnits(missed), 0);

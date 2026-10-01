@@ -36,6 +36,8 @@ tags:
     description: Durable daily habit execution, reflection, and consistency
   - name: groups
     description: Simplified social challenges
+  - name: social
+    description: Private-by-default friends, sharing, encouragement, challenges, and invite-only circles
   - name: ai
     description: Hybrid rule-engine + LLM coach endpoints
   - name: Storage
@@ -713,15 +715,27 @@ paths:
     get:
       operationId: listMemories
       tags: [memories]
-      summary: List memory journal entries
+      summary: List the current owner's private memories
+      description: >
+        Returns only memories owned by the authenticated user. Memories created by
+        the journey flow are private and associated with a completed saved day;
+        legacy entries without a saved-day association remain unlinked.
       parameters:
         - name: habitId
           in: query
           required: false
           schema: { type: integer }
+          description: Filter by habit; the current journey identity is the habit ID.
+        - name: journeyId
+          in: query
+          required: false
+          schema: { type: integer }
+          description: >
+            Current journey identity (the owning habit ID). If habitId is also
+            supplied, both filters must match.
       responses:
         "200":
-          description: Memories
+          description: Owner-scoped private memories
           content:
             application/json:
               schema:
@@ -730,7 +744,14 @@ paths:
     post:
       operationId: createMemory
       tags: [memories]
-      summary: Create a memory (optionally with an uploaded photo)
+      summary: Create a private photo memory for a completed journey day
+      description: >
+        The server derives the owned journey day from habitId and the user's
+        local calendar date. The day must have a saved plan snapshot and a real
+        successful check-in. Do not send a user ID, journey ID, habit-day ID,
+        check-in ID, or day number. Memory creation is separate from habit
+        completion and never grants or changes rewards. Only private visibility
+        is writable in this version.
       requestBody:
         required: true
         content:
@@ -738,16 +759,101 @@ paths:
             schema: { $ref: "#/components/schemas/MemoryInput" }
       responses:
         "201":
-          description: Created
+          description: Created private memory with server-derived journey context
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Memory" }
+        "400":
+          description: Invalid input, unsupported visibility, or day is not eligible
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "403":
+          description: Uploaded photo is not owned by the authenticated user
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: Habit or uploaded photo was not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "409":
+          description: This saved journey day already has a memory
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "413":
+          description: Uploaded photo exceeds the memory image size limit
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "415":
+          description: Uploaded photo is not a supported image format
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
 
   /memories/{memoryId}:
+    get:
+      operationId: getMemory
+      tags: [memories]
+      summary: Get an owner-only private memory
+      parameters:
+        - name: memoryId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Private memory and saved journey-day context
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Memory" }
+        "404":
+          description: Memory not found or not owned by the authenticated user
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+    patch:
+      operationId: updateMemory
+      tags: [memories]
+      summary: Update a private memory caption
+      description: >
+        Caption-only edit; image, date, journey/day association, and visibility
+        cannot be changed. The deprecated note input is accepted as a caption
+        alias for legacy clients when caption is omitted.
+      parameters:
+        - name: memoryId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MemoryUpdate" }
+      responses:
+        "200":
+          description: Updated caption
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Memory" }
+        "400":
+          description: Invalid caption
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: Memory not found or not owned by the authenticated user
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
     delete:
       operationId: deleteMemory
       tags: [memories]
-      summary: Delete a memory
+      summary: Delete an owner-only private memory
+      description: Deleting a memory does not change habit completion, journey progress, XP, or coins.
       parameters:
         - name: memoryId
           in: path
@@ -1287,6 +1393,23 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/DashboardToday" }
 
+  /dashboard:
+    get:
+      operationId: getDashboardHome
+      tags: [dashboard]
+      summary: Read-only timezone-aware home dashboard projection
+      responses:
+        "200":
+          description: Dashboard home projection; secondary sections may independently be unavailable.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DashboardHome" }
+        "500":
+          description: Authenticated profile could not be loaded
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
   /dashboard/calendar:
     get:
       operationId: getDashboardCalendar
@@ -1307,11 +1430,1059 @@ paths:
                 type: array
                 items: { $ref: "#/components/schemas/DashboardCalendarDay" }
 
+  /social/me:
+    get:
+      operationId: getSocialMe
+      tags: [social]
+      summary: Get the current user's social account and profile-sharing preferences
+      description: Username is nullable until chosen. Character and achievement sharing default to private and are changed through the resource sharing endpoint.
+      responses:
+        "200":
+          description: Current social account
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SocialMe" }
+    patch:
+      operationId: updateSocialMe
+      tags: [social]
+      summary: Set or change the current user's unique username
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SocialMeUpdate" }
+      responses:
+        "200":
+          description: Updated social account
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SocialMe" }
+        "409":
+          description: Username is already taken
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /social/users/search:
+    get:
+      operationId: searchSocialUsers
+      tags: [social]
+      summary: Search a narrow safe user DTO by username
+      description: Username-only search; requires at least two characters. Never returns email, habit, reward, or activity data.
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema: { type: string, minLength: 2, maxLength: 24 }
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 50, default: 20 }
+      responses:
+        "200":
+          description: Matching users visible to the current user
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/SocialUserSearchResult" }
+
+  /social/friends:
+    get:
+      operationId: listSocialFriends
+      tags: [social]
+      summary: List accepted friends
+      responses:
+        "200":
+          description: Safe friend summaries
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/SocialFriend" }
+
+  /social/friend-requests/incoming:
+    get:
+      operationId: listIncomingSocialFriendRequests
+      tags: [social]
+      summary: List pending requests addressed to the current user
+      responses:
+        "200":
+          description: Incoming requests
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/SocialFriendRequest" }
+
+  /social/friend-requests/outgoing:
+    get:
+      operationId: listOutgoingSocialFriendRequests
+      tags: [social]
+      summary: List pending requests sent by the current user
+      responses:
+        "200":
+          description: Outgoing requests
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/SocialFriendRequest" }
+
+  /social/friend-requests:
+    post:
+      operationId: sendSocialFriendRequest
+      tags: [social]
+      summary: Send a friend request by target user ID
+      description: Server verifies the target, existing relationship, and both block directions; self-requests are invalid.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SocialFriendRequestInput" }
+      responses:
+        "201":
+          description: Pending request
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SocialFriendRequest" }
+        "409":
+          description: A request or friendship already exists, or the users are blocked
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /social/friend-requests/{requestId}/respond:
+    post:
+      operationId: respondToSocialFriendRequest
+      tags: [social]
+      summary: Accept or decline an incoming friend request
+      parameters:
+        - name: requestId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SocialFriendRequestResponse" }
+      responses:
+        "200":
+          description: Updated request; accepting creates one canonical friendship
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SocialFriendRequest" }
+        "404":
+          description: Request not found or not addressed to the current user
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "409":
+          description: Request is no longer pending or a block exists
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /social/friend-requests/{requestId}:
+    delete:
+      operationId: cancelSocialFriendRequest
+      tags: [social]
+      summary: Cancel the current user's pending outgoing request
+      parameters:
+        - name: requestId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "204":
+          description: Canceled
+        "404":
+          description: Request not found, not owned by the current user, or not pending
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /social/friends/{friendUserId}:
+    delete:
+      operationId: removeSocialFriend
+      tags: [social]
+      summary: Remove an accepted friendship in either direction
+      parameters:
+        - name: friendUserId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "204":
+          description: Friendship removed; sharing permissions no longer grant access
+        "404":
+          description: Friendship not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /social/blocks:
+    get:
+      operationId: listSocialBlocks
+      tags: [social]
+      summary: List users blocked by the current user
+      responses:
+        "200":
+          description: Blocked safe user summaries
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/SocialUserSummary" }
+    post:
+      operationId: createSocialBlock
+      tags: [social]
+      summary: Block a user and end any friendship or pending requests between them
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SocialBlockInput" }
+      responses:
+        "201":
+          description: Block created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SocialBlock" }
+        "404":
+          description: Target user not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /social/blocks/{blockedUserId}:
+    delete:
+      operationId: removeSocialBlock
+      tags: [social]
+      summary: Unblock a user
+      parameters:
+        - name: blockedUserId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "204":
+          description: Block removed
+        "404":
+          description: Block not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /social/reports:
+    post:
+      operationId: createSocialReport
+      tags: [social]
+      summary: Persist a report about a user for human review
+      description: Reports are not transmitted to an AI moderation service.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SocialReportInput" }
+      responses:
+        "201":
+          description: Report stored
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SocialReportReceipt" }
+        "404":
+          description: Reported user not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /social/profiles/{userId}:
+    get:
+      operationId: getSocialProfile
+      tags: [social]
+      summary: Get only information explicitly shared with the current user
+      description: >
+        Response is limited to safe identity, explicitly shared equipped character,
+        achievements, visible journey summaries, shared Memories, and explicitly
+        shared rewards. Access is directional: either accepted friendship plus
+        friends visibility, or a selected-user ACL. A block in either direction
+        denies the entire request. No time logs, cues, private habits, missed
+        days/reasons, precise location, reward values, or private Memory fields.
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Narrow safe profile
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SocialProfile" }
+        "404":
+          description: Profile does not exist or has no information shared with the current user
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "403":
+          description: A block denies access
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /social/sharing/{resourceType}/{resourceId}:
+    get:
+      operationId: getSocialResourceSharing
+      tags: [social]
+      summary: Get the current owner's ACL for one resource
+      description: >
+        Owner only. Unknown ACL rows mean private. journey resourceId is the habit
+        ID; profile preferences use resourceId "profile" for character and
+        achievements. selectedUserIds are explicit recipients, never public.
+      parameters:
+        - name: resourceType
+          in: path
+          required: true
+          schema: { $ref: "#/components/schemas/SocialResourceType" }
+        - name: resourceId
+          in: path
+          required: true
+          schema: { type: string, minLength: 1 }
+      responses:
+        "200":
+          description: Existing ACL or synthesized private default
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SocialSharing" }
+        "404":
+          description: Resource does not exist or is not owned by the current user
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+    patch:
+      operationId: updateSocialResourceSharing
+      tags: [social]
+      summary: Change private/friends/selected sharing for an owned resource
+      description: >
+        Public visibility is not supported. selectedUserIds is required when
+        visibility is selected and must name allowed recipients; omitted or empty
+        selectedUserIds for private/friends clears recipient rows.
+      parameters:
+        - name: resourceType
+          in: path
+          required: true
+          schema: { $ref: "#/components/schemas/SocialResourceType" }
+        - name: resourceId
+          in: path
+          required: true
+          schema: { type: string, minLength: 1 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SocialSharingUpdate" }
+      responses:
+        "200":
+          description: Updated ACL
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SocialSharing" }
+        "400":
+          description: Unsupported visibility or invalid recipient list
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: Resource does not exist or is not owned by the current user
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /social/memories/{memoryId}/photo:
+    get:
+      operationId: getSocialMemoryPhoto
+      tags: [social]
+      summary: Stream a Memory photo only after evaluating its explicit ACL
+      description: >
+        Private object bytes are returned only to the owner or a currently
+        authorized recipient. Friendship and block state are checked on every
+        request. Never return a public URL or use the unconditional public object
+        route for Memory photos.
+      parameters:
+        - name: memoryId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Authorized image bytes
+          content:
+            image/*:
+              schema: { type: string, format: binary }
+        "404":
+          description: Memory/photo unavailable or not visible to the current user
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /social/activity:
+    get:
+      operationId: listSocialActivity
+      tags: [social]
+      summary: List recent successful friend activity
+      description: Only successful days, milestones, and journey completions are eligible. Missed days and private details have no event contract.
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 100, default: 25 }
+        - name: beforeId
+          in: query
+          required: false
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Visible positive activity events
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/SocialActivity" }
+
+  /social/encouragements:
+    post:
+      operationId: createSocialEncouragement
+      tags: [social]
+      summary: Send one short positive encouragement to an authorized friend
+      description: >
+        Receiver must be an accepted friend; an optional journeyId must identify
+        a journey currently shared with the sender. A custom message is at most
+        120 characters. A persisted requestId makes retries idempotent and the
+        database enforces a sender/recipient minute cooldown. This grants no XP,
+        coins, rewards, or other progress.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SocialEncouragementInput" }
+      responses:
+        "201":
+          description: Encouragement recorded and recipient notified once
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SocialEncouragement" }
+        "403":
+          description: Recipient is not an accepted friend or is blocked
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: Recipient or requested shared journey not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "409":
+          description: Cooldown or requestId prevents a duplicate encouragement
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /social/notifications:
+    get:
+      operationId: listSocialNotifications
+      tags: [social]
+      summary: List the current user's persisted social notifications
+      parameters:
+        - name: unreadOnly
+          in: query
+          required: false
+          schema: { type: boolean, default: false }
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+        - name: beforeId
+          in: query
+          required: false
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Notifications, newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/SocialNotification" }
+
+  /social/notifications/{notificationId}/read:
+    patch:
+      operationId: markSocialNotificationRead
+      tags: [social]
+      summary: Mark one owned notification read
+      parameters:
+        - name: notificationId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Updated notification
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SocialNotification" }
+        "404":
+          description: Notification not found or not owned by the current user
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /social/notifications/read-all:
+    patch:
+      operationId: markAllSocialNotificationsRead
+      tags: [social]
+      summary: Mark all current-user notifications read
+      responses:
+        "200":
+          description: Count of notifications newly marked read
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SocialReadAllResult" }
+
+  /social/challenges:
+    get:
+      operationId: listSocialChallenges
+      tags: [social]
+      summary: List challenges involving the current user
+      responses:
+        "200":
+          description: Own challenges and invitations
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/SocialChallengeSummary" }
+    post:
+      operationId: createSocialChallenge
+      tags: [social]
+      summary: Create an invite-only 22-day challenge from the current user's own habit
+      description: >
+        The server verifies ownership of sourceHabitId and snapshots only safe
+        habit template fields (title, emoji, category, cadence, unit, execution
+        type, goal type, difficulty, suggested target/minimum). Cues, friction,
+        time tracking, missed reasons, rewards, and XP/coins are never copied or
+        shared. The creator remains linked to their own habit.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SocialChallengeInput" }
+      responses:
+        "201":
+          description: Created challenge with the creator as its first participant
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SocialChallengeDetail" }
+        "404":
+          description: Source habit not found or not owned by the current user
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /social/challenges/{challengeId}:
+    get:
+      operationId: getSocialChallenge
+      tags: [social]
+      summary: Get a challenge and safe progress for accepted participants
+      parameters:
+        - name: challengeId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Challenge visible to its creator, invitee, or participant
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SocialChallengeDetail" }
+        "404":
+          description: Challenge not found or not visible to the current user
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /social/challenges/{challengeId}/invitations:
+    post:
+      operationId: inviteUsersToSocialChallenge
+      tags: [social]
+      summary: Invite existing friends to a challenge
+      description: Invites create pending memberships only; each invitee must accept before their separate owned habit and journey are created.
+      parameters:
+        - name: challengeId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SocialChallengeInviteInput" }
+      responses:
+        "201":
+          description: Created invitations
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/SocialChallengeMember" }
+        "403":
+          description: Only the challenge creator can invite, or a target is not a friend
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: Challenge or invitee not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /social/challenges/{challengeId}/respond:
+    post:
+      operationId: respondToSocialChallenge
+      tags: [social]
+      summary: Accept or decline the current user's challenge invitation
+      description: >
+        Accept creates a distinct owned habit, derives the current timezone and
+        local start date from the authenticated user, and persists 22 immutable
+        habit_days snapshots. Target/minimum/cadence may be personalized. The new
+        habit has no reward and no private cues copied from the inviter.
+      parameters:
+        - name: challengeId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SocialChallengeResponse" }
+      responses:
+        "200":
+          description: Updated membership and safe challenge detail
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SocialChallengeDetail" }
+        "404":
+          description: Invitation not found or not addressed to the current user
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "409":
+          description: Invitation is no longer pending or challenge is closed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /social/challenges/{challengeId}/leave:
+    post:
+      operationId: leaveSocialChallenge
+      tags: [social]
+      summary: Leave a challenge without deleting or changing the user's own habit
+      parameters:
+        - name: challengeId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Updated challenge membership
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SocialChallengeDetail" }
+        "404":
+          description: Challenge membership not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /social/groups:
+    get:
+      operationId: listSocialGroups
+      tags: [social]
+      summary: List invite-only groups the current user belongs to
+      responses:
+        "200":
+          description: Safe group summaries
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/SocialGroupSummary" }
+    post:
+      operationId: createSocialGroup
+      tags: [social]
+      summary: Create a private invite-only circle
+      description: Owner is auto-added as the first member. maxMembers is configurable from 2 to 30; membership does not share any habits or check-ins.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SocialGroupInput" }
+      responses:
+        "201":
+          description: Created group
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SocialGroupDetail" }
+
+  /social/groups/{groupId}:
+    get:
+      operationId: getSocialGroup
+      tags: [social]
+      summary: Get an invite-only group and only members' explicitly shared journeys
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Group detail visible to current members only
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SocialGroupDetail" }
+        "404":
+          description: Group not found or current user is not a member
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /social/groups/{groupId}/invitations:
+    post:
+      operationId: inviteUsersToSocialGroup
+      tags: [social]
+      summary: Invite existing friends to an invite-only group
+      description: Only existing members may invite; the server enforces the configured member cap and block state.
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SocialGroupInviteInput" }
+      responses:
+        "201":
+          description: Created pending invitations
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/SocialGroupInvitation" }
+        "403":
+          description: Inviter is not a member or target is not an eligible friend
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: Group or invitee not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "409":
+          description: Invitation would exceed the configured member limit
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /social/group-invitations/{invitationId}/respond:
+    post:
+      operationId: respondToSocialGroupInvitation
+      tags: [social]
+      summary: Accept or decline an invite-only group invitation
+      parameters:
+        - name: invitationId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SocialGroupInvitationResponse" }
+      responses:
+        "200":
+          description: Updated invitation; accept joins the group without sharing any journey
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SocialGroupInvitation" }
+        "404":
+          description: Invitation not found or not addressed to the current user
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "409":
+          description: Invitation is no longer pending or group has reached its member limit
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /social/group-invitations/incoming:
+    get:
+      operationId: listIncomingSocialGroupInvitations
+      tags: [social]
+      summary: List pending invite-only group invitations addressed to the current user
+      responses:
+        "200":
+          description: Incoming group invitations
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/SocialGroupInvitation" }
+
+  /social/groups/{groupId}/leave:
+    post:
+      operationId: leaveSocialGroup
+      tags: [social]
+      summary: Leave a group; leaving an owner-only group closes it
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "204":
+          description: Membership ended and this user's per-group journey shares were deleted
+        "404":
+          description: Group not found or user is not a member
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /social/groups/{groupId}/activity:
+    get:
+      operationId: listSocialGroupActivity
+      tags: [social]
+      summary: List positive group activity after enforcing each member's per-group journey consent
+      description: May contain member_joined, successful_day, milestone, and journey_completed only; never a missed-day, failure reason, cue, or private time record.
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Recent group activity for current members
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/SocialGroupActivity" }
+        "404":
+          description: Group not found or current user is not a member
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /social/groups/{groupId}/shares:
+    get:
+      operationId: listMySocialGroupJourneyShares
+      tags: [social]
+      summary: List the current user's explicit per-group journey shares
+      description: This endpoint lists only the authenticated user's own choices; group membership alone grants no check-in or journey access.
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: My journeys shared with this group
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/SocialGroupJourneyShare" }
+        "404":
+          description: Group not found or current user is not a member
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+    post:
+      operationId: shareMyJourneyWithSocialGroup
+      tags: [social]
+      summary: Explicitly share one of the current user's journeys with a group
+      description: The server validates habit ownership and group membership; sharing exposes only safe success progress, never cues, missed days, or time logs.
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SocialGroupJourneyShareInput" }
+      responses:
+        "201":
+          description: Journey consent persisted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SocialGroupJourneyShare" }
+        "404":
+          description: Group or owned journey not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /social/groups/{groupId}/shares/{journeyId}:
+    delete:
+      operationId: revokeMySocialGroupJourneyShare
+      tags: [social]
+      summary: Revoke the current user's per-group journey consent
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: journeyId
+          in: path
+          required: true
+          description: Journey identity is the owner's habit ID
+          schema: { type: integer }
+      responses:
+        "204":
+          description: Consent revoked and no longer visible to group members
+        "404":
+          description: Share not found or not owned by the current user
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /social/groups/{groupId}/encouragements:
+    get:
+      operationId: listSocialGroupEncouragements
+      tags: [social]
+      summary: List recent group cheers using the existing group reactions store
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Recent member-to-member or group-wide encouragements
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/SocialGroupEncouragement" }
+        "404":
+          description: Group not found or current user is not a member
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+    post:
+      operationId: createSocialGroupEncouragement
+      tags: [social]
+      summary: Send a short group cheer to a member or the group
+      description: Uses group_reactions; requestId and a persisted per-recipient minute cooldown prevent retry duplicates and spam. No rewards or XP are granted.
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SocialGroupEncouragementInput" }
+      responses:
+        "201":
+          description: Group encouragement recorded
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SocialGroupEncouragement" }
+        "403":
+          description: Sender or recipient is not an eligible group member
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: Group not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "409":
+          description: Cooldown or requestId prevents a duplicate encouragement
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /social/groups/{groupId}/cover:
+    get:
+      operationId: getSocialGroupCover
+      tags: [social]
+      summary: Stream the private group cover image to current group members
+      description: Cover bytes are served only after membership authorization; never use a public object URL.
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Authorized private image bytes
+          content:
+            image/*:
+              schema: { type: string, format: binary }
+        "404":
+          description: Cover not found or user is not a group member
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+    put:
+      operationId: updateSocialGroupCover
+      tags: [social]
+      summary: Set or remove the private group cover image
+      description: Owner only. The object path must belong to an authenticated upload; null removes the cover.
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SocialGroupCoverUpdate" }
+      responses:
+        "200":
+          description: Updated private cover reference
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SocialGroupCover" }
+        "403":
+          description: Only the group owner may change the cover
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: Group or owned uploaded image not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
   /groups:
     get:
       operationId: listMyGroups
       tags: [groups]
-      summary: List groups/challenges the current user belongs to
+      deprecated: true
+      summary: "Legacy: list groups the current user belongs to"
       responses:
         "200":
           description: Groups
@@ -1323,6 +2494,7 @@ paths:
     post:
       operationId: createGroup
       tags: [groups]
+      deprecated: true
       summary: Create a group challenge (creator auto-joins)
       requestBody:
         required: true
@@ -1340,7 +2512,9 @@ paths:
     post:
       operationId: joinGroup
       tags: [groups]
-      summary: Join a group challenge by invite code
+      deprecated: true
+      summary: "Legacy invite-code join; new social circles use invitation acceptance"
+      description: Compatibility for existing legacy groups only. New invite-only social groups must not be joinable through shareable codes.
       requestBody:
         required: true
         content:
@@ -1362,7 +2536,8 @@ paths:
     get:
       operationId: getGroup
       tags: [groups]
-      summary: Get group detail with members ranked by progress (leaderboard)
+      deprecated: true
+      summary: Legacy group detail without member ranking or unconsented progress
       parameters:
         - name: groupId
           in: path
@@ -1384,6 +2559,7 @@ paths:
     get:
       operationId: listGroupReactions
       tags: [groups]
+      deprecated: true
       summary: List recent cheer reactions in a group
       parameters:
         - name: groupId
@@ -1401,6 +2577,7 @@ paths:
     post:
       operationId: createGroupReaction
       tags: [groups]
+      deprecated: true
       summary: Send a cheer/reaction to the group or a specific member
       parameters:
         - name: groupId
@@ -1960,6 +3137,8 @@ components:
       properties:
         date: { type: string, format: date }
         dayNumber: { type: integer }
+        habitDayId: { type: ["integer", "null"], description: Saved habit_days row ID; null for legacy/synthetic days without a saved snapshot }
+        memoryId: { type: ["integer", "null"], description: Owner's private memory ID for this day, if one exists }
         scheduled: { type: boolean }
         title: { type: ["string", "null"] }
         targetValue: { type: number }
@@ -2011,6 +3190,8 @@ components:
         habitId: { type: integer }
         date: { type: string, format: date }
         dayNumber: { type: integer }
+        habitDayId: { type: ["integer", "null"], description: Saved habit_days row ID when a saved plan snapshot exists }
+        memoryId: { type: ["integer", "null"], description: Owner's private memory ID for this day, if one exists }
         scheduled: { type: boolean }
         eligible: { type: boolean }
         planRevision: { type: integer, minimum: 0 }
@@ -2250,22 +3431,42 @@ components:
 
     Memory:
       type: object
-      required: [id, habitId, note, photoUrl, date, createdAt]
+      required: [id, habitId, note, photoUrl, date, createdAt, caption, visibility, updatedAt, journeyId, habitDayId, dayNumber, journeyLength, habitTitle, targetValue, actualValue, unit, difficulty]
       properties:
         id: { type: integer }
         habitId: { type: ["integer", "null"] }
-        note: { type: string }
-        photoUrl: { type: ["string", "null"] }
+        note: { type: ["string", "null"], description: Deprecated compatibility alias for caption; legacy note content is preserved }
+        photoUrl: { type: ["string", "null"], description: Existing authenticated private-object URL behavior; a URL does not make the image public }
         date: { type: string, format: date }
         createdAt: { type: string, format: date-time }
+        caption: { type: ["string", "null"], maxLength: 300 }
+        visibility: { type: string, enum: [private, friends, selected, public], description: Private for all V1 memories; other values are reserved for future social support }
+        updatedAt: { type: string, format: date-time }
+        journeyId: { type: ["integer", "null"], description: Server-derived journey identity (the habit ID); null for legacy memories not linked to a saved journey day }
+        habitDayId: { type: ["integer", "null"], description: Saved habit_days row ID; null for legacy memories not linked to a saved journey day }
+        dayNumber: { type: ["integer", "null"], description: Saved journey day number; null for legacy memories }
+        journeyLength: { type: ["integer", "null"], description: Saved journey length; null for legacy memories }
+        habitTitle: { type: ["string", "null"], description: Habit title from the saved day context; null for legacy memories }
+        targetValue: { type: ["number", "null"], description: Target from the immutable saved day plan; null for legacy memories }
+        actualValue: { type: ["number", "null"], description: Actual value from the real successful check-in; null for legacy memories }
+        unit: { type: ["string", "null"], enum: [minutes, count, pages, custom, null] }
+        difficulty: { type: ["string", "null"], enum: [easy, normal, hard, very_hard, null], description: Stored difficulty from the successful check-in; never created or changed by a memory }
     MemoryInput:
       type: object
-      required: [note, date]
+      required: [habitId, date, photoObjectPath]
       properties:
-        habitId: { type: integer }
-        note: { type: string, minLength: 1 }
-        photoObjectPath: { type: string, description: "objectPath returned by POST /storage/uploads/request-url" }
+        habitId: { type: integer, description: Habit and current journey identity; ownership is checked by the server }
         date: { type: string, format: date }
+        photoObjectPath: { type: string, minLength: 1, description: "Private objectPath returned by POST /storage/uploads/request-url; ownership and file content are checked by the server" }
+        caption: { type: ["string", "null"], maxLength: 300 }
+        note: { type: ["string", "null"], maxLength: 300, deprecated: true, description: Deprecated caption alias for legacy clients; ignored when caption is also supplied }
+        visibility: { type: string, enum: [private, friends, selected, public], default: private, description: Only private is accepted in V1; other enum values are reserved and rejected by the server }
+    MemoryUpdate:
+      type: object
+      minProperties: 1
+      properties:
+        caption: { type: ["string", "null"], maxLength: 300, description: Set or clear the caption; explicit null clears it }
+        note: { type: ["string", "null"], maxLength: 300, deprecated: true, description: Deprecated caption alias for legacy clients; ignored when caption is also supplied }
 
     Reward:
       type: object
@@ -2524,6 +3725,157 @@ components:
           type: array
           description: Optional private real-world journey reward cards; absent on older servers.
           items: { $ref: "#/components/schemas/DashboardJourneyRewardCard" }
+    DashboardSectionStatus:
+      type: string
+      enum: [ready, empty, unavailable, stale]
+    DashboardHomeState:
+      type: string
+      enum: [new_user, no_habit, tracking_active, tracking_paused, analysis_available, habit_not_started, habit_in_progress, minimum_reached, target_complete, missed_day, adaptation_required, journey_complete, rest_day, unavailable]
+    DashboardFocus:
+      type: object
+      required: [habit, execution]
+      properties:
+        habit: { $ref: "#/components/schemas/Habit" }
+        execution: { $ref: "#/components/schemas/DailyHabitState" }
+    DashboardJourneyPreview:
+      type: object
+      required: [habitId, title, emoji, currentDay, journeyLength, status, successfulDays, eligibleDays, consistencyPercentage, daysRemaining, progressPercent, coinsEarned, xpEarned, earningsPartial]
+      properties:
+        habitId: { type: integer }
+        title: { type: string }
+        emoji: { type: string }
+        currentDay: { type: integer, minimum: 0, maximum: 22 }
+        journeyLength: { type: integer, enum: [22] }
+        status: { type: string, enum: [upcoming, active, completed, expired] }
+        successfulDays: { type: integer, minimum: 0 }
+        eligibleDays: { type: integer, minimum: 0 }
+        consistencyPercentage: { type: ["number", "null"], minimum: 0, maximum: 100 }
+        daysRemaining: { type: integer, minimum: 0, maximum: 22 }
+        progressPercent: { type: integer, minimum: 0, maximum: 100, description: Calendar progress only; not consistency or reward eligibility. }
+        coinsEarned: { type: integer, minimum: 0 }
+        xpEarned: { type: integer, minimum: 0 }
+        earningsPartial: { type: boolean }
+    DashboardCompletion:
+      type: object
+      required: [journey, reward]
+      properties:
+        journey: { $ref: "#/components/schemas/DashboardJourneyPreview" }
+        reward:
+          anyOf:
+            - { $ref: "#/components/schemas/JourneyReward" }
+            - { type: "null" }
+    DashboardCategoryTotal:
+      type: object
+      required: [category, label, minutes, percentage]
+      properties:
+        category: { type: string }
+        label: { type: string }
+        minutes: { type: integer, minimum: 0 }
+        percentage: { type: integer, minimum: 0, maximum: 100 }
+    DashboardTimeSummary:
+      type: object
+      required: [session, trackedMinutes, intervalMinutes, categoryTotals, opportunity]
+      properties:
+        session:
+          anyOf:
+            - { $ref: "#/components/schemas/TrackingSession" }
+            - { type: "null" }
+        trackedMinutes: { type: integer, minimum: 0 }
+        intervalMinutes: { type: ["integer", "null"] }
+        categoryTotals:
+          type: array
+          maxItems: 3
+          items: { $ref: "#/components/schemas/DashboardCategoryTotal" }
+        opportunity: { type: ["string", "null"] }
+    DashboardCoach:
+      type: object
+      required: [analysis, analysisDate, updatedAt, isStale]
+      properties:
+        analysis:
+          anyOf:
+            - { $ref: "#/components/schemas/TrackedDayAnalysis" }
+            - { type: "null" }
+        analysisDate: { type: ["string", "null"], format: date }
+        updatedAt: { type: ["string", "null"], format: date-time }
+        isStale: { type: boolean }
+    DashboardFriend:
+      type: object
+      required: [user, journey, character]
+      properties:
+        user: { $ref: "#/components/schemas/SocialUserSummary" }
+        journey:
+          anyOf:
+            - { $ref: "#/components/schemas/SocialJourneySummary" }
+            - { type: "null" }
+        character:
+          type: array
+          items: { $ref: "#/components/schemas/SocialEquippedCharacterItem" }
+          description: Empty unless this friend's character/profile is independently shared with the current user.
+    DashboardSectionStatuses:
+      type: object
+      required: [habits, journey, reward, character, time, coach, social, memory]
+      properties:
+        habits: { $ref: "#/components/schemas/DashboardSectionStatus" }
+        journey: { $ref: "#/components/schemas/DashboardSectionStatus" }
+        reward: { $ref: "#/components/schemas/DashboardSectionStatus" }
+        character: { $ref: "#/components/schemas/DashboardSectionStatus" }
+        time: { $ref: "#/components/schemas/DashboardSectionStatus" }
+        coach: { $ref: "#/components/schemas/DashboardSectionStatus" }
+        social: { $ref: "#/components/schemas/DashboardSectionStatus" }
+        memory: { $ref: "#/components/schemas/DashboardSectionStatus" }
+    DashboardHome:
+      type: object
+      required: [date, timezone, greeting, profile, state, focus, otherHabits, missedDay, journey, reward, character, time, coach, friends, memory, sectionStatus]
+      properties:
+        date: { type: string, format: date }
+        timezone: { type: string }
+        greeting: { type: string, enum: [morning, evening, night] }
+        profile: { $ref: "#/components/schemas/User" }
+        state: { $ref: "#/components/schemas/DashboardHomeState" }
+        focus:
+          anyOf:
+            - { $ref: "#/components/schemas/DashboardFocus" }
+            - { type: "null" }
+        otherHabits:
+          type: array
+          items: { $ref: "#/components/schemas/DashboardFocus" }
+        missedDay:
+          anyOf:
+            - { $ref: "#/components/schemas/DashboardFocus" }
+            - { type: "null" }
+        journey:
+          anyOf:
+            - { $ref: "#/components/schemas/DashboardJourneyPreview" }
+            - { type: "null" }
+        reward:
+          anyOf:
+            - { $ref: "#/components/schemas/JourneyReward" }
+            - { type: "null" }
+        completion:
+          anyOf:
+            - { $ref: "#/components/schemas/DashboardCompletion" }
+            - { type: "null" }
+        character:
+          anyOf:
+            - { $ref: "#/components/schemas/MyCharacter" }
+            - { type: "null" }
+        time:
+          anyOf:
+            - { $ref: "#/components/schemas/DashboardTimeSummary" }
+            - { type: "null" }
+        coach:
+          anyOf:
+            - { $ref: "#/components/schemas/DashboardCoach" }
+            - { type: "null" }
+        friends:
+          type: array
+          maxItems: 4
+          items: { $ref: "#/components/schemas/DashboardFriend" }
+        memory:
+          anyOf:
+            - { $ref: "#/components/schemas/Memory" }
+            - { type: "null" }
+        sectionStatus: { $ref: "#/components/schemas/DashboardSectionStatuses" }
     DashboardJourneyRewardCard:
       type: object
       required: [habitId, habitTitle, title, type, status, currentDay, daysRemaining, progressPercent, imageUrl]
@@ -2568,12 +3920,11 @@ components:
         endDate: { type: string, format: date }
     GroupMember:
       type: object
-      required: [userId, displayName, avatarEmoji, progressCount, isMe]
+      required: [userId, displayName, avatarEmoji, isMe]
       properties:
         userId: { type: string }
         displayName: { type: string }
         avatarEmoji: { type: string }
-        progressCount: { type: integer }
         isMe: { type: boolean }
     GroupDetail:
       allOf:
@@ -2605,6 +3956,468 @@ components:
       properties:
         toUserId: { type: string }
         emoji: { type: string, minLength: 1 }
+
+    SocialResourceType:
+      type: string
+      enum: [journey, memory, reward, character, achievements]
+      description: Journey IDs are habit IDs; profile preferences use resourceId "profile".
+    SocialMe:
+      type: object
+      required: [id, username, displayName, avatarEmoji, characterSharing, achievementsSharing]
+      properties:
+        id: { type: string }
+        username: { type: ["string", "null"], minLength: 3, maxLength: 24 }
+        displayName: { type: string }
+        avatarEmoji: { type: string }
+        characterSharing: { $ref: "#/components/schemas/SocialSharing" }
+        achievementsSharing: { $ref: "#/components/schemas/SocialSharing" }
+    SocialMeUpdate:
+      type: object
+      required: [username]
+      properties:
+        username:
+          type: string
+          minLength: 3
+          maxLength: 24
+          pattern: "^[a-z0-9_]{3,24}$"
+          description: Lowercase letters, digits, underscore only; unique without case sensitivity.
+    SocialUserSummary:
+      type: object
+      required: [id, username, displayName, avatarEmoji]
+      properties:
+        id: { type: string }
+        username: { type: ["string", "null"] }
+        displayName: { type: string }
+        avatarEmoji: { type: string }
+    SocialUserSearchResult:
+      allOf:
+        - $ref: "#/components/schemas/SocialUserSummary"
+        - type: object
+          required: [relationship]
+          properties:
+            relationship:
+              type: string
+              enum: [none, pending_incoming, pending_outgoing, friend, blocked]
+    SocialFriend:
+      allOf:
+        - $ref: "#/components/schemas/SocialUserSummary"
+        - type: object
+          required: [friendsSince]
+          properties:
+            friendsSince: { type: string, format: date-time }
+    SocialFriendRequest:
+      type: object
+      required: [id, sender, recipient, status, createdAt]
+      properties:
+        id: { type: integer }
+        sender: { $ref: "#/components/schemas/SocialUserSummary" }
+        recipient: { $ref: "#/components/schemas/SocialUserSummary" }
+        status: { type: string, enum: [pending, accepted, declined, canceled] }
+        createdAt: { type: string, format: date-time }
+        respondedAt: { type: ["string", "null"], format: date-time }
+    SocialFriendRequestInput:
+      type: object
+      required: [recipientUserId]
+      properties:
+        recipientUserId: { type: string, minLength: 1 }
+    SocialFriendRequestResponse:
+      type: object
+      required: [decision]
+      properties:
+        decision: { type: string, enum: [accept, decline] }
+    SocialBlockInput:
+      type: object
+      required: [blockedUserId]
+      properties:
+        blockedUserId: { type: string, minLength: 1 }
+    SocialBlock:
+      type: object
+      required: [id, blockedUser, createdAt]
+      properties:
+        id: { type: integer }
+        blockedUser: { $ref: "#/components/schemas/SocialUserSummary" }
+        createdAt: { type: string, format: date-time }
+    SocialReportInput:
+      type: object
+      required: [reportedUserId, reason]
+      properties:
+        reportedUserId: { type: string, minLength: 1 }
+        reason:
+          type: string
+          enum: [spam, inappropriate_content, harassment, other]
+        details: { type: string, maxLength: 1000 }
+    SocialReportReceipt:
+      type: object
+      required: [id, status, createdAt]
+      properties:
+        id: { type: integer }
+        status: { type: string, enum: [open, reviewed, closed] }
+        createdAt: { type: string, format: date-time }
+    SocialSharing:
+      type: object
+      required: [resourceType, resourceId, visibility, selectedUserIds]
+      properties:
+        resourceType: { $ref: "#/components/schemas/SocialResourceType" }
+        resourceId: { type: string, minLength: 1 }
+        visibility: { type: string, enum: [private, friends, selected] }
+        selectedUserIds:
+          type: array
+          maxItems: 100
+          items: { type: string }
+    SocialSharingUpdate:
+      type: object
+      required: [visibility]
+      properties:
+        visibility: { type: string, enum: [private, friends, selected] }
+        selectedUserIds:
+          type: array
+          maxItems: 100
+          uniqueItems: true
+          items: { type: string, minLength: 1 }
+    SocialProfile:
+      type: object
+      required: [user, character, achievements, visibleJourneySummaries, sharedMemories, sharedRewards]
+      properties:
+        user: { $ref: "#/components/schemas/SocialUserSummary" }
+        character:
+          type: array
+          items: { $ref: "#/components/schemas/SocialEquippedCharacterItem" }
+          description: Empty unless character/profile is explicitly shared with the current user.
+        achievements:
+          type: array
+          items: { $ref: "#/components/schemas/SocialAchievement" }
+          description: Empty unless achievements/profile is explicitly shared with the current user.
+        visibleJourneySummaries:
+          type: array
+          items: { $ref: "#/components/schemas/SocialJourneySummary" }
+        sharedMemories:
+          type: array
+          items: { $ref: "#/components/schemas/SocialSharedMemory" }
+        sharedRewards:
+          type: array
+          items: { $ref: "#/components/schemas/SocialSharedReward" }
+    SocialEquippedCharacterItem:
+      type: object
+      required: [slot, name, emoji]
+      properties:
+        slot: { type: string, enum: [outfit, hat, accessory, pet, background] }
+        name: { type: string }
+        emoji: { type: string }
+    SocialAchievement:
+      type: object
+      required: [title, description, emoji, reachedAt]
+      properties:
+        title: { type: string }
+        description: { type: string }
+        emoji: { type: string }
+        reachedAt: { type: string, format: date-time }
+    SocialJourneySummary:
+      type: object
+      required: [journeyId, title, emoji, category, progressDay, journeyLength, successfulDayCount, completed]
+      properties:
+        journeyId: { type: integer, description: The owner's habit ID; read-only identity. }
+        title: { type: string }
+        emoji: { type: string }
+        category: { type: string }
+        progressDay: { type: integer, minimum: 0, maximum: 22, description: Greatest successfully completed day number, not a missed-day indicator. }
+        journeyLength: { type: integer, enum: [22] }
+        successfulDayCount: { type: integer, minimum: 0, description: Aggregate successful days only; no missed-day rows/reasons are exposed. }
+        consistencyPercentage: { type: ["number", "null"], minimum: 0, maximum: 100, description: Successful elapsed scheduled days divided by known elapsed scheduled days; null before any scheduled day. }
+        completed: { type: boolean }
+    SocialSharedMemory:
+      type: object
+      required: [id, caption, date, photoUrl]
+      properties:
+        id: { type: integer }
+        caption: { type: ["string", "null"] }
+        date: { type: string, format: date }
+        photoUrl:
+          type: string
+          description: "Authenticated /social/memories/{memoryId}/photo ACL endpoint, not a public URL."
+    SocialSharedReward:
+      type: object
+      required: [id, title, emoji]
+      properties:
+        id: { type: integer }
+        title: { type: string }
+        emoji: { type: string }
+    SocialActivity:
+      type: object
+      required: [id, actor, eventType, journey, progressDay, milestoneTitle, createdAt]
+      properties:
+        id: { type: integer }
+        actor: { $ref: "#/components/schemas/SocialUserSummary" }
+        eventType: { type: string, enum: [successful_day, milestone, journey_completed] }
+        journey: { oneOf: [{ $ref: "#/components/schemas/SocialJourneySummary" }, { type: "null" }] }
+        progressDay: { type: ["integer", "null"], minimum: 0, maximum: 22 }
+        milestoneTitle: { type: ["string", "null"] }
+        createdAt: { type: string, format: date-time }
+    SocialEncouragementInput:
+      type: object
+      required: [receiverUserId, type, template, requestId]
+      properties:
+        receiverUserId: { type: string, minLength: 1 }
+        journeyId: { type: integer, minimum: 1 }
+        type: { type: string, enum: [cheer, clap, fire, support] }
+        template: { type: string, enum: [nice_work, keep_going, great_job, you_got_this, keep_moving] }
+        message: { type: string, maxLength: 120 }
+        requestId: { type: string, format: uuid, description: Client-generated stable UUID reused for an idempotent retry. }
+    SocialEncouragement:
+      type: object
+      required: [id, sender, receiver, journeyId, type, template, message, createdAt]
+      properties:
+        id: { type: integer }
+        sender: { $ref: "#/components/schemas/SocialUserSummary" }
+        receiver: { $ref: "#/components/schemas/SocialUserSummary" }
+        journeyId: { type: ["integer", "null"] }
+        type: { type: string, enum: [cheer, clap, fire, support] }
+        template: { type: string, enum: [nice_work, keep_going, great_job, you_got_this, keep_moving] }
+        message: { type: ["string", "null"], maxLength: 120 }
+        createdAt: { type: string, format: date-time }
+    SocialNotification:
+      type: object
+      required: [id, type, actor, friendRequestId, groupInvitationId, groupId, challengeId, encouragementId, readAt, createdAt]
+      properties:
+        id: { type: integer }
+        type: { type: string, enum: [friend_request_received, friend_request_accepted, challenge_invitation, challenge_accepted, challenge_declined, group_invitation, group_member_joined, encouragement_received, shared_milestone, group_milestone] }
+        actor: { oneOf: [{ $ref: "#/components/schemas/SocialUserSummary" }, { type: "null" }] }
+        friendRequestId: { type: ["integer", "null"] }
+        groupInvitationId: { type: ["integer", "null"] }
+        groupId: { type: ["integer", "null"] }
+        challengeId: { type: ["integer", "null"] }
+        encouragementId: { type: ["integer", "null"] }
+        encouragementTemplate: { type: ["string", "null"], enum: [nice_work, keep_going, great_job, you_got_this, keep_moving, null] }
+        encouragementMessage: { type: ["string", "null"], maxLength: 120, description: Available only after live authorization of the received encouragement. }
+        readAt: { type: ["string", "null"], format: date-time }
+        createdAt: { type: string, format: date-time }
+    SocialReadAllResult:
+      type: object
+      required: [updatedCount]
+      properties:
+        updatedCount: { type: integer, minimum: 0 }
+
+    SocialChallengeTemplate:
+      type: object
+      required: [title, emoji, category, cadence, customDays, unit, executionType, goalType, difficulty, suggestedTargetValue, suggestedMinimumValue]
+      properties:
+        title: { type: string }
+        emoji: { type: string }
+        category: { type: string, enum: [health, learning, productivity, mindfulness, social, creativity, finance, custom] }
+        cadence: { type: string, enum: [daily, weekdays, weekly, custom_days] }
+        customDays:
+          type: ["array", "null"]
+          maxItems: 7
+          items: { type: integer, minimum: 0, maximum: 6 }
+        unit: { type: string, enum: [minutes, count, pages, custom] }
+        executionType: { type: string, enum: [duration, count, boolean, limit] }
+        goalType: { type: string, enum: [build, quit] }
+        difficulty: { type: string, enum: [easy, medium, hard] }
+        suggestedTargetValue: { type: number, minimum: 0 }
+        suggestedMinimumValue: { type: number, minimum: 0 }
+    SocialChallengeInput:
+      type: object
+      required: [sourceHabitId]
+      properties:
+        sourceHabitId: { type: integer, minimum: 1 }
+        title: { type: string, minLength: 1, maxLength: 80 }
+        description: { type: string, maxLength: 500 }
+    SocialChallengeInviteInput:
+      type: object
+      required: [inviteeUserIds]
+      properties:
+        inviteeUserIds:
+          type: array
+          minItems: 1
+          maxItems: 100
+          uniqueItems: true
+          items: { type: string, minLength: 1 }
+    SocialChallengeResponse:
+      type: object
+      required: [decision]
+      properties:
+        decision: { type: string, enum: [accept, decline] }
+        targetValue: { type: number, minimum: 0 }
+        minimumValue: { type: number, minimum: 0 }
+        difficulty: { type: string, enum: [easy, medium, hard], description: Independently chosen by the accepting participant. }
+        cadence: { type: string, enum: [daily, weekdays, weekly, custom_days] }
+        customDays:
+          type: array
+          minItems: 1
+          maxItems: 7
+          uniqueItems: true
+          items: { type: integer, minimum: 0, maximum: 6 }
+    SocialChallengeSummary:
+      type: object
+      required: [id, title, description, durationDays, template, creator, myStatus, memberCount, createdAt]
+      properties:
+        id: { type: integer }
+        title: { type: string }
+        description: { type: ["string", "null"] }
+        durationDays: { type: integer, enum: [22] }
+        template: { $ref: "#/components/schemas/SocialChallengeTemplate" }
+        creator: { $ref: "#/components/schemas/SocialUserSummary" }
+        myStatus: { type: string, enum: [invited, accepted, declined, left] }
+        memberCount: { type: integer, minimum: 1 }
+        createdAt: { type: string, format: date-time }
+    SocialChallengeMember:
+      type: object
+      required: [user, status, journeyId, progressDay, journeyLength, completed]
+      properties:
+        user: { $ref: "#/components/schemas/SocialUserSummary" }
+        status: { type: string, enum: [invited, accepted, declined, left] }
+        journeyId: { type: ["integer", "null"], description: The participant's own habit ID; never grants direct habit access. }
+        progressDay: { type: ["integer", "null"], minimum: 0, maximum: 22 }
+        journeyLength: { type: ["integer", "null"], enum: [22, null] }
+        completed: { type: ["boolean", "null"] }
+        consistencyPercentage: { type: ["number", "null"], minimum: 0, maximum: 100 }
+        character:
+          type: array
+          items: { $ref: "#/components/schemas/SocialEquippedCharacterItem" }
+          description: Equipped items only if separately shared with the viewer; challenge consent does not share the character.
+    SocialChallengeDetail:
+      allOf:
+        - $ref: "#/components/schemas/SocialChallengeSummary"
+        - type: object
+          required: [members]
+          properties:
+            members:
+              type: array
+              items: { $ref: "#/components/schemas/SocialChallengeMember" }
+
+    SocialGroupInput:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 80 }
+        description: { type: string, maxLength: 500 }
+        goalDescription: { type: string, maxLength: 250 }
+        maxMembers: { type: integer, minimum: 2, maximum: 30, default: 30 }
+    SocialGroupSummary:
+      type: object
+      required: [id, name, description, goalDescription, privacy, memberCount, maxMembers, role, coverUrl, createdAt]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        description: { type: ["string", "null"] }
+        goalDescription: { type: string }
+        privacy: { type: string, enum: [invite_only] }
+        memberCount: { type: integer, minimum: 1 }
+        maxMembers: { type: integer, minimum: 2, maximum: 30 }
+        role: { type: string, enum: [owner, member] }
+        coverUrl: { type: ["string", "null"], description: "Authenticated /social/groups/{groupId}/cover endpoint." }
+        createdAt: { type: string, format: date-time }
+    SocialGroupJourneyProgress:
+      type: object
+      required: [journeyId, title, emoji, progressDay, journeyLength, successfulDayCount, completed]
+      properties:
+        journeyId: { type: integer, description: The owner's habit ID, returned only as a read-only journey identity. }
+        title: { type: string }
+        emoji: { type: string }
+        progressDay: { type: integer, minimum: 0, maximum: 22 }
+        journeyLength: { type: integer, enum: [22] }
+        successfulDayCount: { type: integer, minimum: 0 }
+        completed: { type: boolean }
+    SocialGroupMember:
+      type: object
+      required: [user, role, joinedAt, sharedJourneys]
+      properties:
+        user: { $ref: "#/components/schemas/SocialUserSummary" }
+        role: { type: string, enum: [owner, member] }
+        joinedAt: { type: string, format: date-time }
+        sharedJourneys:
+          type: array
+          description: Empty unless this member explicitly shared these journeys with this group.
+          items: { $ref: "#/components/schemas/SocialGroupJourneyProgress" }
+    SocialGroupDetail:
+      allOf:
+        - $ref: "#/components/schemas/SocialGroupSummary"
+        - type: object
+          required: [members]
+          properties:
+            members:
+              type: array
+              items: { $ref: "#/components/schemas/SocialGroupMember" }
+    SocialGroupInviteInput:
+      type: object
+      required: [inviteeUserIds]
+      properties:
+        inviteeUserIds:
+          type: array
+          minItems: 1
+          maxItems: 29
+          uniqueItems: true
+          items: { type: string, minLength: 1 }
+    SocialGroupInvitationResponse:
+      type: object
+      required: [decision]
+      properties:
+        decision: { type: string, enum: [accept, decline] }
+    SocialGroupInvitation:
+      type: object
+      required: [id, groupId, groupName, inviter, invitee, status, createdAt]
+      properties:
+        id: { type: integer }
+        groupId: { type: integer }
+        groupName: { type: string }
+        inviter: { $ref: "#/components/schemas/SocialUserSummary" }
+        invitee: { $ref: "#/components/schemas/SocialUserSummary" }
+        status: { type: string, enum: [pending, accepted, declined, canceled] }
+        createdAt: { type: string, format: date-time }
+        respondedAt: { type: ["string", "null"], format: date-time }
+    SocialGroupActivity:
+      type: object
+      required: [id, actor, eventType, journey, progressDay, createdAt]
+      properties:
+        id: { type: integer }
+        actor: { $ref: "#/components/schemas/SocialUserSummary" }
+        eventType: { type: string, enum: [member_joined, successful_day, milestone, journey_completed] }
+        journey: { oneOf: [{ $ref: "#/components/schemas/SocialGroupJourneyProgress" }, { type: "null" }] }
+        progressDay: { type: ["integer", "null"], minimum: 0, maximum: 22 }
+        createdAt: { type: string, format: date-time }
+    SocialGroupJourneyShareInput:
+      type: object
+      required: [journeyId]
+      properties:
+        journeyId: { type: integer, minimum: 1, description: Journey identity is an owned habit ID. }
+    SocialGroupJourneyShare:
+      type: object
+      required: [groupId, journey]
+      properties:
+        groupId: { type: integer }
+        journey: { $ref: "#/components/schemas/SocialGroupJourneyProgress" }
+    SocialGroupEncouragementInput:
+      type: object
+      required: [template, requestId]
+      properties:
+        receiverUserId: { type: string, minLength: 1, description: Omit to cheer the whole group. }
+        template: { type: string, enum: [nice_work, keep_going, great_job, you_got_this, keep_moving] }
+        message: { type: string, maxLength: 120 }
+        requestId: { type: string, format: uuid, description: Client-generated stable UUID reused for an idempotent retry. }
+    SocialGroupEncouragement:
+      type: object
+      required: [id, groupId, sender, receiver, emoji, template, message, createdAt]
+      properties:
+        id: { type: integer }
+        groupId: { type: integer }
+        sender: { $ref: "#/components/schemas/SocialUserSummary" }
+        receiver: { oneOf: [{ $ref: "#/components/schemas/SocialUserSummary" }, { type: "null" }] }
+        emoji: { type: string }
+        template: { type: ["string", "null"], enum: [nice_work, keep_going, great_job, you_got_this, keep_moving, null] }
+        message: { type: ["string", "null"], maxLength: 120 }
+        createdAt: { type: string, format: date-time }
+    SocialGroupCoverUpdate:
+      type: object
+      required: [imageObjectPath]
+      properties:
+        imageObjectPath:
+          type: ["string", "null"]
+          minLength: 1
+          description: Private normalized path from the authenticated upload flow, or null to remove.
+    SocialGroupCover:
+      type: object
+      required: [imageUrl]
+      properties:
+        imageUrl: { type: ["string", "null"], description: Authenticated group cover endpoint URL; never a public object URL. }
 
     AiBreakdownGoalInput:
       type: object

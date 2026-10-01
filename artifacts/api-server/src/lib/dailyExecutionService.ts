@@ -1,4 +1,4 @@
-import { and, desc, eq, lte } from "drizzle-orm";
+import { and, desc, eq, inArray, lte, sql } from "drizzle-orm";
 import {
   db,
   habitsTable,
@@ -8,6 +8,7 @@ import {
   habitDailyExecutionsTable,
   habitDailyActionKeysTable,
   checkinsTable,
+  memoriesTable,
   type HabitPlanJson,
   type HabitRow,
   type HabitDailyExecutionRow,
@@ -50,6 +51,7 @@ export class DailyServiceError extends Error {
 }
 
 type PlanSnapshot = DailyPlan & {
+  habitDayId: number | null;
   title: string;
   dayNumber: number;
   scheduled: boolean;
@@ -64,7 +66,7 @@ type PlanSnapshot = DailyPlan & {
 
 async function lockUserAndHabit(tx: DailyTransaction, userId: string, habitId: number): Promise<HabitRow> {
   const [user] = await tx.select({ id: usersTable.id }).from(usersTable)
-    .where(eq(usersTable.id, userId)).for("update");
+    .where(eq(usersTable.id, userId)).for("no key update");
   if (!user) throw new DailyServiceError("User not found", 404);
   const [habit] = await tx.select().from(habitsTable)
     .where(and(eq(habitsTable.id, habitId), eq(habitsTable.userId, userId)))
@@ -143,6 +145,7 @@ async function planForDate(
     const revisionPlan = revision?.plan as HabitPlanJson | undefined;
     const unit = day.unit ?? revisionPlan?.unit ?? habit.unit;
     return {
+      habitDayId: day.id,
       title: day.title ?? revisionPlan?.title ?? habit.title,
       dayNumber: journeyDayNumber(date, start),
       scheduled: day.scheduled,
@@ -170,6 +173,7 @@ async function planForDate(
   const dayNumber = dayDifference(anchor, date) + 1;
   const scheduled = date === today && isScheduledDate(date, dayNumber, habit.cadence, habit.customDays);
   return {
+    habitDayId: null,
     title: habit.title,
     dayNumber,
     scheduled,
@@ -390,9 +394,18 @@ async function stateInTransaction(
   const execution = await materializeExecution(tx, habit, plan, date, today, timezone, now);
   const checkin = await loadCheckin(tx, habit.id, date);
   const stats = await consistencyStats(tx, habit, today);
+  const [memory] = plan.habitDayId == null
+    ? []
+    : await tx.select({ id: memoriesTable.id }).from(memoriesTable).where(and(
+      eq(memoriesTable.userId, habit.userId),
+      eq(memoriesTable.habitId, habit.id),
+      eq(memoriesTable.habitDayId, plan.habitDayId),
+    )).limit(1);
   return GetDailyHabitDayResponse.parse({
     habitId: habit.id,
     date,
+    habitDayId: plan.habitDayId,
+    memoryId: memory?.id ?? null,
     dayNumber: habit.journeyStartDate != null
       ? journeyDayNumber(date, habit.journeyStartDate)
       : execution?.dayNumber ?? plan.dayNumber,
@@ -430,6 +443,193 @@ async function stateInTransaction(
     eligibleDays: stats.eligibleDays,
     rewardMilestones: rewardMilestones(habit, date, today),
   });
+}
+
+/**
+ * Read-only snapshot for dashboard projections. Missing executions stay
+ * virtual: the normal action endpoint materializes them at revision zero.
+ */
+export async function getReadOnlyDailyHabitStates(
+  userId: string,
+  date: string,
+  now = new Date(),
+  habitId?: number,
+  includeMemoryIds = true,
+) {
+  const user = await db.select({ timezone: usersTable.timezone }).from(usersTable)
+    .where(eq(usersTable.id, userId)).then(([row]) => row);
+  if (!user) throw new DailyServiceError("User not found", 404);
+  const today = todayInTimezone(user.timezone, now);
+  const projectedStates = await db.transaction(async (tx) => {
+    await tx.execute(sql`SET TRANSACTION READ ONLY`);
+    const conditions = [
+      eq(habitsTable.userId, userId),
+      eq(habitsTable.isActive, true),
+      ...(habitId == null ? [] : [eq(habitsTable.id, habitId)]),
+    ];
+    const habits = await tx.select().from(habitsTable).where(and(...conditions))
+      .orderBy(habitsTable.createdAt, habitsTable.id);
+    const states = [];
+    for (const habit of habits) {
+      let plan: PlanSnapshot;
+      try {
+        plan = await planForDate(tx, habit, date, today);
+      } catch (error) {
+        if (error instanceof DailyServiceError && error.message === "This date is outside the habit's journey") {
+          continue;
+        }
+        throw error;
+      }
+      const [savedExecution] = await tx.select().from(habitDailyExecutionsTable).where(and(
+        eq(habitDailyExecutionsTable.habitId, habit.id),
+        eq(habitDailyExecutionsTable.date, date),
+      ));
+      const [checkin] = await tx.select().from(checkinsTable).where(and(
+        eq(checkinsTable.habitId, habit.id),
+        eq(checkinsTable.date, date),
+      ));
+      const execution = savedExecution ?? null;
+      let status = execution?.status ?? (checkin?.completed
+        ? (checkin.note || checkin.difficulty ? "completed" : "pending_reflection")
+        : date < today ? "missed" : checkin ? "in_progress" : "pending");
+      const canImportCompletedCheckin = !execution?.lastResumedAt
+        && !execution?.pausedAt
+        && !["completed", "pending_reflection", "minimum_reached", "target_reached"].includes(status);
+      const completedReflectionWasAdded = status === "pending_reflection"
+        && Boolean(checkin?.note || checkin?.difficulty);
+      if (date < today && checkin?.completed
+        && (canImportCompletedCheckin || completedReflectionWasAdded
+          || status === "minimum_reached" || status === "target_reached")) {
+        status = checkin.note || checkin.difficulty ? "completed" : "pending_reflection";
+      } else if (checkin?.completed && (canImportCompletedCheckin || completedReflectionWasAdded)) {
+        status = checkin.note || checkin.difficulty ? "completed" : "pending_reflection";
+      } else if (date < today && status !== "completed" && status !== "pending_reflection"
+        && status !== "recovered") {
+        status = "missed";
+      }
+      const stats = await consistencyStats(tx, habit, today);
+      const timerState = execution ?? {
+        executionType: plan.executionType,
+        status,
+        startedAt: null,
+        lastResumedAt: null,
+        pausedAt: null,
+        pausedSeconds: 0,
+        elapsedBaseSeconds: 0,
+        segmentPausedSeconds: 0,
+        finishedAt: null,
+        actualValue: checkin?.value ?? null,
+        actualSeconds: null,
+      };
+      const expiredAt = date < today && execution?.lastResumedAt
+        && execution.executionType === "duration"
+        ? localDayStart(addCalendarDays(date, 1), user.timezone)
+        : null;
+      const projectedElapsedSeconds = expiredAt && execution
+        ? elapsedSecondsAt(execution, expiredAt)
+        : elapsedSecondsAt(timerState, now);
+      states.push(GetDailyHabitDayResponse.parse({
+        habitId: habit.id,
+        date,
+        habitDayId: plan.habitDayId,
+        memoryId: null,
+        dayNumber: plan.dayNumber,
+        scheduled: execution?.scheduled ?? plan.scheduled,
+        eligible: (execution?.scheduled ?? plan.scheduled) && date <= today,
+        planRevision: execution?.planRevision ?? plan.planRevision,
+        title: execution?.title ?? plan.title,
+        executionType: execution?.executionType ?? plan.executionType,
+        unit: execution?.unit ?? plan.unit,
+        targetValue: execution?.targetValue ?? plan.targetValue,
+        minimumValue: execution?.minimumValue ?? plan.minimumValue,
+        busyDayValue: execution?.busyDayValue ?? plan.busyDayValue,
+        successLimitValue: execution?.successLimitValue ?? plan.successLimitValue,
+        goalType: execution?.goalType ?? plan.goalType,
+        cueType: execution?.cueType ?? plan.cueType,
+        cueTime: execution?.cueTime ?? plan.cueTime,
+        cue: execution?.cue ?? plan.cue,
+        startAction: execution?.startAction ?? plan.startAction,
+        status,
+        actualValue: execution?.actualValue ?? checkin?.value ?? null,
+        actualSeconds: execution?.actualSeconds ?? null,
+        elapsedSeconds: projectedElapsedSeconds,
+        startedAt: execution?.startedAt ?? null,
+        lastResumedAt: execution?.lastResumedAt ?? null,
+        pausedAt: execution?.pausedAt ?? null,
+        pausedSeconds: execution?.pausedSeconds ?? 0,
+        finishedAt: execution?.finishedAt ?? null,
+        missedReason: execution?.missedReason ?? checkin?.missedReason ?? null,
+        note: execution?.note ?? checkin?.note ?? null,
+        difficulty: execution?.difficulty ?? checkin?.difficulty ?? null,
+        revision: execution?.revision ?? 0,
+        adaptationDecision: execution?.adaptationDecision ?? null,
+        checkin: checkin ?? null,
+        successfulDays: stats.successfulDays,
+        eligibleDays: stats.eligibleDays,
+        rewardMilestones: rewardMilestones(habit, date, today),
+      }));
+    }
+    return states;
+  });
+  if (!includeMemoryIds) return projectedStates;
+  const dayIds = projectedStates
+    .map((state) => state.habitDayId)
+    .filter((id): id is number => id != null);
+  if (!dayIds.length) return projectedStates;
+
+  // Memory is an optional adornment. Keep it outside the read-only daily-state
+  // transaction so a memory-table failure cannot abort the habit projection.
+  let memoryIds = new Map<number, number>();
+  try {
+    const memoryRows = await db.select({
+      id: memoriesTable.id,
+      habitDayId: memoriesTable.habitDayId,
+    }).from(memoriesTable).where(and(
+      eq(memoriesTable.userId, userId),
+      inArray(memoriesTable.habitDayId, dayIds),
+    ));
+    memoryIds = new Map(memoryRows
+      .filter((row): row is typeof row & { habitDayId: number } => row.habitDayId != null)
+      .map((row) => [row.habitDayId, row.id]));
+  } catch {
+    // The standalone dashboard memory section reports the unavailable source.
+  }
+  return projectedStates.map((state) => GetDailyHabitDayResponse.parse({
+    ...state,
+    memoryId: state.habitDayId == null ? null : memoryIds.get(state.habitDayId) ?? null,
+  }));
+}
+
+/** Saved scheduled snapshots/executions are the only evidence used for elapsed obligations. */
+export async function getReadOnlyPastScheduledHabitStates(userId: string, today: string, now = new Date()) {
+  const activeHabits = await db.select({ id: habitsTable.id }).from(habitsTable).where(and(
+    eq(habitsTable.userId, userId), eq(habitsTable.isActive, true),
+  ));
+  if (!activeHabits.length) return [];
+  const ids = activeHabits.map((habit) => habit.id);
+  const [savedPlans, savedExecutions] = await Promise.all([
+    db.select({ habitId: habitDaysTable.habitId, date: habitDaysTable.date })
+      .from(habitDaysTable).where(and(
+        inArray(habitDaysTable.habitId, ids),
+        eq(habitDaysTable.scheduled, true),
+        lte(habitDaysTable.date, today),
+      )),
+    db.select({ habitId: habitDailyExecutionsTable.habitId, date: habitDailyExecutionsTable.date })
+      .from(habitDailyExecutionsTable).where(and(
+        inArray(habitDailyExecutionsTable.habitId, ids),
+        eq(habitDailyExecutionsTable.scheduled, true),
+        lte(habitDailyExecutionsTable.date, today),
+      )),
+  ]);
+  const pairs = new Map<string, { habitId: number; date: string }>();
+  for (const pair of [...savedPlans, ...savedExecutions]) {
+    if (pair.date < today) pairs.set(`${pair.habitId}:${pair.date}`, pair);
+  }
+  const projections = await Promise.all([...pairs.values()].map(async ({ habitId, date }) => {
+    const states = await getReadOnlyDailyHabitStates(userId, date, now, habitId, false);
+    return states[0] ?? null;
+  }));
+  return projections.filter((state): state is NonNullable<typeof state> => state != null);
 }
 
 export async function getDailyHabitState(
@@ -513,6 +713,14 @@ export async function changeDailyHabitExecution(
     if (input.expectedRevision !== row.revision) {
       throw new DailyServiceError("Daily execution changed; refresh and retry", 409);
     }
+    const existingCheckin = await loadCheckin(tx, habit.id, date);
+    const hasPaidCheckin = Boolean(existingCheckin?.completed
+      && existingCheckin.value != null
+      && row.actualValue === existingCheckin.value
+      && row.goalType === "build"
+      && (row.executionType === "count" || row.executionType === "duration")
+      && row.actualValue >= row.minimumValue
+      && row.actualValue < row.targetValue);
     let transition: ReturnType<typeof transitionDailyExecution>;
     try {
       transition = transitionDailyExecution({
@@ -521,7 +729,7 @@ export async function changeDailyHabitExecution(
         targetValue: row.targetValue,
         minimumValue: row.minimumValue,
         successLimitValue: row.successLimitValue,
-      }, row, input, now);
+      }, { ...row, hasPaidCheckin }, input, now);
     } catch (error) {
       if (error instanceof DailyExecutionTransitionError) {
         throw new DailyServiceError(error.message, 409);
@@ -529,7 +737,6 @@ export async function changeDailyHabitExecution(
       throw error;
     }
 
-    const existingCheckin = await loadCheckin(tx, habit.id, date);
     const shouldPersistSuccessfulValue = transition.shouldRecordSuccess
       || (existingCheckin?.completed
         && ["finish", "done", "update_progress"].includes(input.action));
@@ -839,6 +1046,7 @@ export async function getDailyOverview(
           const revisionPlan = revision?.plan as HabitPlanJson | undefined;
           const unit = day.unit ?? revisionPlan?.unit ?? habit.unit;
           const dayPlan: PlanSnapshot = {
+            habitDayId: day.id,
             title: day.title ?? revisionPlan?.title ?? habit.title,
             dayNumber: journeyDayNumber(day.date, habit.journeyStartDate!),
             scheduled: day.scheduled,

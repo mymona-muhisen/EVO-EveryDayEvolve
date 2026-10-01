@@ -1,7 +1,8 @@
+import { MemoryDetailById } from '@/components/memory/memory';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Link, useLocation, useParams } from 'wouter';
-import { useGetHabitDecorations, getGetHabitDecorationsQueryKey, useGetHabit, useGetHabitJourney, getGetHabitJourneyQueryKey, getGetHabitQueryKey, useListHabits, useListRewards, useStartHabitJourney } from '@workspace/api-client-react';
+import { useGetHabitDecorations, getGetHabitDecorationsQueryKey, useGetHabit, useGetHabitJourney, getGetHabitJourneyQueryKey, getGetHabitQueryKey, useListHabits, useListRewards,  useStartHabitJourney } from '@workspace/api-client-react';
 import { toast } from 'sonner';
 import { Crosshair, Maximize2 } from 'lucide-react';
 import { PageHead, Empty, Loading, ErrorBlock } from '@/components/journey-ui';
@@ -13,6 +14,7 @@ import { DecorShop } from '@/components/journey/decor-shop';
 import { FullscreenOverlay } from '@/components/journey/fullscreen';
 import { writeLastHabit } from '@/lib/decor';
 import { RewardCard, RewardEditDialog, AddRewardPanel, RewardEditor, emptyDraft, draftError, buildRewardInput, refreshRewards, type RewardDraft } from '@/components/reward/real-reward';
+import { SharingButton } from '@/components/social/sharing';
 import { usePhotoUpload } from '@/hooks/use-photo-upload';
 import { invalidateDailyAll } from '@/hooks/use-daily';
 
@@ -93,6 +95,7 @@ export function HabitJourneyPage() {
   const deco = useGetHabitDecorations(id, { query: { enabled: !!id, queryKey: getGetHabitDecorationsQueryKey(id) } });
   useEffect(() => { if (id && habit.data && habits.data?.some(h => h.id === id)) writeLastHabit(id); }, [id, habit.data, habits.data]);
   const [sel, setSel] = useState<number | null>(null);
+  const [openMemory, setOpenMemory] = useState<number | null>(null);
   const [cel, setCel] = useState(false);
   const prevSucc = useRef<number | null>(null);
   useEffect(() => { setSel(null); setCel(false); prevSucc.current = null; window.scrollTo({ top: 0, behavior: 'instant' }); }, [id]);
@@ -125,12 +128,14 @@ export function HabitJourneyPage() {
       </div><div data-journey-layout className={`grid ${full ? 'lg:grid-cols-[minmax(0,1fr)_320px]' : 'lg:grid-cols-[minmax(0,560px)_1fr]'} gap-6 items-start`}>
         <div className={`min-w-0 ${full ? 'lg:sticky lg:top-4' : ''}`}>
           {cel && <div role="status" className="paper rounded-2xl p-3 mb-3 pop flex gap-3 items-center"><img src={base('component-pikura-star-20750.gif')} alt="" className="h-10 motion-reduce:hidden" />{(MILESTONES as readonly number[]).includes(calendarDay(d)) ? 'أكملت يوم هذه المحطة. خطوة جديدة في رحلتك.' : 'خطوة اليوم محفوظة. أثر جديد على جزيرتك.'}</div>}
-          <JourneyMap journey={d} selected={cur} onSelect={setSel} placements={deco.data?.placements} fullscreen={full} preservePagePosition={preservePagePosition} layoutRevision={layoutRevision} />
+          <JourneyMap journey={d} selected={cur} onSelect={setSel} placements={deco.data?.placements} fullscreen={full} preservePagePosition={preservePagePosition} layoutRevision={layoutRevision} onOpenMemory={setOpenMemory} />
+          {openMemory && <MemoryDetailById memoryId={openMemory} onClose={() => setOpenMemory(null)} />}
         </div>
         <div className="space-y-4 lg:sticky lg:top-4 min-w-0">
           <div data-journey-controls className="flex flex-wrap gap-2 items-center"><button className="btn" onClick={focus} data-testid="button-focus-current"><Crosshair size={16} />اذهب إلى اليوم {calendarDay(d)}</button>{!full && <button ref={fsBtn} className="btn btn-light" disabled={closing} onClick={enterFullscreen} data-testid="button-fullscreen"><Maximize2 size={16} />ملء الشاشة</button>}<Link href="/character" className="btn btn-light">الشخصية والمتجر</Link><span className="badge">{d.successful} ناجحة · {d.restDays} راحة · {d.missedDays} فائتة</span></div>
           {d.status === 'expired' && <p className="panel rounded-xl p-3 text-sm">انتهت الرحلة دون إكمال، وتبقى خريطتك محفوظة كما هي.</p>}
           {d.status === 'completed' && <Link href={`/habits/${id}/journey/complete`} className="btn btn-coral">ملخص إكمال الرحلة</Link>}
+          <div className="mb-3" data-testid="journey-sharing"><SharingButton resourceType="journey" resourceId={String(id)} title="مشاركة هذه الرحلة" /></div>
           {(d.realReward || d.status === 'active') && <div data-journey-reward data-testid="journey-reward-wrapper">{d.realReward ? <RewardCard reward={d.realReward} journeyDay={calendarDay(d)} onEdit={() => setEditReward(true)} /> : <AddRewardPanel habitId={id} />}</div>}
           {d.realReward && d.status === 'active' && calendarDay(d) >= 22 && <p role="status" data-testid="text-final-day" className="text-sm font-bold text-[#a8571e]">اليوم الأخير: وجهتك النهائية، عادتك {habit.data.title}، ومكافأتك {d.realReward.title}.</p>}
           {editReward && d.realReward && <RewardEditDialog reward={d.realReward} onClose={() => setEditReward(false)} />}

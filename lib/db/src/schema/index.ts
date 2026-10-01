@@ -14,3 +14,4 @@ export * from "./character";
 export * from "./decorations";
 export * from "./journey";
 export * from "./groups";
+export * from "./social";

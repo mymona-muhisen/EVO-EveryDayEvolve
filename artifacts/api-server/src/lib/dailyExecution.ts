@@ -41,6 +41,8 @@ export type DailyExecutionState = {
   finishedAt: Date | null;
   actualValue: number | null;
   actualSeconds: number | null;
+  /** Set only from an existing completed check-in associated with this execution. */
+  hasPaidCheckin?: boolean;
 };
 
 export type DailyActionInput = {
@@ -77,14 +79,27 @@ export function dailyProgressStatus(plan: DailyPlan, value: number | null): Dail
   return "in_progress";
 }
 
-function canChange(state: DailyExecutionState, action: DailyAction): void {
+function isKnownUnfinishedPaidMinimum(plan: DailyPlan, state: DailyExecutionState): boolean {
+  return state.hasPaidCheckin === true
+    && plan.goalType === "build"
+    && (plan.executionType === "count" || plan.executionType === "duration")
+    && state.actualValue != null
+    && state.actualValue >= plan.minimumValue
+    && state.actualValue < plan.targetValue;
+}
+
+function canChange(plan: DailyPlan, state: DailyExecutionState, action: DailyAction): void {
   if (state.status === "missed" || state.status === "recovered") {
     throw new DailyExecutionTransitionError("This daily execution is already closed");
   }
   if (state.status === "recovery_available" || state.status === "recovery_active") {
     throw new DailyExecutionTransitionError("Recovery Lite is disabled");
   }
-  if (state.status === "pending_reflection"
+  const mayContinuePaidMinimum = isKnownUnfinishedPaidMinimum(plan, state)
+    && (action === "update_progress"
+      || plan.executionType === "duration"
+        && ["start", "resume", "finish", "done"].includes(action));
+  if ((state.status === "pending_reflection" && !mayContinuePaidMinimum)
     || (state.status === "completed" && action !== "update_progress")) {
     throw new DailyExecutionTransitionError("This daily execution is already closed");
   }
@@ -111,7 +126,7 @@ export function transitionDailyExecution(
   now: Date,
 ): { updates: Partial<DailyExecutionState>; shouldRecordSuccess: boolean } {
   const action = input.action;
-  canChange(state, action);
+  canChange(plan, state, action);
   if (["start", "pause", "resume"].includes(action) && plan.executionType !== "duration") {
     throw new DailyExecutionTransitionError("Timer actions are only valid for duration executions");
   }
@@ -173,7 +188,10 @@ export function transitionDailyExecution(
   }
 
   if (action === "resume") {
-    if (state.status !== "paused" || !state.pausedAt) {
+    const paidMinimumResume = state.status === "pending_reflection"
+      && isKnownUnfinishedPaidMinimum(plan, state)
+      && state.pausedAt != null;
+    if ((state.status !== "paused" && !paidMinimumResume) || !state.pausedAt) {
       throw new DailyExecutionTransitionError("Only a paused timer can be resumed");
     }
     const pausedSeconds = state.pausedSeconds
@@ -203,12 +221,19 @@ export function transitionDailyExecution(
     }
     const seconds = plan.executionType === "duration" ? Math.round(input.value) : null;
     const value = plan.executionType === "duration" ? seconds! / 60 : input.value;
+    if (state.hasPaidCheckin && value < plan.minimumValue) {
+      throw new DailyExecutionTransitionError("A paid successful check-in cannot be reduced below its minimum");
+    }
     if (state.status === "completed" && !evaluateSuccess(plan, value)) {
       throw new DailyExecutionTransitionError("A successful daily execution cannot be downgraded");
     }
     return {
       updates: {
-        status: state.status === "completed" ? "completed" : dailyProgressStatus(plan, value),
+        status: state.status === "completed"
+          ? "completed"
+          : state.status === "pending_reflection" && isKnownUnfinishedPaidMinimum(plan, state)
+            ? "pending_reflection"
+            : dailyProgressStatus(plan, value),
         actualValue: value,
         ...(seconds === null ? {} : { actualSeconds: seconds }),
         ...(seconds === null ? {} : {

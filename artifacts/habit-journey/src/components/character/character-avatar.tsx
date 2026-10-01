@@ -1,5 +1,10 @@
 import type { CharacterItem } from '@workspace/api-client-react';
 
+// Appearance needs no prices, inventory ownership, or wallet fields. This also
+// accepts the deliberately smaller, consent-filtered social projection.
+type CharacterAppearanceItem = Pick<CharacterItem, 'name' | 'emoji' | 'slot'> & { id?: number };
+const appearanceKey = (item: CharacterAppearanceItem) => item.id == null ? `${item.slot}:${item.name}:${item.emoji}` : String(item.id);
+
 const BASE = import.meta.env.BASE_URL;
 export const CHARACTER_SPRITE = `${BASE}journey-assets/character-idle.gif`;
 export const CHARACTER_STILL = `${BASE}journey-assets/character-idle-still.webp`;
@@ -12,12 +17,13 @@ const kindByEmoji: Record<string, string> = {
   '🕶️': 'glasses', '🎒': 'backpack', '🧣': 'scarf', '🐱': 'cat', '🦜': 'bird', '🐉': 'dragon',
   '🌅': 'sunset', '🌲': 'forest', '🌌': 'night',
 };
-const kindOf = (i: CharacterItem) => kindByEmoji[i.emoji] ?? `${i.slot}-generic`;
+const kindOf = (i: CharacterAppearanceItem) => kindByEmoji[i.emoji] ?? `${i.slot}-generic`;
 const fallbackColor = ['#ce7555', '#4f8a72', '#d9a24f', '#7aa68f'];
 
-function Attachment({ item }: { item: CharacterItem }) {
+function Attachment({ item }: { item: CharacterAppearanceItem }) {
   const k = kindOf(item);
-  const f = fallbackColor[Math.abs(item.id) % 4];
+  const colorKey = [...`${item.slot}:${item.name}:${item.emoji}`].reduce((sum, char) => sum + char.charCodeAt(0), 0);
+  const f = fallbackColor[Math.abs(colorKey) % 4];
   switch (k) {
     case 'sunset': return <><rect width="100" height="120" fill="#f2b680" opacity=".35" /><circle cx="50" cy="92" r="26" fill="#ce7555" opacity=".4" /></>;
     case 'forest': return <><rect width="100" height="120" fill="#7aa68f" opacity=".25" /><path d="M6 110 L18 70 L30 110Z M70 110 L84 62 L98 110Z" fill="#2f6b55" opacity=".5" /></>;
@@ -38,26 +44,26 @@ function Attachment({ item }: { item: CharacterItem }) {
   }
 }
 
-export function CharacterAvatar({ items = [], height = 120, src, className = '', testId }: { items?: CharacterItem[]; height?: number; src?: string; className?: string; testId?: string }) {
-  const sorted = [...items].sort((a, b) => a.id - b.id);
+export function CharacterAvatar({ items = [], height = 120, src, className = '', testId, ownerLabel = 'شخصيتك' }: { items?: CharacterAppearanceItem[]; height?: number; src?: string; className?: string; testId?: string; ownerLabel?: string }) {
+  const sorted = [...items].sort((a, b) => a.id != null && b.id != null ? a.id - b.id : appearanceKey(a).localeCompare(appearanceKey(b)));
   const width = Math.round(height * 0.84);
   const order = ['background', 'outfit', 'hat', 'accessory', 'pet'];
   const layered = [...sorted].sort((a, b) => order.indexOf(a.slot) - order.indexOf(b.slot));
-  const label = sorted.length ? `تجهيزات شخصيتك: ${sorted.map(i => i.name).join('، ')}` : 'لا تجهيزات على شخصيتك';
+  const label = sorted.length ? `تجهيزات ${ownerLabel}: ${sorted.map(i => i.name).join('، ')}` : `لا تجهيزات على ${ownerLabel}`;
   return (
-    <div role="group" aria-label={label} data-testid={testId} data-equipped-ids={sorted.map(i => i.id).join(',')}
+    <div role="group" aria-label={label} data-testid={testId} data-equipped-ids={sorted.flatMap(i => i.id == null ? [] : [i.id]).join(',')}
       className={`relative inline-block shrink-0 overflow-hidden ${className}`} style={{ width, height }}>
       <svg viewBox="0 0 100 120" className="absolute inset-0 w-full h-full pointer-events-none" aria-hidden="true">
-        {layered.filter(i => i.slot === 'background').map(i => <Attachment key={i.id} item={i} />)}
+        {layered.filter(i => i.slot === 'background').map(i => <Attachment key={appearanceKey(i)} item={i} />)}
       </svg>
       <picture>
         <source media="(prefers-reduced-motion: reduce)" srcSet={CHARACTER_STILL} />
         <img src={src ?? CHARACTER_SPRITE} alt="" draggable={false} className="absolute inset-0 w-full h-full object-contain" style={{ imageRendering: 'pixelated' }} />
       </picture>
       <svg viewBox="0 0 100 120" className="absolute inset-0 w-full h-full pointer-events-none" aria-hidden="true">
-        {layered.filter(i => i.slot !== 'background').map(i => <Attachment key={i.id} item={i} />)}
+        {layered.filter(i => i.slot !== 'background').map(i => <Attachment key={appearanceKey(i)} item={i} />)}
       </svg>
-      <ul className="sr-only">{sorted.map(i => <li key={i.id}>{slotLabels[i.slot] ?? i.slot}: {i.name}</li>)}</ul>
+      <ul className="sr-only">{sorted.map(i => <li key={appearanceKey(i)}>{slotLabels[i.slot] ?? i.slot}: {i.name}</li>)}</ul>
     </div>
   );
 }

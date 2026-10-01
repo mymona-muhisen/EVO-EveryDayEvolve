@@ -1,18 +1,24 @@
 import { useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
-import { useListHabits,useListMemories,useCreateMemory,useDeleteMemory,getListMemoriesQueryKey,type Habit } from '@workspace/api-client-react';
-import { usePhotoUpload } from '@/hooks/use-photo-upload';
-import { toast } from 'sonner';
-import { Trash2, Camera, Plus } from 'lucide-react';
-import { PageHead, Field, Modal, Empty, Loading, ErrorBlock, AddButton, dateToday, arDate } from '@/components/journey-ui';
+import { useListHabits, useListMemories, type Habit, type Memory } from '@workspace/api-client-react';
+import { PageHead, Empty, Loading, ErrorBlock, AddButton, arDate } from '@/components/journey-ui';
+import { MemoryImage, MemoryDetailDialog, MemoryDayChooser, memoryText } from '@/components/memory/memory';
 
 export { TimePage } from './time-awareness';
 
 export function MemoriesPage(){
-  const q=useListMemories(),habits=useListHabits(),create=useCreateMemory(),remove=useDeleteMemory(),{uploadPhoto}=usePhotoUpload(),qc=useQueryClient();
-  const [open,setOpen]=useState(false),[note,setNote]=useState(''),[date,setDate]=useState(dateToday()),[habitId,setHabitId]=useState(''),[photo,setPhoto]=useState<File|null>(null),[uploading,setUploading]=useState(false);
-  const submit=async(e:React.FormEvent)=>{e.preventDefault();try{setUploading(true);const photoObjectPath=photo?await uploadPhoto(photo):undefined;await create.mutateAsync({data:{note,date,habitId:habitId?Number(habitId):undefined,photoObjectPath}});qc.invalidateQueries({queryKey:getListMemoriesQueryKey()});toast.success('حُفظت الذكرى');setOpen(false);setNote('');setPhoto(null);}catch{toast.error('لم نتمكن من حفظ الذكرى. جرّب مرة أخرى.')}finally{setUploading(false)}};
-  return <><PageHead overline="دفتر الطريق" title="ذكرياتي" desc="بعض الأيام تستحق أكثر من علامة صح. اترك لها كلمة أو صورة." action={<AddButton onClick={()=>setOpen(true)} label="ذكرى جديدة"/>}/>{q.isLoading?<Loading/>:q.isError?<ErrorBlock retry={()=>q.refetch()}/>:!q.data?.length?<Empty title="دفترك ينتظر أول حكاية" desc="التقط لحظة صغيرة اليوم، ودعها تبقى هنا." action={<AddButton onClick={()=>setOpen(true)} label="أضف ذكرى"/>}/>:<div className="columns-1 md:columns-2 xl:columns-3 gap-5">{q.data.map((m,i)=><article key={m.id} className="paper rounded-[22px] overflow-hidden mb-5 break-inside-avoid rise" style={{animationDelay:`${i*65}ms`}}>{m.photoUrl&&<img src={m.photoUrl} alt="صورة من الذكرى" className="w-full max-h-[350px] object-cover"/>}<div className="p-6"><span className="eyebrow">{arDate(m.date)}</span><p className="text-lg leading-8 mt-3 whitespace-pre-wrap">{m.note}</p>{m.habitId&&<span className="badge mt-4">{habits.data?.find((h:Habit)=>h.id===m.habitId)?.title||'عادة من رحلتك'}</span>}<div className="flex justify-end mt-4"><button className="text-[#ad6d59] p-2" aria-label="حذف الذكرى" onClick={()=>{if(confirm('هل تريد حذف هذه الذكرى؟'))remove.mutate({memoryId:m.id},{onSuccess:()=>{qc.invalidateQueries({queryKey:getListMemoriesQueryKey()});toast.success('حُذفت الذكرى')},onError:()=>toast.error('تعذّر حذف الذكرى')})}}><Trash2 size={16}/></button></div></div></article>)}</div>}
-    {open&&<Modal title="لحظة تستحق أن تبقى" onClose={()=>setOpen(false)}><form onSubmit={submit}><Field label="ما الذي تريد تذكّره؟"><textarea className="field min-h-32" required value={note} onChange={e=>setNote(e.target.value)} placeholder="اكتب ما حدث، أو كيف شعرت..."/></Field><Field label="التاريخ"><input className="field" type="date" value={date} onChange={e=>setDate(e.target.value)}/></Field><Field label="عادة مرتبطة (اختياري)"><select className="field" value={habitId} onChange={e=>setHabitId(e.target.value)}><option value="">ذكرى مستقلة</option>{habits.data?.map(h=><option key={h.id} value={h.id}>{h.title}</option>)}</select></Field><label className="block mb-5 border border-dashed border-[#bcc8b8] bg-[#f4f5ea] rounded-xl p-6 text-center cursor-pointer"><Camera className="mx-auto mb-2 text-[#41725e]"/><span className="text-sm font-bold">{photo?photo.name:'أضف صورة لهذه اللحظة (اختياري)'}</span><input className="sr-only" type="file" accept="image/*" onChange={e=>setPhoto(e.target.files?.[0]||null)}/></label><button className="btn w-full" disabled={uploading||create.isPending}><Plus size={17}/>{uploading?'نحفظ لحظتك...':'حفظ الذكرى'}</button></form></Modal>}
+  const q=useListMemories(),habits=useListHabits();
+  const [choose,setChoose]=useState(false),[sel,setSel]=useState<Memory|null>(null);
+  const current=sel?q.data?.find(m=>m.id===sel.id)??null:null;
+  return <><PageHead overline="دفتر الطريق" title="ذكرياتي" desc="بعض الأيام تستحق أكثر من علامة صح. صور خاصة بك وحدك، من أيام أنجزتها." action={<AddButton onClick={()=>setChoose(true)} label="ذكرى جديدة"/>}/>
+    {q.isLoading?<Loading/>:q.isError?<ErrorBlock retry={()=>q.refetch()}/>:!q.data?.length?<Empty title="دفترك ينتظر أول حكاية" desc="بعد يوم تنجزه، التقط لحظة صغيرة وستبقى هنا." action={<AddButton onClick={()=>setChoose(true)} label="أضف ذكرى"/>}/>
+    :<div className="columns-1 md:columns-2 xl:columns-3 gap-5">{q.data.map((m,i)=><article key={m.id} data-testid={`card-memory-${m.id}`} className="paper rounded-[22px] overflow-hidden mb-5 break-inside-avoid rise" style={{animationDelay:`${i*65}ms`}}>
+      <button type="button" className="block w-full text-start" onClick={()=>setSel(m)} aria-label="فتح الذكرى">
+        {m.photoUrl&&<MemoryImage photoUrl={m.photoUrl} className="w-full h-[240px]"/>}
+        <div className="p-5"><span className="eyebrow">{m.dayNumber?`اليوم ${m.dayNumber} · `:''}{arDate(m.date.slice(0,10))}</span>
+          {memoryText(m)&&<p className="text-lg leading-8 mt-2 whitespace-pre-wrap break-words">{memoryText(m)}</p>}
+          <span className="badge mt-3">{m.habitTitle||habits.data?.find((h:Habit)=>h.id===m.habitId)?.title||(m.habitDayId?'عادة من رحلتك':'ذكرى سابقة')}</span></div>
+      </button></article>)}</div>}
+    {choose&&<MemoryDayChooser onClose={()=>setChoose(false)}/>}
+    {current&&<MemoryDetailDialog key={current.id} memory={current} onClose={()=>setSel(null)}/>}
   </>;
 }

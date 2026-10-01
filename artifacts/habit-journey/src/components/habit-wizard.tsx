@@ -134,6 +134,7 @@ export function HabitWizard({ seed, onSaved }: { seed?: { title: string; minutes
         qc.invalidateQueries({ queryKey: getGetDashboardTodayQueryKey() });
         qc.invalidateQueries({ queryKey: getListRewardsQueryKey() });
         refreshRewards(qc, r.id);
+         window.dispatchEvent(new CustomEvent('habit-journey-created', { detail: { habitId: r.id, title: r.title } }));
         toast.success('بدأت رحلتك الجديدة، اثنان وعشرون يومًا بخطوات صغيرة');
         onSaved?.(r.id);
       },

@@ -1,14 +1,25 @@
-import { and, eq } from "drizzle-orm";
-import { db, habitsTable, checkinsTable, habitDaysTable, usersTable } from "@workspace/db";
+import { and, eq, lte } from "drizzle-orm";
+import {
+  db,
+  habitsTable,
+  checkinsTable,
+  habitDaysTable,
+  usersTable,
+} from "@workspace/db";
 import { CreateCheckinBody, CreateCheckinResponse } from "@workspace/api-zod";
 import type { z } from "zod";
 import { grantRewards } from "./gamificationService";
 import { coinsForCheckin, continuesStreak, xpForDifficulty } from "./rules";
-import { toDateOnly } from "./dates";
-import { todayInTimezone } from "./dates";
+import { toDateOnly, todayInTimezone } from "./dates";
 import { effectiveMinimum, evaluateHabitCheckin } from "./aiRules";
 import { addCalendarDays, HABIT_JOURNEY_LENGTH } from "./habitJourney";
 import { synchronizeJourneyCompletion } from "./journeyRewardService";
+import {
+  activeSocialShareRecipientIds,
+  appendSocialActivityOnce,
+  insertSocialNotificationOnce,
+} from "../services/social-common";
+import { recordSharedGroupActivityOnce } from "../services/social-circles";
 
 export class CheckinConflictError extends Error {}
 type CheckinTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -43,7 +54,9 @@ export async function recordCheckinInTransaction(
   },
 ) {
     const [user] = await tx.select({ id: usersTable.id, timezone: usersTable.timezone }).from(usersTable)
-      .where(eq(usersTable.id, userId)).for("update");
+      // Serialize balance/progress writes without blocking another check-in's
+      // notification foreign-key check on this unchanged user ID.
+      .where(eq(usersTable.id, userId)).for("no key update");
     if (!user) throw new Error("User not found");
     const [habit] = await tx.select().from(habitsTable)
       .where(and(eq(habitsTable.id, habitId), eq(habitsTable.userId, userId)))
@@ -208,6 +221,81 @@ export async function recordCheckinInTransaction(
       }
     }
     const journeyState = await synchronizeJourneyCompletion(tx, userId, updatedHabit, today);
+    if (newlyCompleted && updatedHabit.journeyLength === HABIT_JOURNEY_LENGTH && dayPlan?.scheduled) {
+      const activeRecipients = await activeSocialShareRecipientIds(
+        tx,
+        userId,
+        "journey",
+        String(updatedHabit.id),
+      );
+      if (activeRecipients.length) {
+        await appendSocialActivityOnce(tx, {
+          actorUserId: userId,
+          eventType: "successful_day",
+          journeyId: updatedHabit.id,
+          idempotencyKey: `successful-day:${updatedHabit.id}:${date}`,
+        });
+      }
+      const successfulRows = await tx.select({ date: checkinsTable.date })
+        .from(checkinsTable).innerJoin(habitDaysTable, and(
+          eq(habitDaysTable.habitId, checkinsTable.habitId),
+          eq(habitDaysTable.date, checkinsTable.date),
+          eq(habitDaysTable.scheduled, true),
+        )).where(and(
+          eq(checkinsTable.habitId, updatedHabit.id),
+          eq(checkinsTable.userId, userId),
+          eq(checkinsTable.completed, true),
+          lte(habitDaysTable.date, today),
+        ));
+      if (activeRecipients.length && [5, 10, 15, 22].includes(successfulRows.length)) {
+        const eventId = await appendSocialActivityOnce(tx, {
+          actorUserId: userId,
+          eventType: "milestone",
+          journeyId: updatedHabit.id,
+          idempotencyKey: `milestone:${updatedHabit.id}:${successfulRows.length}`,
+        });
+        for (const recipientUserId of activeRecipients) {
+          await insertSocialNotificationOnce(tx, {
+            recipientUserId,
+            actorUserId: userId,
+            type: "shared_milestone",
+            eventKey: `social-activity:${eventId}`,
+          });
+        }
+      }
+      if (activeRecipients.length && journeyState.completedAt) {
+        await appendSocialActivityOnce(tx, {
+          actorUserId: userId,
+          eventType: "journey_completed",
+          journeyId: updatedHabit.id,
+          idempotencyKey: `journey-completed:${updatedHabit.id}`,
+        });
+      }
+      if (dayPlan?.scheduled) {
+          await recordSharedGroupActivityOnce(tx, {
+            actorUserId: userId,
+            eventType: "successful_day",
+            journeyId: updatedHabit.id,
+            idempotencyKey: `successful-day:${updatedHabit.id}:${date}`,
+          });
+          if ([5, 10, 15, 22].includes(successfulRows.length)) {
+            await recordSharedGroupActivityOnce(tx, {
+              actorUserId: userId,
+              eventType: "milestone",
+              journeyId: updatedHabit.id,
+              idempotencyKey: `milestone:${updatedHabit.id}:${successfulRows.length}`,
+            });
+          }
+          if (journeyState.completedAt) {
+            await recordSharedGroupActivityOnce(tx, {
+              actorUserId: userId,
+              eventType: "journey_completed",
+              journeyId: updatedHabit.id,
+              idempotencyKey: `journey-completed:${updatedHabit.id}`,
+            });
+          }
+      }
+    }
 
     // Validate before COMMIT; a response-schema failure must not persist a
     // reward while reporting failure to the client.

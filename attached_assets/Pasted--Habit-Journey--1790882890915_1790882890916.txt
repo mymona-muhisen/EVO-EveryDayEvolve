@@ -1,0 +1,1515 @@
+هذه الميزة يجب ألا تجعل Habit Journey شبكة اجتماعية جديدة؛ الهدف منها هو إضافة شيء واحد مهم:
+
+"أنا لا أخوض رحلة تطوير نفسي وحدي."
+
+والحلقة الاجتماعية تكون:
+
+Friend / Group
+      ↓
+Shared Goal or Visible Progress
+      ↓
+Encouragement
+      ↓
+More motivation to continue
+      ↓
+Habit completion
+      ↓
+New progress to share
+
+والقاعدة الأهم:
+
+المستخدم يشارك تقدمه الذي يختاره، وليس حياته كلها.
+
+خصوصًا أن المنتج يمكن أن يستخدمه مراهقون، لذلك الخصوصية والسلامة يجب أن تكون جزءًا من التصميم منذ البداية.
+
+1. ما الذي نريد بناءه؟
+
+عندنا 4 أشياء مختلفة:
+
+FRIENDS
+   ↓
+أشخاص أعرفهم
+
+GROUPS
+   ↓
+مجموعة حول هدف أو تحدٍ
+
+SHARED JOURNEY
+   ↓
+عدة أشخاص يطبقون نفس العادة معًا
+
+ENCOURAGEMENT
+   ↓
+تفاعل إيجابي قصير
+
+ولا نخلط بينها.
+
+2. Friends
+
+المستخدم يستطيع إضافة صديق.
+
+لماذا؟
+
+ليرى:
+
+الشخصية
+الرحلات التي اختار مشاركتها
+الإنجازات
+Memories التي اختار مشاركتها
+
+ولا يرى افتراضيًا:
+
+Time Tracking الكامل
+كل العادات الخاصة
+أسباب الانتكاسة
+البيانات الشخصية الحساسة
+3. إضافة صديق
+
+في Profile أو Friends:
+
+Find Friends
+
+حقل بحث:
+
+Search by username
+
+ثم:
+
+Mymona
+@username
+
+[ Add friend ]
+4. Friend Request
+
+عند الضغط:
+
+Friend request sent
+
+ولا تصبح صداقة مباشرة.
+
+الطرف الآخر يرى:
+
+New friend request
+
+Mymona wants to connect with you.
+
+[ Accept ]
+[ Decline ]
+[ Block ]
+5. Friends List
+My Friends
+
+🧍 Sarah
+Reading · Day 8/22
+
+🧍 Ahmad
+Exercise · Day 12/22
+
+🧍 Lina
+Journey complete 🎉
+
+لا نعرض كل التفاصيل.
+
+الهدف:
+
+Who is on a journey with me?
+
+6. Friend Profile
+
+عند الضغط على الصديق:
+
+Sarah
+
+🧍 Character
+
+Visible Journey
+
+📚 Reading
+
+Day 8 / 22
+
+Consistency
+
+7 successful days / 8
+
+Achievements
+
+🏆 Day 5
+🏆 Day 10
+
+Memories
+
+فقط الصور التي اختارت Sarah مشاركتها.
+
+7. لا نعرض Reward تلقائيًا
+
+المستخدم قد يشارك:
+
+Journey
+Character
+Achievements
+Memories
+
+لكن:
+
+Reward
+
+يبقى Private افتراضيًا.
+
+إذا أراد مشاركته يفعّل ذلك.
+
+8. Sharing Settings
+
+لكل عنصر يمكن أن يكون:
+
+Private
+Friends
+Selected friends
+Public
+
+لكن في الهاكاثون، إذا كان الوقت ضيقًا:
+
+V1 Social
+
+Private
+Friends
+Selected Users
+
+ونؤجل Public إذا لزم.
+
+9. Shared Journey
+
+هذه من أجمل الميزات.
+
+مثلاً:
+
+أنا وصديقتي نريد:
+
+🚶 Morning Walk
+
+بدل أن يكون لكل واحدة Journey معزولة، يمكن إنشاء:
+
+Shared Challenge
+
+22-Day Morning Walk
+
+ثم:
+
+You       Day 12
+Sarah     Day 11
+Lina      Day 12
+
+لكن كل شخص ما زال لديه:
+
+Target خاص
+Minimum خاص
+Difficulty خاص
+Consistency خاص
+
+أي أن:
+
+الهدف مشترك، لكن الرحلة شخصية.
+
+وهذا مهم جدًا.
+
+10. كيف ننشئ Shared Challenge؟
+
+من Habit Creation:
+
+بعد أن ينشئ المستخدم عادة:
+
+Do this with friends?
+
+زر:
+
+Invite friends
+
+يختار:
+
+☑ Sarah
+☐ Ahmad
+☐ Lina
+
+ثم:
+
+Create Shared Journey
+
+11. ماذا يصل للصديق؟
+
+Notification:
+
+Sarah invited you to a 22-day Morning Walk challenge.
+
+ثم:
+
+Start your own journey with us.
+
+Buttons:
+
+Join
+
+Not now
+
+12. عند الانضمام
+
+لا ننسخ Habit حرفيًا.
+
+بل نرسل:
+
+Challenge Template
+Habit:
+Morning Walk
+
+Duration:
+22 days
+
+Suggested Target:
+10 min
+
+والصديق يستطيع تعديل:
+
+My Target: 5 min
+
+وهذا متوافق مع Adaptive Habit Engine.
+
+13. Shared Journey Screen
+
+أريدها مختلفة عن Map نفسها.
+
+لدينا:
+
+Morning Walk
+Our Journey
+YOU
+Day 12
+████████████░░
+
+SARAH
+Day 11
+███████████░░░
+
+LINA
+Day 8
+████████░░░░░
+
+ثم الشخصيات تظهر في مواقعها على الخريطة.
+
+وهذا قد يكون جميلًا جدًا بصريًا.
+
+14. هل نريد Leaderboard؟
+
+لا أريد Leaderboard تقليدي في V1.
+
+لا:
+
+🥇 Sarah
+🥈 You
+🥉 Lina
+
+لأنه يتعارض مع فكرة أن كل شخص لديه مستوى مختلف من الصعوبة.
+
+بدل ذلك:
+
+We're moving together.
+
+ونعرض progress لكل شخص دون ترتيب.
+
+15. ولكن المنافسة يمكن أن تكون اختيارية
+
+إذا أردتم إضافة Gamification لاحقًا:
+
+Friendly Challenge
+
+لكن لا نجعلها default.
+
+16. Encouragement
+
+هذه يجب أن تكون سريعة جدًا.
+
+عند رؤية صديق أكمل يومه:
+
+🎉 Sarah completed Day 8
+
+زر:
+
+Cheer
+
+وعند الضغط تظهر:
+
+🔥 Keep going!
+🎉 You got this!
+👏 Nice work!
+💪 Keep moving!
+✨ Proud of you!
+
+أو:
+
+Write your own
+
+"Keep going!"
+
+17. لا نريد Chat كامل
+
+لا نبني:
+
+DM system
+conversations
+message history كبير
+
+في V1.
+
+Encouragement = one-click positive interactions.
+
+هذا يخفض التكلفة كثيرًا.
+
+18. Celebration Notification
+
+إذا صديق أكمل:
+
+🎉 Sarah completed Day 10
+
+أنت تستطيع:
+
+Send encouragement
+
+19. ماذا يحدث عند إرسال التشجيع؟
+
+الصديق يرى:
+
+❤️ Mymona cheered for you!
+
+وربما:
+
++1 encouragement
+
+لكن لا نحتاج Reward كبير.
+
+20. هل التشجيع يعطي Coins؟
+
+أقترح في البداية:
+
+لا.
+
+لأننا لا نريد أن يصبح:
+
+spam encouragement = free Coins.
+
+لكن يمكن مستقبلًا:
+
+Encourage friend → small social XP.
+
+21. Group
+
+المجموعة تختلف عن Friends.
+
+مثلاً:
+
+Study Circle
+
+أعضاء:
+
+12
+
+هدف المجموعة:
+
+Study 20 min/day
+
+22. إنشاء Group
+
+من Friends:
+
+Create Group
+
+Fields:
+
+Group name
+
+Description
+
+Cover image optional
+
+Join type:
+Invite only / Link
+
+23. Group Goal
+
+اختياري:
+
+What are we doing together?
+
+مثلاً:
+
+📚 Reading
+
+🏃 Walking
+
+💻 Coding
+
+🧘 Meditation
+
+لكن لا نحتاج أن نجعل كل Group له نظام Habit معقد.
+
+24. Group Page
+Study Circle
+
+12 members
+
+Today's activity
+8 completed today
+
+Our progress
+████████░░
+
+Members
+...
+25. Group Activity
+
+بدل Feed اجتماعي ضخم:
+
+نظهر أحداثًا بسيطة:
+
+Sarah completed today ✅
+
+Mymona reached Day 10 🎉
+
+Ahmad joined the challenge 👋
+
+26. Group Encouragement
+
+عند حدث:
+
+Sarah completed Day 10.
+
+يمكن:
+
+Celebrate 🎉
+
+ويصل:
+
+4 people celebrated your progress.
+
+27. لا نعرض تفاصيل العادة افتراضيًا
+
+مثلاً لا:
+
+Sarah reduced Social Media from 3h 42m to 2h 14m.
+
+إلا إذا اختارت Sarah مشاركة هذا.
+
+افتراضيًا نعرض فقط:
+
+Sarah completed today's goal.
+
+28. Visibility على مستوى الـJourney
+
+المستخدم يحدد:
+
+Journey visibility
+Private
+Friends
+Selected
+
+إذا Private:
+
+لا تظهر داخل Friend Profile.
+
+إذا Friends:
+
+يظهر progress.
+
+إذا Selected:
+
+يظهر لمن اختاره فقط.
+
+29. Visibility على مستوى Memory
+
+مستقلة عن Journey:
+
+Journey visible to Friends
+
+لكن:
+
+Memory private.
+
+هذا مهم جدًا.
+
+30. Block / Remove Friend
+
+حتى لو كان الهاكاثون:
+
+لازم يوجد على الأقل:
+
+ Remove friend
+ Block user
+
+لأن Social feature بدون أساسيات السلامة غير مكتملة.
+
+31. Report
+
+إذا المجموعة/الصداقة ستكون قابلة لاستخدام حقيقي:
+
+Report
+
+لكن هذا يمكن أن يكون simple:
+
+Report user
+Reason:
+- Spam
+- Inappropriate content
+- Harassment
+- Other
+
+ويُحفظ report.
+
+لا نحتاج moderation AI في V1.
+
+32. خصوصية القاصرين
+
+بما أن جمهورنا يبدأ من المراهقين، لا نريد افتراض أن كل شيء public.
+
+لذلك:
+
+Default
+
+Private
+
+ولا نعرض:
+
+الموقع الجغرافي
+الوقت التفصيلي
+بيانات الاستخدام
+الصور
+أسباب الانتكاسة
+
+إلا عبر مشاركة صريحة.
+
+هذه ليست ميزة "تجميلية"؛ هي جزء من UX نفسه.
+
+33. Notifications
+
+Social notifications:
+
+Friend request
+Friend accepted
+Friend completed a milestone
+Friend cheered
+Group invitation
+Group milestone
+
+لكن لا نرسل:
+
+Sarah opened the app.
+
+ولا:
+
+Sarah failed her habit.
+
+هذه معلومات غير مفيدة وقد تكون حساسة.
+
+34. Activity Feed
+
+لا أريد Home Feed مثل Instagram.
+
+فقط:
+
+Friends Activity
+🎉 Sarah completed Day 8
+
+🔥 Ahmad reached Day 10
+
+👏 Lina completed her journey
+
+وممكن:
+
+Cheer
+
+35. Daily Digest
+
+لاحقًا يمكن:
+
+Your friends made progress today.
+
+لكن في الهاكاثون لا نحتاج AI.
+
+Template يكفي.
+
+36. Shared Map
+
+هذه من أجمل التفاصيل إذا استطعنا تنفيذها.
+
+في Shared Journey:
+
+Island
+       🧍 You
+                    🧍 Sarah
+
+كل شخصية تظهر في موقعها الخاص.
+
+إذا أنت:
+
+Day 12
+
+Sarah:
+
+Day 8
+
+الشخصيات تكون في مواقع مختلفة.
+
+هذا يعطي:
+
+We're on the same journey, but everyone has their own pace.
+
+37. لا نسمح لشخص بتعديل رحلة الآخر
+
+حتى في Shared Journey:
+
+كل مستخدم يملك Habit Day الخاص به.
+
+فقط:
+
+challenge metadata
+membership
+visible progress
+
+مشترك.
+
+38. Shared Challenge Data Model
+
+مثلاً:
+
+challenges
+creator_id
+title
+description
+duration_days
+habit_template
+created_at
+challenge_members
+challenge_id
+user_id
+habit_id
+status
+joined_at
+
+وبالتالي:
+
+Challenge
+    ↓
+Members
+    ├── User A → Habit A → Journey A
+    ├── User B → Habit B → Journey B
+    └── User C → Habit C → Journey C
+
+وهذا أفضل من جعلهم جميعًا يستخدمون Habit واحد.
+
+39. Friends Data Model
+friendship_requests
+sender_id
+receiver_id
+status
+created_at
+friendships
+user_a
+user_b
+created_at
+
+أو إذا كان النظام الحالي يستخدم جدولًا موحدًا، نحافظ عليه.
+
+40. Encouragement Data Model
+encouragements
+sender_id
+receiver_id
+journey_id
+type
+message
+created_at
+
+type مثلاً:
+
+cheer
+clap
+fire
+support
+
+لكن لا نحتاج message طويل.
+
+41. Group Data Model
+groups
+creator_id
+name
+description
+image_url
+privacy
+created_at
+group_members
+group_id
+user_id
+role
+joined_at
+42. Group Roles
+
+في V1:
+
+Owner
+
+منشئ المجموعة.
+
+Member
+
+أي عضو.
+
+لا نحتاج:
+
+Moderator
+Admin
+Editor
+
+إلا إذا احتجناها.
+
+43. Group Privacy
+Invite Only
+
+مناسب للـHackathon وأبسط أمنيًا.
+
+لاحقًا:
+
+Public / Join by link.
+
+44. Group Size
+
+لا نريد مجموعة بلا حد.
+
+في V1:
+
+مثلاً:
+
+maximum 20–30 members
+
+ويكون limit configurable.
+
+45. AI داخل Social
+
+لا نحتاجه كثيرًا.
+
+AI لا يكتب:
+
+"Sarah is probably..."
+
+لا.
+
+يمكن فقط:
+
+Smart encouragement suggestion
+
+إذا المستخدم ضغط:
+
+Cheer
+
+نقدم 3 نصوص templates.
+
+لا نرسل AI request.
+
+46. Social + AI Coach
+
+لكن يمكن أن يكون هناك Insight جميل لاحقًا:
+
+You've been more consistent when doing this journey with friends.
+
+هذا يحتاج بيانات فعلية كافية، لذا ليس V1.
+
+47. Friends Dashboard Widget
+
+على Dashboard:
+
+Your people
+Sarah    Day 8
+Ahmad    Day 12
+Lina     Completed 🎉
+
+[ See all ]
+
+وزر:
+
+Encourage
+
+48. Group Dashboard Widget
+
+إذا عنده Group:
+
+Study Circle
+
+8 people completed today's goal.
+
+[ View group ]
+
+49. Social Empty State
+
+لا يوجد أصدقاء:
+
+You don't have to do this alone.
+
+ثم:
+
+Find friends
+
+50. No Group
+
+Create a circle around a goal.
+
+زر:
+
+Create Group
+
+51. Pending Request
+
+You have 2 friend requests.
+
+زر:
+
+View
+
+52. Friend Completed Journey
+
+يظهر:
+
+🎉 Sarah completed her journey!
+
+Buttons:
+
+Celebrate
+
+View Journey
+
+لكن Journey لا تظهر إلا إذا كانت visibility تسمح.
+
+53. Friend Missed Day
+
+لا نرسل للأصدقاء:
+
+Sarah missed her habit.
+
+هذا مهم جدًا.
+
+الانتكاسة بيانات شخصية.
+
+يمكن فقط إرسال:
+
+Sarah is continuing her journey.
+
+إذا كانت هناك مناسبة مشاركة.
+
+54. Shared Journey — Missed Day
+
+إذا كنا في Challenge:
+
+أنا أرى:
+
+Sarah — Day 8 / 22
+
+ولا أرى:
+
+Sarah failed yesterday
+
+إلا إذا هي شاركت ذلك بنفسها.
+
+55. Friend Encouragement after Difficult Day
+
+المستخدم نفسه يمكنه نشر:
+
+"Had a hard day, but I'm still going."
+
+ثم الأصدقاء:
+
+❤️
+🔥
+👏
+
+لكن هذه feature إضافية وليست أساسية.
+
+56. Safety / Abuse
+
+أريد أن تتضمن النسخة القابلة للاستخدام الحقيقي:
+
+ Block
+ Remove
+ Report
+ Private by default
+ No precise location sharing
+ No private time logs shared
+ No missed-day notifications to friends
+ User-controlled Memory visibility
+57. Acceptance Criteria
+Friends
+ Search users
+ Send request
+ Accept
+ Decline
+ Remove
+ Block
+ Friends list
+ Friend profile
+ Shared journey visibility
+ Shared achievement visibility
+Encouragement
+ One-click cheer
+ Several templates
+ Recipient receives notification
+ No spam loops
+ No coins required
+ No AI API call required
+Groups
+ Create group
+ Join via invite
+ Leave
+ View members
+ View shared progress
+ Group activity
+ Encourage members
+Shared Challenge
+ Invite friends
+ Accept invitation
+ Each member gets own habit/journey
+ Same challenge definition
+ Individual target/minimum
+ Individual consistency
+ Shared visual progress
+Privacy
+ Private by default
+ Explicit sharing
+ Private time logs
+ Private missed reasons
+ Private rewards by default
+ No location sharing
+ Block/report
+58. Prompt جاهز لـReplit
+Implement Feature 09:
+FRIENDS / GROUPS / ENCOURAGEMENT / SHARED JOURNEYS
+
+IMPORTANT:
+Do not redesign unrelated features.
+Do not remove Habit, Adaptive Engine, Daily Experience, Journey, Map, Character, XP, Coins, Reward, or Memories.
+Inspect existing group/social APIs and database tables first.
+Reuse current implementation where possible.
+
+The goal is to add a lightweight social layer, NOT a full social network.
+
+==================================================
+1. PRODUCT PRINCIPLE
+==================================================
+
+The social experience should communicate:
+
+"You don't have to do this alone."
+
+Users can:
+- connect with friends
+- share selected progress
+- encourage each other
+- optionally participate in shared challenges
+
+Do NOT create a generic social media feed.
+
+==================================================
+2. FRIENDS
+==================================================
+
+Implement:
+
+- search users by username
+- send friend request
+- accept
+- decline
+- remove friend
+- block user
+- friends list
+- friend profile
+
+Friend profile may show ONLY information the user has explicitly shared.
+
+Default private:
+- time tracking
+- detailed habits
+- missed reasons
+- rewards
+- private Memories
+
+==================================================
+3. FRIEND PROFILE
+==================================================
+
+Show when permitted:
+
+- character
+- visible active journey
+- journey progress
+- consistency
+- achievements
+- shared Memories
+
+Do not expose:
+- detailed time logs
+- private habits
+- failure reasons
+- exact personal data
+- precise location
+
+==================================================
+4. VISIBILITY
+==================================================
+
+Support:
+- private
+- friends
+- selected users
+
+Public visibility may be deferred if needed.
+
+Privacy defaults to PRIVATE.
+
+Do not auto-share anything.
+
+==================================================
+5. ENCOURAGEMENT
+==================================================
+
+Add lightweight one-click encouragement.
+
+When a friend completes a habit or milestone:
+
+Show:
+"Sarah completed Day 8"
+
+Button:
+"Encourage"
+
+Options:
+- 🎉 Nice work!
+- 🔥 Keep going!
+- 👏 Great job!
+- 💪 You got this!
+- ✨ Keep moving!
+
+Also allow a short custom message if current architecture supports it.
+
+Do NOT build direct messaging.
+
+Do NOT call AI for ordinary encouragement.
+
+Avoid excessive notifications/spam.
+
+==================================================
+6. ENCOURAGEMENT DATA
+==================================================
+
+Use/reuse an encouragement entity:
+
+id
+sender_id
+receiver_id
+journey_id
+type
+message
+created_at
+
+Verify sender and receiver permissions server-side.
+
+==================================================
+7. SHARED CHALLENGE
+==================================================
+
+Users can optionally invite friends to a shared challenge.
+
+Important:
+The challenge is shared, but each user's actual Habit/Journey remains PERSONAL.
+
+Example:
+
+Challenge:
+Morning Walk
+22 days
+
+User A:
+Target 10 min
+Minimum 5 min
+
+User B:
+Target 15 min
+Minimum 5 min
+
+Each user keeps:
+- own target
+- own minimum
+- own difficulty
+- own consistency
+- own journey
+
+==================================================
+8. CHALLENGE CREATION
+==================================================
+
+From Habit creation after a habit exists:
+
+"Do this with friends?"
+
+Allow selecting existing friends.
+
+Create shared challenge.
+
+Invite users.
+
+Recipients can:
+- Join
+- Decline
+
+Do not automatically create a habit without acceptance.
+
+==================================================
+9. CHALLENGE DATABASE
+==================================================
+
+Use or adapt:
+
+challenges:
+- id
+- creator_id
+- title
+- description
+- duration_days
+- habit_template
+- created_at
+
+challenge_members:
+- id
+- challenge_id
+- user_id
+- habit_id
+- status
+- joined_at
+
+Each member should reference their own habit.
+
+==================================================
+10. SHARED JOURNEY SCREEN
+==================================================
+
+Display:
+
+Challenge name
+22 days
+
+Participants:
+- character
+- Day X / 22
+- consistency
+
+Do NOT create leaderboard rankings.
+
+Use:
+"We're moving together."
+
+Participants can have different progress.
+
+Show their characters at corresponding journey positions if existing map architecture supports it.
+
+==================================================
+11. GROUPS
+==================================================
+
+Support lightweight groups.
+
+Create Group:
+- name
+- description
+- optional image
+- invite-only
+
+Group roles:
+- owner
+- member
+
+Limit group size to a reasonable configurable value.
+
+Do not build complex moderation roles.
+
+==================================================
+12. GROUP PAGE
+==================================================
+
+Show:
+- group name
+- members
+- today's shared activity summary
+- recent milestones
+- encouragement actions
+
+Example:
+"8 members completed today's goal."
+
+Do not expose private habit details.
+
+==================================================
+13. GROUP ACTIVITY
+==================================================
+
+Simple activity events:
+
+- member completed goal
+- member reached milestone
+- member joined
+
+Do NOT show:
+- member failed
+- missed day
+- private difficulty
+- private time data
+
+unless explicitly shared by that user.
+
+==================================================
+14. DASHBOARD SOCIAL WIDGET
+==================================================
+
+If friends exist, show a compact:
+"Your people"
+
+Example:
+Sarah — Day 8
+Ahmad — Day 12
+Lina — Journey complete
+
+Actions:
+- View
+- Encourage
+
+Do not make social content dominate Dashboard.
+
+==================================================
+15. SOCIAL EMPTY STATES
+==================================================
+
+No friends:
+"You don't have to do this alone."
+
+Buttons:
+- Find Friends
+- Create Challenge
+
+No group:
+"Create a circle around a goal."
+
+==================================================
+16. SAFETY
+==================================================
+
+Because the product may be used by teenagers:
+
+Default everything to private.
+
+Do NOT share:
+- precise location
+- detailed Time Tracking
+- private habit names
+- missed-day reasons
+- private rewards
+- private Memories
+
+Add:
+- remove friend
+- block user
+- report user
+
+Report reasons:
+- spam
+- inappropriate content
+- harassment
+- other
+
+Do not implement complex moderation AI in V1.
+
+==================================================
+17. NOTIFICATIONS
+==================================================
+
+Support simple notifications:
+
+- friend request
+- friend request accepted
+- challenge invitation
+- challenge accepted
+- encouragement received
+- shared milestone
+
+Do NOT notify friends when a user misses a day.
+
+Do NOT notify about detailed private behavior.
+
+==================================================
+18. AI
+==================================================
+
+AI is NOT required for this social feature.
+
+Use templates for encouragement.
+
+Do not call Gemini for every social event.
+
+==================================================
+19. DATA SECURITY
+==================================================
+
+Server-side permission checks must control:
+- friend requests
+- friendships
+- profile visibility
+- journey visibility
+- challenge membership
+- group membership
+- encouragement
+- Memories visibility
+
+Never trust client-supplied user IDs for authorization.
+
+A user must not be able to read another user's private journey by changing an ID in the request.
+
+==================================================
+20. RATE LIMITING / SPAM
+==================================================
+
+Prevent encouragement spam.
+
+A basic server-side rate limit is sufficient.
+
+Do not allow unlimited repeated encouragement to the same user in seconds.
+
+==================================================
+21. RESPONSIVE / RTL
+==================================================
+
+Test:
+- 375px
+- 390px
+- 414px
+- tablet
+- desktop
+
+All UI Arabic RTL.
+
+Large touch targets on mobile.
+
+==================================================
+22. UI STATES
+==================================================
+
+Implement:
+- no friends
+- search
+- request sent
+- request received
+- accepted
+- declined
+- blocked
+- removed
+- friend profile
+- private profile
+- encouragement sent
+- encouragement received
+- group empty
+- group loaded
+- challenge invitation
+- challenge accepted
+- challenge declined
+- shared challenge
+- permission denied
+- loading
+- API error
+
+==================================================
+23. TESTING
+==================================================
+
+Test:
+
+FRIENDS:
+1. User A searches User B.
+2. User A sends friend request.
+3. User B accepts.
+4. Both appear in friend lists.
+5. User B declines another request.
+6. User removes friend.
+7. User blocks friend.
+8. Blocked user cannot send/receive requests as expected.
+
+VISIBILITY:
+9. Private journey is invisible to friend.
+10. Shared journey is visible.
+11. Private Memory remains private.
+12. Selected visibility works if implemented.
+13. Private reward remains private.
+14. Time logs remain private.
+
+ENCOURAGEMENT:
+15. A sees B completed.
+16. A sends cheer.
+17. B receives notification.
+18. Spam attempts are limited.
+
+SHARED CHALLENGE:
+19. A creates challenge.
+20. B receives invitation.
+21. B accepts.
+22. B gets own habit/journey.
+23. A and B have different target/minimum if desired.
+24. Progress is shown separately.
+25. One user cannot edit another user's habit.
+
+GROUP:
+26. Create group.
+27. Invite member.
+28. Member joins.
+29. Show group activity.
+30. Private details remain hidden.
+
+SECURITY:
+31. Attempt unauthorized journey access by changing IDs.
+32. Verify server rejects it.
+33. Attempt unauthorized Memory access.
+34. Verify server rejects it.
+
+RESPONSIVE:
+35. Mobile RTL.
+36. Desktop RTL.
+
+==================================================
+24. ACCEPTANCE CRITERIA
+==================================================
+
+DONE when:
+
+- [ ] Friends can connect.
+- [ ] Friend requests work.
+- [ ] Friend profile respects visibility.
+- [ ] Users can encourage friends.
+- [ ] Encouragement is lightweight.
+- [ ] No direct messaging system is required.
+- [ ] Shared challenges work.
+- [ ] Each participant has their own habit/journey.
+- [ ] Groups work in a lightweight form.
+- [ ] Group activity exists.
+- [ ] No leaderboard is required.
+- [ ] Privacy is private by default.
+- [ ] Time logs are private.
+- [ ] Missed days are private.
+- [ ] Rewards are private by default.
+- [ ] Memories respect visibility.
+- [ ] Block/report exist.
+- [ ] Server-side authorization is enforced.
+- [ ] No social feature breaks core habit functionality.
+
+Before editing:
+1. Inspect existing group/social endpoints.
+2. Inspect current user/profile visibility.
+3. Inspect existing Journey visibility.
+4. Inspect current Memories permissions.
+5. Inspect notification implementation.
+6. Report reusable files/components.
+7. Then implement incrementally and test end-to-end.
