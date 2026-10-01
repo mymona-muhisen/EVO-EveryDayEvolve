@@ -77,6 +77,12 @@ export const ListHabitsQueryParams = zod.object({
 export const listHabitsResponseCustomDaysItemMin = 0;
 export const listHabitsResponseCustomDaysItemMax = 6;
 
+export const listHabitsResponseCueTimeRegExp = new RegExp('^([01][0-9]|2[0-3]):[0-5][0-9]$');
+export const listHabitsResponseMinimumFloorMin = 0;
+
+export const listHabitsResponseJourneyLengthMax = 22;
+
+
 
 
 export const ListHabitsResponseItem = zod.object({
@@ -92,6 +98,15 @@ export const ListHabitsResponseItem = zod.object({
   "busyDayValue": zod.number().nullable(),
   "baselineValue": zod.number().nullable(),
   "successLimitValue": zod.number().nullable(),
+  "cueType": zod.union([zod.literal('time'),zod.literal('routine'),zod.literal('custom'),zod.literal(null)]).nullable(),
+  "cueTime": zod.string().regex(listHabitsResponseCueTimeRegExp).nullable(),
+  "cue": zod.string().nullable(),
+  "startAction": zod.string().nullable(),
+  "friction": zod.string().nullable(),
+  "minimumFloor": zod.number().min(listHabitsResponseMinimumFloorMin).nullable(),
+  "journeyStartDate": zod.coerce.date().nullable(),
+  "journeyLength": zod.number().int().min(1).max(listHabitsResponseJourneyLengthMax).nullable(),
+  "rewardId": zod.number().int().min(1).nullable(),
   "difficulty": zod.enum(['easy', 'medium', 'hard']),
   "goalType": zod.enum(['build', 'quit']),
   "isActive": zod.boolean(),
@@ -116,13 +131,21 @@ export const ListHabitsResponse = zod.array(ListHabitsResponseItem)
 export const createHabitBodyCustomDaysItemMin = 0;
 export const createHabitBodyCustomDaysItemMax = 6;
 
-export const createHabitBodyMinimumValueExclusiveMin = 0;
+export const createHabitBodyTargetValueMin = 0;
 
-export const createHabitBodyBusyDayValueExclusiveMin = 0;
+export const createHabitBodyMinimumValueMin = 0;
 
-export const createHabitBodyBaselineValueExclusiveMin = 0;
+export const createHabitBodyBusyDayValueMin = 0;
 
-export const createHabitBodySuccessLimitValueExclusiveMin = 0;
+export const createHabitBodyBaselineValueMin = 0;
+
+export const createHabitBodySuccessLimitValueMin = 0;
+
+export const createHabitBodyCueTimeRegExp = new RegExp('^([01][0-9]|2[0-3]):[0-5][0-9]$');
+export const createHabitBodyMinimumFloorMin = 0;
+
+export const createHabitBodyJourneyLengthMax = 22;
+
 
 
 
@@ -133,11 +156,20 @@ export const CreateHabitBody = zod.object({
   "cadence": zod.enum(['daily', 'weekdays', 'weekly', 'custom_days']),
   "customDays": zod.array(zod.number().int().min(createHabitBodyCustomDaysItemMin).max(createHabitBodyCustomDaysItemMax)).optional(),
   "unit": zod.enum(['minutes', 'count', 'pages', 'custom']),
-  "targetValue": zod.number(),
-  "minimumValue": zod.number().gt(createHabitBodyMinimumValueExclusiveMin).optional(),
-  "busyDayValue": zod.number().gt(createHabitBodyBusyDayValueExclusiveMin).optional(),
-  "baselineValue": zod.number().gt(createHabitBodyBaselineValueExclusiveMin).optional(),
-  "successLimitValue": zod.number().gt(createHabitBodySuccessLimitValueExclusiveMin).optional(),
+  "targetValue": zod.number().min(createHabitBodyTargetValueMin),
+  "minimumValue": zod.number().min(createHabitBodyMinimumValueMin).optional(),
+  "busyDayValue": zod.number().min(createHabitBodyBusyDayValueMin).optional(),
+  "baselineValue": zod.number().min(createHabitBodyBaselineValueMin).optional(),
+  "successLimitValue": zod.number().min(createHabitBodySuccessLimitValueMin).optional(),
+  "cueType": zod.union([zod.literal('time'),zod.literal('routine'),zod.literal('custom'),zod.literal(null)]).nullish(),
+  "cueTime": zod.string().regex(createHabitBodyCueTimeRegExp).nullish(),
+  "cue": zod.string().nullish(),
+  "startAction": zod.string().nullish(),
+  "friction": zod.string().nullish(),
+  "minimumFloor": zod.number().min(createHabitBodyMinimumFloorMin).optional(),
+  "journeyStartDate": zod.coerce.date().optional(),
+  "journeyLength": zod.number().int().min(1).max(createHabitBodyJourneyLengthMax).optional(),
+  "rewardId": zod.number().int().min(1).optional(),
   "difficulty": zod.enum(['easy', 'medium', 'hard']),
   "goalType": zod.enum(['build', 'quit']),
   "milestones": zod.array(zod.object({
@@ -150,6 +182,12 @@ export const CreateHabitBody = zod.object({
 
 export const createHabitResponseCustomDaysItemMin = 0;
 export const createHabitResponseCustomDaysItemMax = 6;
+
+export const createHabitResponseCueTimeRegExp = new RegExp('^([01][0-9]|2[0-3]):[0-5][0-9]$');
+export const createHabitResponseMinimumFloorMin = 0;
+
+export const createHabitResponseJourneyLengthMax = 22;
+
 
 
 
@@ -166,6 +204,15 @@ export const CreateHabitResponse = zod.object({
   "busyDayValue": zod.number().nullable(),
   "baselineValue": zod.number().nullable(),
   "successLimitValue": zod.number().nullable(),
+  "cueType": zod.union([zod.literal('time'),zod.literal('routine'),zod.literal('custom'),zod.literal(null)]).nullable(),
+  "cueTime": zod.string().regex(createHabitResponseCueTimeRegExp).nullable(),
+  "cue": zod.string().nullable(),
+  "startAction": zod.string().nullable(),
+  "friction": zod.string().nullable(),
+  "minimumFloor": zod.number().min(createHabitResponseMinimumFloorMin).nullable(),
+  "journeyStartDate": zod.coerce.date().nullable(),
+  "journeyLength": zod.number().int().min(1).max(createHabitResponseJourneyLengthMax).nullable(),
+  "rewardId": zod.number().int().min(1).nullable(),
   "difficulty": zod.enum(['easy', 'medium', 'hard']),
   "goalType": zod.enum(['build', 'quit']),
   "isActive": zod.boolean(),
@@ -192,6 +239,12 @@ export const GetHabitParams = zod.object({
 export const getHabitResponseCustomDaysItemMin = 0;
 export const getHabitResponseCustomDaysItemMax = 6;
 
+export const getHabitResponseCueTimeRegExp = new RegExp('^([01][0-9]|2[0-3]):[0-5][0-9]$');
+export const getHabitResponseMinimumFloorMin = 0;
+
+export const getHabitResponseJourneyLengthMax = 22;
+
+
 
 
 export const GetHabitResponse = zod.object({
@@ -207,6 +260,15 @@ export const GetHabitResponse = zod.object({
   "busyDayValue": zod.number().nullable(),
   "baselineValue": zod.number().nullable(),
   "successLimitValue": zod.number().nullable(),
+  "cueType": zod.union([zod.literal('time'),zod.literal('routine'),zod.literal('custom'),zod.literal(null)]).nullable(),
+  "cueTime": zod.string().regex(getHabitResponseCueTimeRegExp).nullable(),
+  "cue": zod.string().nullable(),
+  "startAction": zod.string().nullable(),
+  "friction": zod.string().nullable(),
+  "minimumFloor": zod.number().min(getHabitResponseMinimumFloorMin).nullable(),
+  "journeyStartDate": zod.coerce.date().nullable(),
+  "journeyLength": zod.number().int().min(1).max(getHabitResponseJourneyLengthMax).nullable(),
+  "rewardId": zod.number().int().min(1).nullable(),
   "difficulty": zod.enum(['easy', 'medium', 'hard']),
   "goalType": zod.enum(['build', 'quit']),
   "isActive": zod.boolean(),
@@ -234,13 +296,21 @@ export const UpdateHabitParams = zod.object({
 export const updateHabitBodyCustomDaysItemMin = 0;
 export const updateHabitBodyCustomDaysItemMax = 6;
 
-export const updateHabitBodyMinimumValueExclusiveMin = 0;
+export const updateHabitBodyTargetValueMin = 0;
 
-export const updateHabitBodyBusyDayValueExclusiveMin = 0;
+export const updateHabitBodyMinimumValueMin = 0;
 
-export const updateHabitBodyBaselineValueExclusiveMin = 0;
+export const updateHabitBodyBusyDayValueMin = 0;
 
-export const updateHabitBodySuccessLimitValueExclusiveMin = 0;
+export const updateHabitBodyBaselineValueMin = 0;
+
+export const updateHabitBodySuccessLimitValueMin = 0;
+
+export const updateHabitBodyCueTimeRegExp = new RegExp('^([01][0-9]|2[0-3]):[0-5][0-9]$');
+export const updateHabitBodyMinimumFloorMin = 0;
+
+export const updateHabitBodyJourneyLengthMax = 22;
+
 
 
 
@@ -251,14 +321,25 @@ export const UpdateHabitBody = zod.object({
   "cadence": zod.enum(['daily', 'weekdays', 'weekly', 'custom_days']).optional(),
   "customDays": zod.array(zod.number().int().min(updateHabitBodyCustomDaysItemMin).max(updateHabitBodyCustomDaysItemMax)).optional(),
   "unit": zod.enum(['minutes', 'count', 'pages', 'custom']).optional(),
-  "targetValue": zod.number().optional(),
-  "minimumValue": zod.number().gt(updateHabitBodyMinimumValueExclusiveMin).optional(),
-  "busyDayValue": zod.number().gt(updateHabitBodyBusyDayValueExclusiveMin).optional(),
-  "baselineValue": zod.number().gt(updateHabitBodyBaselineValueExclusiveMin).optional(),
-  "successLimitValue": zod.number().gt(updateHabitBodySuccessLimitValueExclusiveMin).optional(),
+  "targetValue": zod.number().min(updateHabitBodyTargetValueMin).optional(),
+  "minimumValue": zod.number().min(updateHabitBodyMinimumValueMin).optional(),
+  "busyDayValue": zod.number().min(updateHabitBodyBusyDayValueMin).nullish(),
+  "baselineValue": zod.number().min(updateHabitBodyBaselineValueMin).nullish(),
+  "successLimitValue": zod.number().min(updateHabitBodySuccessLimitValueMin).nullish(),
+  "cueType": zod.union([zod.literal('time'),zod.literal('routine'),zod.literal('custom'),zod.literal(null)]).nullish(),
+  "cueTime": zod.string().regex(updateHabitBodyCueTimeRegExp).nullish(),
+  "cue": zod.string().nullish(),
+  "startAction": zod.string().nullish(),
+  "friction": zod.string().nullish(),
+  "minimumFloor": zod.number().min(updateHabitBodyMinimumFloorMin).nullish(),
+  "journeyStartDate": zod.coerce.date().nullish(),
+  "journeyLength": zod.number().int().min(1).max(updateHabitBodyJourneyLengthMax).nullish(),
+  "rewardId": zod.number().int().min(1).nullish(),
   "expectedTargetValue": zod.number().optional().describe('If provided with targetValue, update only when the stored target still equals this value'),
   "expectedMinimumValue": zod.number().optional().describe('Compare-and-set guard for minimumValue updates'),
+  "expectedSuccessLimitValue": zod.number().nullish().describe('Compare-and-set guard for successLimitValue updates'),
   "difficulty": zod.enum(['easy', 'medium', 'hard']).optional(),
+  "goalType": zod.enum(['build', 'quit']).optional(),
   "isActive": zod.boolean().optional(),
   "milestones": zod.array(zod.object({
   "title": zod.string(),
@@ -270,6 +351,12 @@ export const UpdateHabitBody = zod.object({
 
 export const updateHabitResponseCustomDaysItemMin = 0;
 export const updateHabitResponseCustomDaysItemMax = 6;
+
+export const updateHabitResponseCueTimeRegExp = new RegExp('^([01][0-9]|2[0-3]):[0-5][0-9]$');
+export const updateHabitResponseMinimumFloorMin = 0;
+
+export const updateHabitResponseJourneyLengthMax = 22;
+
 
 
 
@@ -286,6 +373,15 @@ export const UpdateHabitResponse = zod.object({
   "busyDayValue": zod.number().nullable(),
   "baselineValue": zod.number().nullable(),
   "successLimitValue": zod.number().nullable(),
+  "cueType": zod.union([zod.literal('time'),zod.literal('routine'),zod.literal('custom'),zod.literal(null)]).nullable(),
+  "cueTime": zod.string().regex(updateHabitResponseCueTimeRegExp).nullable(),
+  "cue": zod.string().nullable(),
+  "startAction": zod.string().nullable(),
+  "friction": zod.string().nullable(),
+  "minimumFloor": zod.number().min(updateHabitResponseMinimumFloorMin).nullable(),
+  "journeyStartDate": zod.coerce.date().nullable(),
+  "journeyLength": zod.number().int().min(1).max(updateHabitResponseJourneyLengthMax).nullable(),
+  "rewardId": zod.number().int().min(1).nullable(),
   "difficulty": zod.enum(['easy', 'medium', 'hard']),
   "goalType": zod.enum(['build', 'quit']),
   "isActive": zod.boolean(),
@@ -313,6 +409,52 @@ export const DeleteHabitResponse = zod.void()
 
 
 /**
+ * @summary Get the habit-specific 22-day journey and scheduled thresholds
+ */
+export const GetHabitJourneyParams = zod.object({
+  "habitId": zod.coerce.number().int()
+})
+
+export const GetHabitJourneyResponse = zod.object({
+  "habitId": zod.number().int(),
+  "startDate": zod.coerce.date().nullable(),
+  "length": zod.number().int(),
+  "total": zod.number().int(),
+  "completed": zod.number().int(),
+  "successful": zod.number().int(),
+  "currentDay": zod.number().int(),
+  "days": zod.array(zod.object({
+  "date": zod.coerce.date(),
+  "dayNumber": zod.number().int(),
+  "scheduled": zod.boolean(),
+  "targetValue": zod.number(),
+  "minimumValue": zod.number(),
+  "busyDayValue": zod.number().nullable(),
+  "successLimitValue": zod.number().nullable(),
+  "goalType": zod.enum(['build', 'quit']),
+  "checkin": zod.union([zod.object({
+  "id": zod.number().int(),
+  "habitId": zod.number().int(),
+  "date": zod.coerce.date(),
+  "completed": zod.boolean(),
+  "value": zod.number().nullable(),
+  "note": zod.string().nullable(),
+  "moodRating": zod.number().int().nullable(),
+  "difficulty": zod.union([zod.literal('easy'),zod.literal('normal'),zod.literal('hard'),zod.literal('very_hard'),zod.literal(null)]).nullable(),
+  "missedReason": zod.union([zod.literal('too_difficult'),zod.literal('no_time'),zod.literal('forgot'),zod.literal('lost_motivation'),zod.literal('unexpected'),zod.literal('other'),zod.literal(null)]).nullable(),
+  "targetSnapshot": zod.number().nullable(),
+  "minimumSnapshot": zod.number().nullable(),
+  "successLimitSnapshot": zod.number().nullable(),
+  "goalTypeSnapshot": zod.union([zod.literal('build'),zod.literal('quit'),zod.literal(null)]).nullable(),
+  "targetCompleted": zod.boolean(),
+  "coinsEarned": zod.number().int(),
+  "createdAt": zod.coerce.date()
+}),zod.null()])
+}))
+})
+
+
+/**
  * @summary List check-ins for a habit
  */
 export const ListHabitCheckinsQueryParams = zod.object({
@@ -334,6 +476,7 @@ export const ListHabitCheckinsResponseItem = zod.object({
   "targetSnapshot": zod.number().nullable(),
   "minimumSnapshot": zod.number().nullable(),
   "successLimitSnapshot": zod.number().nullable(),
+  "goalTypeSnapshot": zod.union([zod.literal('build'),zod.literal('quit'),zod.literal(null)]).nullable(),
   "targetCompleted": zod.boolean(),
   "coinsEarned": zod.number().int(),
   "createdAt": zod.coerce.date()
@@ -365,6 +508,12 @@ export const CreateCheckinBody = zod.object({
 export const createCheckinResponseTwoHabitCustomDaysItemMin = 0;
 export const createCheckinResponseTwoHabitCustomDaysItemMax = 6;
 
+export const createCheckinResponseTwoHabitCueTimeRegExp = new RegExp('^([01][0-9]|2[0-3]):[0-5][0-9]$');
+export const createCheckinResponseTwoHabitMinimumFloorMin = 0;
+
+export const createCheckinResponseTwoHabitJourneyLengthMax = 22;
+
+
 
 
 export const CreateCheckinResponse = zod.object({
@@ -380,6 +529,7 @@ export const CreateCheckinResponse = zod.object({
   "targetSnapshot": zod.number().nullable(),
   "minimumSnapshot": zod.number().nullable(),
   "successLimitSnapshot": zod.number().nullable(),
+  "goalTypeSnapshot": zod.union([zod.literal('build'),zod.literal('quit'),zod.literal(null)]).nullable(),
   "targetCompleted": zod.boolean(),
   "coinsEarned": zod.number().int(),
   "createdAt": zod.coerce.date()
@@ -398,6 +548,15 @@ export const CreateCheckinResponse = zod.object({
   "busyDayValue": zod.number().nullable(),
   "baselineValue": zod.number().nullable(),
   "successLimitValue": zod.number().nullable(),
+  "cueType": zod.union([zod.literal('time'),zod.literal('routine'),zod.literal('custom'),zod.literal(null)]).nullable(),
+  "cueTime": zod.string().regex(createCheckinResponseTwoHabitCueTimeRegExp).nullable(),
+  "cue": zod.string().nullable(),
+  "startAction": zod.string().nullable(),
+  "friction": zod.string().nullable(),
+  "minimumFloor": zod.number().min(createCheckinResponseTwoHabitMinimumFloorMin).nullable(),
+  "journeyStartDate": zod.coerce.date().nullable(),
+  "journeyLength": zod.number().int().min(1).max(createCheckinResponseTwoHabitJourneyLengthMax).nullable(),
+  "rewardId": zod.number().int().min(1).nullable(),
   "difficulty": zod.enum(['easy', 'medium', 'hard']),
   "goalType": zod.enum(['build', 'quit']),
   "isActive": zod.boolean(),
@@ -447,6 +606,7 @@ export const UpdateCheckinReflectionResponse = zod.object({
   "targetSnapshot": zod.number().nullable(),
   "minimumSnapshot": zod.number().nullable(),
   "successLimitSnapshot": zod.number().nullable(),
+  "goalTypeSnapshot": zod.union([zod.literal('build'),zod.literal('quit'),zod.literal(null)]).nullable(),
   "targetCompleted": zod.boolean(),
   "coinsEarned": zod.number().int(),
   "createdAt": zod.coerce.date()
@@ -470,10 +630,17 @@ export const GetHabitAdaptationResponse = zod.object({
   "suggestion": zod.boolean(),
   "expectedTargetValue": zod.number(),
   "expectedMinimumValue": zod.number(),
+  "expectedSuccessLimitValue": zod.number().nullable(),
   "targetValue": zod.number(),
   "minimumValue": zod.number(),
+  "newSuccessLimitValue": zod.number().nullable(),
   "busyDayValue": zod.number().nullable(),
   "missedReason": zod.union([zod.literal('too_difficult'),zod.literal('no_time'),zod.literal('forgot'),zod.literal('lost_motivation'),zod.literal('unexpected'),zod.literal('other'),zod.literal(null)]).nullable(),
+  "actions": zod.object({
+  "cue": zod.string().nullable(),
+  "startAction": zod.string().nullable(),
+  "busyDayValue": zod.number().nullable()
+}),
   "phrasing": zod.object({
   "headline": zod.string(),
   "explanation": zod.string(),
@@ -495,6 +662,12 @@ export const RecoverStreakParams = zod.object({
 export const recoverStreakResponseHabitCustomDaysItemMin = 0;
 export const recoverStreakResponseHabitCustomDaysItemMax = 6;
 
+export const recoverStreakResponseHabitCueTimeRegExp = new RegExp('^([01][0-9]|2[0-3]):[0-5][0-9]$');
+export const recoverStreakResponseHabitMinimumFloorMin = 0;
+
+export const recoverStreakResponseHabitJourneyLengthMax = 22;
+
+
 
 
 export const RecoverStreakResponse = zod.object({
@@ -511,6 +684,15 @@ export const RecoverStreakResponse = zod.object({
   "busyDayValue": zod.number().nullable(),
   "baselineValue": zod.number().nullable(),
   "successLimitValue": zod.number().nullable(),
+  "cueType": zod.union([zod.literal('time'),zod.literal('routine'),zod.literal('custom'),zod.literal(null)]).nullable(),
+  "cueTime": zod.string().regex(recoverStreakResponseHabitCueTimeRegExp).nullable(),
+  "cue": zod.string().nullable(),
+  "startAction": zod.string().nullable(),
+  "friction": zod.string().nullable(),
+  "minimumFloor": zod.number().min(recoverStreakResponseHabitMinimumFloorMin).nullable(),
+  "journeyStartDate": zod.coerce.date().nullable(),
+  "journeyLength": zod.number().int().min(1).max(recoverStreakResponseHabitJourneyLengthMax).nullable(),
+  "rewardId": zod.number().int().min(1).nullable(),
   "difficulty": zod.enum(['easy', 'medium', 'hard']),
   "goalType": zod.enum(['build', 'quit']),
   "isActive": zod.boolean(),
@@ -1054,7 +1236,8 @@ export const GetJourneyProgressResponse = zod.object({
  * @summary Aggregate home-screen summary for today
  */
 export const GetDashboardTodayResponse = zod.object({
-  "date": zod.coerce.date().optional().describe('Today\'s calendar date in the user\'s saved timezone'),
+  "date": zod.coerce.date().describe('Today\'s calendar date in the user\'s saved timezone'),
+  "suggestedJourneyStartDate": zod.coerce.date().describe('Today in the user\'s saved timezone unless local hour is 21:00 or later'),
   "activeHabitsCount": zod.number().int(),
   "completedTodayCount": zod.number().int(),
   "scheduledTodayCount": zod.number().int(),
@@ -1069,7 +1252,11 @@ export const GetDashboardTodayResponse = zod.object({
   "emoji": zod.string(),
   "unit": zod.string(),
   "targetValue": zod.number(),
+  "minimumValue": zod.number(),
+  "goalType": zod.enum(['build', 'quit']),
+  "successLimitValue": zod.number().nullable(),
   "completedToday": zod.boolean(),
+  "targetCompleted": zod.boolean(),
   "valueToday": zod.number().nullable(),
   "currentStreak": zod.number().int(),
   "scheduledToday": zod.boolean()
@@ -1257,22 +1444,50 @@ export const AiBreakdownGoalResponse = zod.object({
 
 export const aiHabitBuilderBodyRequestedDurationExclusiveMin = 0;
 
+export const aiHabitBuilderBodyBaselineValueMin = 0;
+
+
 
 
 export const AiHabitBuilderBody = zod.object({
   "intent": zod.string().min(1),
   "requestedDuration": zod.number().gt(aiHabitBuilderBodyRequestedDurationExclusiveMin),
   "unit": zod.enum(['minutes', 'count', 'pages', 'custom']),
-  "goalType": zod.enum(['build', 'quit']).optional()
+  "goalType": zod.enum(['build', 'quit']).optional(),
+  "baselineValue": zod.number().min(aiHabitBuilderBodyBaselineValueMin).optional(),
+  "friction": zod.string().min(1).optional().describe('Optional user-identified obstacle used only to generate one grounded tip'),
+  "trackingContext": zod.object({
+  "category": zod.enum(['health', 'learning', 'productivity', 'mindfulness', 'social', 'creativity', 'finance', 'custom']).optional(),
+  "unit": zod.enum(['minutes', 'count', 'pages', 'custom']).optional()
+}).optional().describe('Optional category/unit hints only; baseline is resolved from the supplied user baseline or server-owned matching tracking rows')
 })
+
+export const aiHabitBuilderResponseMinimumFloorMin = 0;
+
+
 
 export const AiHabitBuilderResponse = zod.object({
   "title": zod.string(),
+  "category": zod.enum(['health', 'learning', 'productivity', 'mindfulness', 'social', 'creativity', 'finance', 'custom']),
+  "goalType": zod.enum(['build', 'quit']),
+  "unit": zod.enum(['minutes', 'count', 'pages', 'custom']),
+  "originalGoal": zod.string(),
+  "understoodGoal": zod.string(),
+  "baselineValue": zod.number().nullable(),
   "targetValue": zod.number(),
   "minimumValue": zod.number(),
   "busyDayValue": zod.number(),
+  "successLimitValue": zod.number().nullable(),
+  "minimumFloor": zod.number().min(aiHabitBuilderResponseMinimumFloorMin),
+  "cueType": zod.union([zod.literal('time'),zod.literal('routine'),zod.literal('custom'),zod.literal(null)]).nullable(),
+  "cueTime": zod.string().nullable(),
+  "cue": zod.string().nullable(),
+  "startAction": zod.string().nullable(),
+  "needsBaseline": zod.boolean(),
   "reason": zod.string(),
-  "coachMessage": zod.string()
+  "coachMessage": zod.string(),
+  "frictionTip": zod.string(),
+  "source": zod.enum(['ai', 'deterministic'])
 })
 
 

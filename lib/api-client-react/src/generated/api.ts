@@ -51,6 +51,7 @@ import type {
   HabitBuilderInput,
   HabitBuilderResult,
   HabitInput,
+  HabitJourney,
   HabitUpdate,
   HealthStatus,
   JoinGroupInput,
@@ -765,6 +766,83 @@ export const useDeleteHabit = <TError = ErrorType<Error>,
       > => {
       return useMutation(getDeleteHabitMutationOptions(options));
     }
+
+export const getGetHabitJourneyUrl = (habitId: number,) => {
+
+
+
+
+  return `/api/habits/${habitId}/journey`
+}
+
+/**
+ * @summary Get the habit-specific 22-day journey and scheduled thresholds
+ */
+export const getHabitJourney = async (habitId: number, options?: Parameters<typeof customFetch>[1]): Promise<HabitJourney> => {
+
+  return customFetch<HabitJourney>(getGetHabitJourneyUrl(habitId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetHabitJourneyQueryKey = (habitId: number,) => {
+    return [
+    `/api/habits/${habitId}/journey`
+    ] as const;
+    }
+
+
+export const getGetHabitJourneyQueryOptions = <TData = Awaited<ReturnType<typeof getHabitJourney>>, TError = ErrorType<Error>>(habitId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getHabitJourney>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetHabitJourneyQueryKey(habitId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getHabitJourney>>> = ({ signal }) => getHabitJourney(habitId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: habitId !== null && habitId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getHabitJourney>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetHabitJourneyQueryResult = NonNullable<Awaited<ReturnType<typeof getHabitJourney>>>
+export type GetHabitJourneyQueryError = ErrorType<Error>
+
+
+/**
+ * @summary Get the habit-specific 22-day journey and scheduled thresholds
+ */
+
+export function useGetHabitJourney<TData = Awaited<ReturnType<typeof getHabitJourney>>, TError = ErrorType<Error>>(
+ habitId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getHabitJourney>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetHabitJourneyQueryOptions(habitId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getListHabitCheckinsUrl = (params: ListHabitCheckinsParams,) => {
   const normalizedParams = new URLSearchParams();

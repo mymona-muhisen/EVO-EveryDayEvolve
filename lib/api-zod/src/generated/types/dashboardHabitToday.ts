@@ -5,6 +5,7 @@
  * Habit Journey API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { DashboardHabitTodayGoalType } from './dashboardHabitTodayGoalType';
 
 export interface DashboardHabitToday {
   habitId: number;
@@ -12,7 +13,12 @@ export interface DashboardHabitToday {
   emoji: string;
   unit: string;
   targetValue: number;
+  minimumValue: number;
+  goalType: DashboardHabitTodayGoalType;
+  /** @nullable */
+  successLimitValue: number | null;
   completedToday: boolean;
+  targetCompleted: boolean;
   /** @nullable */
   valueToday: number | null;
   currentStreak: number;

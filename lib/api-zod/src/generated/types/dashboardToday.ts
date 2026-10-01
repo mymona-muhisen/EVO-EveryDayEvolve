@@ -9,7 +9,9 @@ import type { DashboardHabitToday } from './dashboardHabitToday';
 
 export interface DashboardToday {
   /** Today's calendar date in the user's saved timezone */
-  date?: Date;
+  date: Date;
+  /** Today in the user's saved timezone unless local hour is 21:00 or later */
+  suggestedJourneyStartDate: Date;
   activeHabitsCount: number;
   completedTodayCount: number;
   scheduledTodayCount: number;

@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { HabitBuilderInputGoalType } from './habitBuilderInputGoalType';
+import type { HabitBuilderInputTrackingContext } from './habitBuilderInputTrackingContext';
 import type { HabitBuilderInputUnit } from './habitBuilderInputUnit';
 
 export interface HabitBuilderInput {
@@ -15,4 +16,13 @@ export interface HabitBuilderInput {
   requestedDuration: number;
   unit: HabitBuilderInputUnit;
   goalType?: HabitBuilderInputGoalType;
+  /** @minimum 0 */
+  baselineValue?: number;
+  /**
+     * Optional user-identified obstacle used only to generate one grounded tip
+     * @minLength 1
+     */
+  friction?: string;
+  /** Optional category/unit hints only; baseline is resolved from the supplied user baseline or server-owned matching tracking rows */
+  trackingContext?: HabitBuilderInputTrackingContext;
 }

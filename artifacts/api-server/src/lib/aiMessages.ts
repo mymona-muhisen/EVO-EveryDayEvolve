@@ -149,6 +149,75 @@ export interface HabitAdaptationPhrasing {
   encouragement: string;
 }
 
+export interface HabitBuilderText {
+  title: string;
+  category: "health" | "learning" | "productivity" | "mindfulness" | "social" | "creativity" | "finance" | "custom";
+  understoodGoal: string;
+  reason: string;
+  frictionTip: string;
+}
+
+/** AI may interpret text, but numeric recommendations and cues stay rule-owned. */
+export async function habitBuilderText(
+  facts: {
+    intent: string;
+    fallbackTitle: string;
+    fallbackCategory: HabitBuilderText["category"];
+    goalType: "build" | "quit";
+    friction?: string | null;
+    fallbackFrictionTip?: string;
+  },
+  provider: AiTextProvider = geminiProvider,
+): Promise<HabitBuilderText | null> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const raw = await Promise.race([
+      provider.generateText(
+        "أنت مساعد لفهم هدف عادة. أعد JSON فقط بالمفاتيح title وcategory وunderstoodGoal وreason وfrictionTip. صنّف النشاط دون إضافة روتين أو وقت أو baseline غير مذكور. category واحدة من health, learning, productivity, mindfulness, social, creativity, finance, custom. لا تعدّل الأرقام ولا تخترع حقائق. frictionTip نصيحة واحدة قصيرة مستندة فقط إلى العائق الذي ذكره المستخدم؛ لا تذكر عادة أو أداة أو رقمًا لم يذكره. إذا لم يذكر عائقًا فأعد frictionTip كسلسلة فارغة.",
+        facts,
+        true,
+      ),
+      new Promise<never>((_, reject) => {
+        timeout = setTimeout(() => reject(new Error("Habit builder AI timeout")), 2500);
+      }),
+    ]);
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") throw new Error("Malformed habit-builder response");
+    const result = parsed as Record<string, unknown>;
+    const categories = ["health", "learning", "productivity", "mindfulness", "social", "creativity", "finance", "custom"];
+    const tip = typeof result.frictionTip === "string" ? result.frictionTip.trim() : "";
+    const friction = facts.friction?.trim() ?? "";
+    const ignoredTokens = new Set(["the", "and", "for", "my", "with", "from", "this", "that", "من", "في", "على", "عن", "هذا", "هذه"]);
+    const frictionTokens = friction.toLocaleLowerCase().match(/[\p{L}]{2,}/gu)?.filter((token) => !ignoredTokens.has(token)) ?? [];
+    const groundedTip = !friction
+      ? tip.length === 0
+      : frictionTokens.some((token) => tip.toLocaleLowerCase().includes(token));
+    const spelledNumber = /\b(?:zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|twenty|thirty|forty|fifty|first|second|third|once|twice)\b|(?:^|[\s،,])(?:صفر|واحد(?:ة)?|اثنان|اثنين|ثلاث(?:ة|ين)?|أربع(?:ة|ين)?|خمس(?:ة|ين)?|ست(?:ة|ين)?|سبع(?:ة|ين)?|ثمان(?:ية|ين)?|تسع(?:ة|ين)?|عشر(?:ة|ون)?|عشرين|ثلاثين|أربعين|خمسين|مرتين)(?=$|[\s،,.!?؟])/u;
+    if (Object.keys(result).sort().join(",") !== ["category", "frictionTip", "reason", "title", "understoodGoal"].sort().join(",")
+      || typeof result.title !== "string" || !result.title.trim() || result.title.length > 100
+      || typeof result.understoodGoal !== "string" || !result.understoodGoal.trim() || result.understoodGoal.length > 240
+      || typeof result.reason !== "string" || !result.reason.trim() || result.reason.length > 240
+      || typeof result.category !== "string" || !categories.includes(result.category)
+      || typeof result.frictionTip !== "string" || tip.length > 180
+      || /[0-9٠-٩۰-۹\r\n]/u.test(tip) || spelledNumber.test(tip) || !groundedTip
+      || (tip && /[.!?؟].*[.!?؟]/u.test(tip))) {
+      throw new Error("Invalid habit-builder interpretation");
+    }
+    return {
+      title: result.title.trim(),
+      category: result.category as HabitBuilderText["category"],
+      understoodGoal: result.understoodGoal.trim(),
+      reason: result.reason.trim(),
+      frictionTip: tip,
+    };
+  } catch {
+    logFallback();
+    return null;
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
+}
+
 export async function habitAdaptationMessages(
   facts: {
     reason: string;

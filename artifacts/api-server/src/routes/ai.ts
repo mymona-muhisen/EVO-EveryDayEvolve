@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq, and, gte, desc } from "drizzle-orm";
-import { db, habitsTable, checkinsTable } from "@workspace/db";
+import { eq, and, gte, lte, desc, inArray } from "drizzle-orm";
+import { db, habitsTable, checkinsTable, timeEntriesTable } from "@workspace/db";
 import {
   AiBreakdownGoalBody,
   AiBreakdownGoalResponse,
@@ -14,17 +14,20 @@ import {
 } from "@workspace/api-zod";
 import { requireAuth } from "../middlewares/requireAuth";
 import { ensureUser } from "../lib/userService";
-import { toDateOnly } from "../lib/dates";
+import { toDateOnly, todayInTimezone } from "../lib/dates";
 import {
   goalMilestones, phraseMilestones, checkinTone, recoveryTarget,
-  buildHabitTargets, missedScheduledDays,
+  missedScheduledDays,
 } from "../lib/aiRules";
 import {
   breakdownGoalMessages,
   dailyInsightMessage,
   checkinFeedbackMessage,
   relapseRecoveryMessages,
+  habitBuilderText,
 } from "../lib/aiMessages";
+import { makeHabitBuilderPlan, matchedTrackingCategories } from "../lib/habitBuilder";
+import { addCalendarDays } from "../lib/habitJourney";
 
 const router: IRouter = Router();
 router.use(requireAuth);
@@ -50,19 +53,58 @@ router.post("/ai/breakdown-goal", async (req, res): Promise<void> => {
 });
 
 router.post("/ai/habit-builder", async (req, res): Promise<void> => {
-  await ensureUser(req.userId!);
+  const user = await ensureUser(req.userId!);
   const parsed = AiHabitBuilderBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  const targets = buildHabitTargets(parsed.data.requestedDuration);
-  res.json(AiHabitBuilderResponse.parse({
-    title: parsed.data.intent.trim(),
-    ...targets,
-    reason: "تم اختيار الهدف اليومي من المدة التي طلبتها، مع حد أدنى مناسب وأقل من الهدف للأيام المزدحمة.",
-    coachMessage: "يمكنك تعديل الاسم والأهداف قبل إنشاء العادة.",
-  }));
+  const preliminary = makeHabitBuilderPlan(parsed.data);
+  const intentOnlyPlan = makeHabitBuilderPlan({ ...parsed.data, trackingContext: undefined });
+  let trackedBaseline: number | null = null;
+  if (preliminary.goalType === "quit" && parsed.data.baselineValue === undefined
+    && preliminary.unit === "minutes") {
+    const categories = matchedTrackingCategories(parsed.data.intent, intentOnlyPlan.category);
+    if (categories.length) {
+      const today = todayInTimezone(user.timezone);
+      const rows = await db.select({
+        date: timeEntriesTable.date,
+        durationMinutes: timeEntriesTable.durationMinutes,
+      }).from(timeEntriesTable).where(and(
+        eq(timeEntriesTable.userId, req.userId!),
+        inArray(timeEntriesTable.category, categories),
+        gte(timeEntriesTable.date, addCalendarDays(today, -7)),
+        lte(timeEntriesTable.date, today),
+      ));
+      if (rows.length) {
+        const daily = new Map<string, number>();
+        for (const row of rows) daily.set(row.date, (daily.get(row.date) ?? 0) + row.durationMinutes);
+        trackedBaseline = Math.round((Array.from(daily.values()).reduce((sum, value) => sum + value, 0) / daily.size) * 100) / 100;
+      }
+    }
+  }
+  const plan = makeHabitBuilderPlan(parsed.data, trackedBaseline);
+  const interpretation = await habitBuilderText({
+    intent: parsed.data.intent,
+    fallbackTitle: plan.title,
+    fallbackCategory: plan.category,
+    goalType: plan.goalType,
+    friction: parsed.data.friction,
+    fallbackFrictionTip: plan.frictionTip,
+  });
+  const result = {
+    ...plan,
+    ...(interpretation ? {
+      title: interpretation.title,
+      category: interpretation.category,
+      understoodGoal: interpretation.understoodGoal,
+      reason: interpretation.reason,
+      source: "ai" as const,
+    } : {}),
+    frictionTip: interpretation?.frictionTip ?? plan.frictionTip,
+    coachMessage: interpretation?.reason ?? plan.reason,
+  };
+  res.json(AiHabitBuilderResponse.parse(result));
 });
 
 router.get("/ai/daily-insight", async (req, res): Promise<void> => {

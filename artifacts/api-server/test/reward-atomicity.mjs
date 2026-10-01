@@ -6,6 +6,7 @@ import { dirname, join, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { build } from "esbuild";
+import express from "express";
 
 const apiDir = dirname(dirname(fileURLToPath(import.meta.url)));
 const repositoryDir = resolve(apiDir, "../..");
@@ -48,6 +49,7 @@ const ddl = [
   `CREATE TYPE ${quote("habit_unit")} AS ENUM ('minutes', 'count', 'pages', 'custom')`,
   `CREATE TYPE ${quote("habit_difficulty")} AS ENUM ('easy', 'medium', 'hard')`,
   `CREATE TYPE ${quote("habit_goal_type")} AS ENUM ('build', 'quit')`,
+  `CREATE TYPE ${quote("habit_cue_type")} AS ENUM ('time', 'routine', 'custom')`,
   `CREATE TYPE ${quote("checkin_difficulty")} AS ENUM ('easy', 'normal', 'hard', 'very_hard')`,
   `CREATE TYPE ${quote("missed_reason")} AS ENUM ('too_difficult', 'no_time', 'forgot', 'lost_motivation', 'unexpected', 'other')`,
   `CREATE TYPE ${quote("coin_transaction_reason")} AS ENUM ('checkin', 'streak_bonus', 'streak_recovery', 'reward_redemption', 'item_purchase', 'challenge_bonus', 'manual')`,
@@ -78,6 +80,15 @@ const ddl = [
     busy_day_value double precision,
     baseline_value double precision,
     success_limit_value double precision,
+    cue_type ${quote("habit_cue_type")},
+    cue_time text,
+    cue text,
+    start_action text,
+    friction text,
+    minimum_floor double precision,
+    journey_start_date date,
+    journey_length integer,
+    reward_id integer,
     difficulty ${quote("habit_difficulty")} NOT NULL,
     goal_type ${quote("habit_goal_type")} NOT NULL,
     is_active boolean NOT NULL DEFAULT true,
@@ -88,6 +99,30 @@ const ddl = [
     streak_broken_at date,
     milestones jsonb NOT NULL,
     created_at timestamptz NOT NULL DEFAULT now()
+  )`,
+  `CREATE TABLE ${quote("habit_days")} (
+    id serial PRIMARY KEY,
+    habit_id integer NOT NULL REFERENCES ${quote("habits")}(id) ON DELETE CASCADE,
+    day_number integer NOT NULL,
+    date date NOT NULL,
+    scheduled boolean NOT NULL DEFAULT true,
+    target_value double precision NOT NULL,
+    minimum_value double precision NOT NULL,
+    busy_day_value double precision,
+    success_limit_value double precision,
+    goal_type ${quote("habit_goal_type")} NOT NULL,
+    plan_revision integer NOT NULL DEFAULT 1,
+    CONSTRAINT habit_days_habit_day_unique UNIQUE (habit_id, day_number),
+    CONSTRAINT habit_days_habit_date_unique UNIQUE (habit_id, date)
+  )`,
+  `CREATE TABLE ${quote("habit_plan_revisions")} (
+    id serial PRIMARY KEY,
+    habit_id integer NOT NULL REFERENCES ${quote("habits")}(id) ON DELETE CASCADE,
+    revision integer NOT NULL,
+    effective_from date NOT NULL,
+    plan jsonb NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT habit_plan_revisions_habit_revision_unique UNIQUE (habit_id, revision)
   )`,
   `CREATE TABLE ${quote("checkins")} (
     id serial PRIMARY KEY,
@@ -103,6 +138,7 @@ const ddl = [
     target_snapshot double precision,
     minimum_snapshot double precision,
     success_limit_snapshot double precision,
+    goal_type_snapshot ${quote("habit_goal_type")},
     target_completed boolean NOT NULL DEFAULT false,
     reward_granted boolean NOT NULL DEFAULT false,
     coins_earned integer NOT NULL DEFAULT 0,
@@ -159,8 +195,13 @@ async function prepare() {
     testEntry,
     `
       export { recordCheckin, CheckinConflictError } from ${JSON.stringify(join(apiDir, "src/lib/checkinService.ts"))};
+      export { reviseFutureUnrecordedDays } from ${JSON.stringify(join(apiDir, "src/lib/habitPlanService.ts"))};
+      export { getDashboardHabitsToday } from ${JSON.stringify(join(apiDir, "src/lib/dashboardService.ts"))};
+      export { checkinsForPlanRevision, proposeHabitAdaptation } from ${JSON.stringify(join(apiDir, "src/lib/aiRules.ts"))};
       export { grantRewards } from ${JSON.stringify(join(apiDir, "src/lib/gamificationService.ts"))};
-      export { pool } from "@workspace/db";
+      export { default as habitsRouter } from ${JSON.stringify(join(apiDir, "src/routes/habits.ts"))};
+      export { default as checkinsRouter } from ${JSON.stringify(join(apiDir, "src/routes/checkins.ts"))};
+      export { db, pool } from "@workspace/db";
     `,
   );
   const adapterPlugin = {
@@ -170,8 +211,19 @@ async function prepare() {
         path: "isolated-db-adapter",
         namespace: "isolated-db",
       }));
+      esbuild.onResolve({ filter: /^@workspace\/api-zod$/ }, () => ({
+        path: join(repositoryDir, "lib/api-zod/src/generated/api.ts"),
+      }));
+      esbuild.onResolve({ filter: /^@clerk\/express$/ }, () => ({
+        path: "isolated-clerk-auth",
+        namespace: "isolated-clerk",
+      }));
       esbuild.onResolve({ filter: /^pg$/ }, () => ({
         path: pgEntry,
+        external: true,
+      }));
+      esbuild.onResolve({ filter: /^express$/ }, () => ({
+        path: "express",
         external: true,
       }));
       esbuild.onLoad({ filter: /.*/, namespace: "isolated-db" }, () => ({
@@ -187,6 +239,13 @@ async function prepare() {
           export * from "./src/schema/index.ts";
         `,
       }));
+      esbuild.onLoad({ filter: /.*/, namespace: "isolated-clerk" }, () => ({
+        loader: "js",
+        contents: `
+          export const getAuth = (req) => ({ userId: req.headers["x-test-user"] ?? null });
+          export const clerkClient = { users: { getUser: async () => { throw new Error("No Clerk in integration test"); } } };
+        `,
+      }));
     },
   };
   await build({
@@ -195,6 +254,7 @@ async function prepare() {
     bundle: true,
     platform: "node",
     format: "esm",
+    packages: "external",
     plugins: [adapterPlugin],
     logLevel: "silent",
   });
@@ -205,6 +265,15 @@ async function prepare() {
   }
   if (typeof module.grantRewards !== "function") {
     throw new Error("Production gamificationService must export grantRewards.");
+  }
+  if (typeof module.reviseFutureUnrecordedDays !== "function") {
+    throw new Error("Production habitJourney must export reviseFutureUnrecordedDays.");
+  }
+  if (typeof module.getDashboardHabitsToday !== "function") {
+    throw new Error("Production dashboardService must export getDashboardHabitsToday.");
+  }
+  if (typeof module.checkinsForPlanRevision !== "function" || typeof module.proposeHabitAdaptation !== "function") {
+    throw new Error("Production aiRules must export revision-aware adaptation helpers.");
   }
   return module;
 }
@@ -222,7 +291,8 @@ test.after(cleanup);
 async function reset() {
   await adminPool.query(
     `TRUNCATE ${quote("user_journey_milestones")}, ${quote("journey_milestones")},
-     ${quote("coin_transactions")}, ${quote("checkins")}, ${quote("habits")},
+     ${quote("coin_transactions")}, ${quote("habit_plan_revisions")}, ${quote("habit_days")},
+     ${quote("checkins")}, ${quote("habits")},
      ${quote("users")} RESTART IDENTITY CASCADE`,
   );
 }
@@ -417,6 +487,63 @@ test("duplicate retry is idempotent, incomplete check-ins can succeed later, and
 
     const [user] = await rows("users");
     assert.equal(user.xp, 10);
+    assert.equal(user.coins, 5);
+    assert.equal((await rows("coin_transactions")).length, 1);
+  });
+
+  await t.test("value-only retry preserves the stored reflection and does not pay twice", async () => {
+    await reset();
+    const userId = await seedUser();
+    const habitId = await seedHabit({ userId });
+    const date = "2026-06-01";
+    await adminPool.query(
+      `UPDATE ${quote("habits")} SET journey_start_date = $2, journey_length = 22 WHERE id = $1`,
+      [habitId, date],
+    );
+    await adminPool.query(
+      `INSERT INTO ${quote("habit_days")}
+         (habit_id, day_number, date, scheduled, target_value, minimum_value, goal_type, plan_revision)
+       VALUES ($1, 1, $2, true, 10, 3, 'build', 1)`,
+      [habitId, date],
+    );
+    const app = express();
+    app.use(express.json());
+    app.use(service.checkinsRouter);
+    const server = app.listen(0, "127.0.0.1");
+    await new Promise((resolve) => server.once("listening", resolve));
+    let first;
+    let valueOnly;
+    try {
+      const baseUrl = `http://127.0.0.1:${server.address().port}`;
+      const headers = { "content-type": "application/json", "x-test-user": userId };
+      const initialResponse = await fetch(`${baseUrl}/habits/${habitId}/checkins`, {
+        method: "POST", headers, body: JSON.stringify({ date, value: 5 }),
+      });
+      assert.equal(initialResponse.status, 201);
+      first = await initialResponse.json();
+      const reflectionResponse = await fetch(`${baseUrl}/habits/${habitId}/checkins/${date}`, {
+        method: "PATCH",
+        headers,
+        body: JSON.stringify({ difficulty: "hard", note: "reflection note", moodRating: 4 }),
+      });
+      assert.equal(reflectionResponse.status, 200);
+      const valueOnlyResponse = await fetch(`${baseUrl}/habits/${habitId}/checkins`, {
+        method: "POST", headers, body: JSON.stringify({ date, value: 12 }),
+      });
+      assert.equal(valueOnlyResponse.status, 201);
+      valueOnly = await valueOnlyResponse.json();
+    } finally {
+      await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    }
+    assert.equal(valueOnly.id, first.id);
+    assert.equal(valueOnly.value, 12);
+    assert.equal(valueOnly.difficulty, "hard");
+    assert.equal(valueOnly.note, "reflection note");
+    assert.equal(valueOnly.moodRating, 4);
+    const [user] = await rows("users");
+    const [checkin] = await rows("checkins");
+    assert.equal(checkin.reward_granted, true);
+    assert.equal(checkin.coins_earned, 5);
     assert.equal(user.coins, 5);
     assert.equal((await rows("coin_transactions")).length, 1);
   });
@@ -648,4 +775,280 @@ test("a habit owned by another user is not mutated", async () => {
   )).rows;
   assert.equal(intruderRow.xp, 0);
   assert.equal(intruderRow.coins, 0);
+});
+
+test("recordCheckin evaluates against the date-specific day plan", async () => {
+  await reset();
+  const userId = await seedUser();
+  const habitId = await seedHabit({ userId });
+  await adminPool.query(
+    `INSERT INTO ${quote("habit_days")}
+       (habit_id, day_number, date, scheduled, target_value, minimum_value, goal_type, plan_revision)
+     VALUES ($1, 1, '2026-06-01', true, 8, 4, 'build', 1)`,
+    [habitId],
+  );
+  await adminPool.query(`UPDATE ${quote("habits")} SET target_value = 3, minimum_value = 2 WHERE id = $1`, [habitId]);
+
+  const result = await service.recordCheckin(userId, habitId, input("2026-06-01", 5));
+  assert.equal(result.completed, true);
+  assert.equal(result.targetCompleted, false);
+  assert.equal(result.targetSnapshot, 8);
+  assert.equal(result.minimumSnapshot, 4);
+  assert.equal(result.goalTypeSnapshot, "build");
+});
+
+test("journey check-ins reject dates outside bounds and rest days without effects; Monday continues a weekday streak", async () => {
+  await reset();
+  const userId = await seedUser();
+  const habitId = await seedHabit({ userId, cadence: "weekdays" });
+  await adminPool.query(
+    `UPDATE ${quote("habits")}
+     SET journey_start_date = '2026-06-05', journey_length = 22
+     WHERE id = $1`,
+    [habitId],
+  );
+  await adminPool.query(
+    `INSERT INTO ${quote("habit_days")}
+       (habit_id, day_number, date, scheduled, target_value, minimum_value, goal_type, plan_revision)
+     VALUES
+       ($1, 1, '2026-06-05', true, 10, 3, 'build', 1),
+       ($1, 2, '2026-06-06', false, 10, 3, 'build', 1),
+       ($1, 3, '2026-06-07', false, 10, 3, 'build', 1),
+       ($1, 4, '2026-06-08', true, 10, 3, 'build', 1)`,
+    [habitId],
+  );
+
+  const untouched = await snapshot(userId, habitId);
+  await assert.rejects(service.recordCheckin(userId, habitId, input("2026-06-04")), /outside the habit's 22-day journey/);
+  await assert.rejects(service.recordCheckin(userId, habitId, input("2026-06-27")), /outside the habit's 22-day journey/);
+  assert.deepEqual(await snapshot(userId, habitId), untouched);
+
+  const friday = await service.recordCheckin(userId, habitId, input("2026-06-05"));
+  assert.equal(friday.newStreak, 1);
+  const afterFriday = await snapshot(userId, habitId);
+  await assert.rejects(service.recordCheckin(userId, habitId, input("2026-06-06")), /rest day/);
+  assert.deepEqual(await snapshot(userId, habitId), afterFriday);
+  await assert.rejects(service.recordCheckin(userId, habitId, input("2026-06-07")), /rest day/);
+  assert.deepEqual(await snapshot(userId, habitId), afterFriday);
+
+  const monday = await service.recordCheckin(userId, habitId, input("2026-06-08"));
+  assert.equal(monday.newStreak, 2);
+  const [habit] = await rows("habits");
+  assert.equal(habit.current_streak, 2);
+  assert.equal(habit.last_checkin_date.toISOString?.().slice(0, 10) ?? String(habit.last_checkin_date).slice(0, 10), "2026-06-08");
+  assert.equal((await rows("coin_transactions")).filter((entry) => entry.reason === "checkin").length, 2);
+});
+
+test("plan revision persists only on future unrecorded dates", async () => {
+  await reset();
+  const userId = await seedUser();
+  const habitId = await seedHabit({ userId });
+  await adminPool.query(
+    `INSERT INTO ${quote("habit_days")}
+       (habit_id, day_number, date, scheduled, target_value, minimum_value, goal_type, plan_revision)
+     VALUES
+       ($1, 1, '2026-05-31', true, 10, 5, 'build', 1),
+       ($1, 2, '2026-06-01', true, 10, 5, 'build', 1),
+       ($1, 3, '2026-06-02', true, 10, 5, 'build', 1),
+       ($1, 4, '2026-06-03', true, 10, 5, 'build', 1)`,
+    [habitId],
+  );
+  await seedCheckin({ habitId, userId, date: "2026-06-02", value: 10 });
+
+  await service.db.transaction((tx) => service.reviseFutureUnrecordedDays(
+    tx, habitId, "2026-06-01", 2, {
+      targetValue: 6, minimumValue: 3, busyDayValue: 2, successLimitValue: null,
+      goalType: "build", cadence: "daily", customDays: null,
+    },
+  ));
+
+  const result = await adminPool.query(
+    `SELECT date::text AS date, target_value, minimum_value, plan_revision
+     FROM ${quote("habit_days")} WHERE habit_id = $1 ORDER BY day_number`,
+    [habitId],
+  );
+  assert.deepEqual(result.rows.map((day) => [day.date, day.target_value, day.minimum_value, day.plan_revision]), [
+    ["2026-05-31", 10, 5, 1],
+    ["2026-06-01", 10, 5, 1],
+    ["2026-06-02", 10, 5, 1],
+    ["2026-06-03", 6, 3, 2],
+  ]);
+});
+
+test("accepted numeric plan revision cannot reuse old easy check-ins for another increase", async () => {
+  await reset();
+  const userId = await seedUser();
+  const habitId = await seedHabit({ userId });
+  await adminPool.query(
+    `UPDATE ${quote("habits")} SET target_value = 12, minimum_value = 6 WHERE id = $1`,
+    [habitId],
+  );
+  await adminPool.query(
+    `INSERT INTO ${quote("habit_days")}
+       (habit_id, day_number, date, scheduled, target_value, minimum_value, goal_type, plan_revision)
+     VALUES
+       ($1, 1, '2026-06-01', true, 10, 5, 'build', 1),
+       ($1, 2, '2026-06-02', true, 10, 5, 'build', 1),
+       ($1, 3, '2026-06-03', true, 10, 5, 'build', 1),
+       ($1, 4, '2026-06-04', true, 10, 5, 'build', 1)`,
+    [habitId],
+  );
+  for (const date of ["2026-06-01", "2026-06-02", "2026-06-03"]) {
+    await seedCheckin({ habitId, userId, date, value: 10 });
+  }
+  await adminPool.query(`UPDATE ${quote("checkins")} SET difficulty = 'easy' WHERE habit_id = $1`, [habitId]);
+
+  await adminPool.query(
+    `INSERT INTO ${quote("habit_plan_revisions")} (habit_id, revision, effective_from, plan)
+     VALUES ($1, 2, '2026-06-04', $2::jsonb)`,
+    [habitId, JSON.stringify({ targetValue: 12, minimumValue: 6 })],
+  );
+  await service.db.transaction((tx) => service.reviseFutureUnrecordedDays(
+    tx, habitId, "2026-06-03", 2, {
+      targetValue: 12, minimumValue: 6, busyDayValue: null, successLimitValue: null,
+      goalType: "build", cadence: "daily", customDays: null,
+    },
+  ));
+
+  const [planDays, latestRevision, history] = await Promise.all([
+    adminPool.query(
+      `SELECT date::text AS date, plan_revision AS "planRevision"
+       FROM ${quote("habit_days")} WHERE habit_id = $1 ORDER BY day_number`,
+      [habitId],
+    ),
+    adminPool.query(
+      `SELECT revision FROM ${quote("habit_plan_revisions")} WHERE habit_id = $1 ORDER BY revision DESC LIMIT 1`,
+      [habitId],
+    ),
+    adminPool.query(
+      `SELECT date::text AS date, difficulty, missed_reason AS "missedReason", completed
+       FROM ${quote("checkins")} WHERE habit_id = $1 ORDER BY date`,
+      [habitId],
+    ),
+  ]);
+  assert.deepEqual(planDays.rows.map((day) => day.planRevision), [1, 1, 1, 2]);
+  const numericHistory = service.checkinsForPlanRevision(
+    history.rows, planDays.rows, latestRevision.rows[0].revision,
+  );
+  assert.equal(numericHistory.length, 0);
+  const nextSuggestion = service.proposeHabitAdaptation({
+    targetValue: 12, minimumValue: 6, checkins: history.rows, numericCheckins: numericHistory,
+  });
+  assert.equal(nextSuggestion.targetValue, 12);
+  assert.equal(nextSuggestion.reason, "steady");
+});
+
+test("accepted PATCH changes only future rows and immediate adaptation ignores old easy evidence", async () => {
+  await reset();
+  const userId = await seedUser();
+  const habitId = await seedHabit({ userId });
+  const today = new Date().toISOString().slice(0, 10);
+  const addDays = (date, days) => {
+    const result = new Date(`${date}T00:00:00.000Z`);
+    result.setUTCDate(result.getUTCDate() + days);
+    return result.toISOString().slice(0, 10);
+  };
+  const startDate = addDays(today, -3);
+  await adminPool.query(
+    `UPDATE ${quote("habits")} SET journey_start_date = $2, journey_length = 22 WHERE id = $1`,
+    [habitId, startDate],
+  );
+  await adminPool.query(
+    `INSERT INTO ${quote("habit_plan_revisions")} (habit_id, revision, effective_from, plan)
+     VALUES ($1, 1, $2, $3::jsonb)`,
+    [habitId, startDate, JSON.stringify({ targetValue: 10, minimumValue: 3 })],
+  );
+  for (let dayNumber = 1; dayNumber <= 22; dayNumber++) {
+    await adminPool.query(
+      `INSERT INTO ${quote("habit_days")}
+         (habit_id, day_number, date, scheduled, target_value, minimum_value, goal_type, plan_revision)
+       VALUES ($1, $2, $3, true, 10, 3, 'build', 1)`,
+      [habitId, dayNumber, addDays(startDate, dayNumber - 1)],
+    );
+  }
+  for (const date of [addDays(startDate, 0), addDays(startDate, 1), addDays(startDate, 2)]) {
+    await seedCheckin({ habitId, userId, date, value: 10 });
+  }
+  await adminPool.query(`UPDATE ${quote("checkins")} SET difficulty = 'easy' WHERE habit_id = $1`, [habitId]);
+
+  const app = express();
+  app.use(express.json());
+  app.use(service.habitsRouter);
+  const server = app.listen(0, "127.0.0.1");
+  await new Promise((resolve) => server.once("listening", resolve));
+  try {
+    const address = server.address();
+    const baseUrl = `http://127.0.0.1:${address.port}`;
+    const patchResponse = await fetch(`${baseUrl}/habits/${habitId}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json", "x-test-user": userId },
+      body: JSON.stringify({
+        targetValue: 11,
+        expectedTargetValue: 10,
+        expectedMinimumValue: 3,
+      }),
+    });
+    const patchText = await patchResponse.text();
+    assert.equal(patchResponse.status, 200, patchText);
+    assert.equal(JSON.parse(patchText).targetValue, 11);
+
+    const dayRows = await adminPool.query(
+      `SELECT date::text AS date, target_value, plan_revision
+       FROM ${quote("habit_days")} WHERE habit_id = $1 ORDER BY day_number`,
+      [habitId],
+    );
+    for (const day of dayRows.rows) {
+      if (day.date <= today) {
+        assert.equal(day.target_value, 10);
+        assert.equal(day.plan_revision, 1);
+      } else {
+        assert.equal(day.target_value, 11);
+        assert.equal(day.plan_revision, 2);
+      }
+    }
+
+    const adaptationResponse = await fetch(`${baseUrl}/habits/${habitId}/adaptation`, {
+      headers: { "x-test-user": userId },
+    });
+    assert.equal(adaptationResponse.status, 200);
+    const adaptation = await adaptationResponse.json();
+    assert.equal(adaptation.targetValue, 11);
+    assert.equal(adaptation.suggestion, false);
+  } finally {
+    await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  }
+});
+
+test("dashboard uses today's immutable plan and disables scheduling outside journey dates", async () => {
+  await reset();
+  const userId = await seedUser();
+  const habitId = await seedHabit({ userId, cadence: "weekdays" });
+  await adminPool.query(
+    `UPDATE ${quote("habits")}
+     SET target_value = 4, minimum_value = 2, goal_type = 'quit', success_limit_value = 6,
+         journey_start_date = '2026-05-31', journey_length = 22
+     WHERE id = $1`,
+    [habitId],
+  );
+  await adminPool.query(
+    `INSERT INTO ${quote("habit_days")}
+       (habit_id, day_number, date, scheduled, target_value, minimum_value,
+        success_limit_value, goal_type, plan_revision)
+     VALUES ($1, 2, '2026-06-01', true, 8, 5, 9, 'quit', 1)`,
+    [habitId],
+  );
+
+  const today = await service.getDashboardHabitsToday(userId, "2026-06-01");
+  assert.equal(today.length, 1);
+  assert.equal(today[0].targetValue, 8);
+  assert.equal(today[0].minimumValue, 5);
+  assert.equal(today[0].goalType, "quit");
+  assert.equal(today[0].successLimitValue, 9);
+  assert.equal(today[0].scheduledToday, true);
+  assert.equal(today[0].targetCompleted, false);
+
+  const beforeJourney = await service.getDashboardHabitsToday(userId, "2026-05-30");
+  const afterJourney = await service.getDashboardHabitsToday(userId, "2026-06-22");
+  assert.equal(beforeJourney[0].scheduledToday, false);
+  assert.equal(afterJourney[0].scheduledToday, false);
 });

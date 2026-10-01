@@ -11,7 +11,7 @@ import {
   pgEnum,
 } from "drizzle-orm/pg-core";
 import { usersTable } from "./users";
-import { habitsTable } from "./habits";
+import { habitsTable, habitGoalTypeEnum } from "./habits";
 
 export const checkinDifficultyEnum = pgEnum("checkin_difficulty", [
   "easy",
@@ -48,6 +48,7 @@ export const checkinsTable = pgTable(
     targetSnapshot: doublePrecision("target_snapshot"),
     minimumSnapshot: doublePrecision("minimum_snapshot"),
     successLimitSnapshot: doublePrecision("success_limit_snapshot"),
+    goalTypeSnapshot: habitGoalTypeEnum("goal_type_snapshot"),
     targetCompleted: boolean("target_completed").notNull().default(false),
     // New rewards set this only in the transaction that also persists wallet,
     // XP, coin ledger, streak and journey milestones. Legacy paid rows may

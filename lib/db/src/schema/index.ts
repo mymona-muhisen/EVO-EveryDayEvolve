@@ -1,5 +1,6 @@
 export * from "./users";
 export * from "./habits";
+export * from "./habitJourney";
 export * from "./checkins";
 export * from "./timeEntries";
 export * from "./trackingSessions";

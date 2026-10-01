@@ -5,6 +5,7 @@
  * Habit Journey API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { HabitAdaptationActions } from './habitAdaptationActions';
 import type { HabitAdaptationMissedReason } from './habitAdaptationMissedReason';
 import type { HabitAdaptationPhrasing } from './habitAdaptationPhrasing';
 import type { HabitAdaptationReason } from './habitAdaptationReason';
@@ -15,12 +16,17 @@ export interface HabitAdaptation {
   suggestion: boolean;
   expectedTargetValue: number;
   expectedMinimumValue: number;
+  /** @nullable */
+  expectedSuccessLimitValue: number | null;
   targetValue: number;
   minimumValue: number;
+  /** @nullable */
+  newSuccessLimitValue: number | null;
   /** @nullable */
   busyDayValue: number | null;
   /** @nullable */
   missedReason: HabitAdaptationMissedReason;
+  actions: HabitAdaptationActions;
   phrasing: HabitAdaptationPhrasing;
   coachMessage: string;
   /** @minimum 0 */

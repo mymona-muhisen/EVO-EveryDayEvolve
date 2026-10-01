@@ -5,12 +5,39 @@
  * Habit Journey API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { HabitBuilderResultCategory } from './habitBuilderResultCategory';
+import type { HabitBuilderResultCueType } from './habitBuilderResultCueType';
+import type { HabitBuilderResultGoalType } from './habitBuilderResultGoalType';
+import type { HabitBuilderResultSource } from './habitBuilderResultSource';
+import type { HabitBuilderResultUnit } from './habitBuilderResultUnit';
 
 export interface HabitBuilderResult {
   title: string;
+  category: HabitBuilderResultCategory;
+  goalType: HabitBuilderResultGoalType;
+  unit: HabitBuilderResultUnit;
+  originalGoal: string;
+  understoodGoal: string;
+  /** @nullable */
+  baselineValue: number | null;
   targetValue: number;
   minimumValue: number;
   busyDayValue: number;
+  /** @nullable */
+  successLimitValue: number | null;
+  /** @minimum 0 */
+  minimumFloor: number;
+  /** @nullable */
+  cueType: HabitBuilderResultCueType;
+  /** @nullable */
+  cueTime: string | null;
+  /** @nullable */
+  cue: string | null;
+  /** @nullable */
+  startAction: string | null;
+  needsBaseline: boolean;
   reason: string;
   coachMessage: string;
+  frictionTip: string;
+  source: HabitBuilderResultSource;
 }

@@ -8,7 +8,9 @@
 import type { HabitMilestone } from './habitMilestone';
 import type { HabitUpdateCadence } from './habitUpdateCadence';
 import type { HabitUpdateCategory } from './habitUpdateCategory';
+import type { HabitUpdateCueType } from './habitUpdateCueType';
 import type { HabitUpdateDifficulty } from './habitUpdateDifficulty';
+import type { HabitUpdateGoalType } from './habitUpdateGoalType';
 import type { HabitUpdateUnit } from './habitUpdateUnit';
 
 export interface HabitUpdate {
@@ -23,20 +25,67 @@ export interface HabitUpdate {
      */
   customDays?: number[];
   unit?: HabitUpdateUnit;
+  /** @minimum 0 */
   targetValue?: number;
-  /** @exclusiveMinimum 0 */
+  /** @minimum 0 */
   minimumValue?: number;
-  /** @exclusiveMinimum 0 */
-  busyDayValue?: number;
-  /** @exclusiveMinimum 0 */
-  baselineValue?: number;
-  /** @exclusiveMinimum 0 */
-  successLimitValue?: number;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  busyDayValue?: number | null;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  baselineValue?: number | null;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  successLimitValue?: number | null;
+  /** @nullable */
+  cueType?: HabitUpdateCueType;
+  /**
+     * @nullable
+     * @pattern ^([01][0-9]|2[0-3]):[0-5][0-9]$
+     */
+  cueTime?: string | null;
+  /** @nullable */
+  cue?: string | null;
+  /** @nullable */
+  startAction?: string | null;
+  /** @nullable */
+  friction?: string | null;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  minimumFloor?: number | null;
+  /** @nullable */
+  journeyStartDate?: Date | null;
+  /**
+     * @minimum 1
+     * @maximum 22
+     * @nullable
+     */
+  journeyLength?: number | null;
+  /**
+     * @minimum 1
+     * @nullable
+     */
+  rewardId?: number | null;
   /** If provided with targetValue, update only when the stored target still equals this value */
   expectedTargetValue?: number;
   /** Compare-and-set guard for minimumValue updates */
   expectedMinimumValue?: number;
+  /**
+     * Compare-and-set guard for successLimitValue updates
+     * @nullable
+     */
+  expectedSuccessLimitValue?: number | null;
   difficulty?: HabitUpdateDifficulty;
+  goalType?: HabitUpdateGoalType;
   isActive?: boolean;
   milestones?: HabitMilestone[];
 }

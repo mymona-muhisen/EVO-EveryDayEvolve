@@ -1,11 +1,12 @@
 import { and, eq } from "drizzle-orm";
-import { db, habitsTable, checkinsTable, usersTable } from "@workspace/db";
+import { db, habitsTable, checkinsTable, habitDaysTable, usersTable } from "@workspace/db";
 import { CreateCheckinBody, CreateCheckinResponse } from "@workspace/api-zod";
 import type { z } from "zod";
 import { grantRewards } from "./gamificationService";
 import { coinsForCheckin, continuesStreak, xpForDifficulty } from "./rules";
 import { toDateOnly } from "./dates";
 import { effectiveMinimum, evaluateHabitCheckin } from "./aiRules";
+import { addCalendarDays } from "./habitJourney";
 
 export class CheckinConflictError extends Error {}
 
@@ -30,19 +31,46 @@ export async function recordCheckin(
 
     const date = toDateOnly(input.date);
     const { value, note, moodRating, difficulty, missedReason } = input;
+    const [dayPlan] = await tx.select().from(habitDaysTable)
+      .where(and(eq(habitDaysTable.habitId, habit.id), eq(habitDaysTable.date, date)));
+    const hasJourneyStart = habit.journeyStartDate != null;
+    const hasJourneyLength = habit.journeyLength != null;
+    if (hasJourneyStart !== hasJourneyLength) {
+      throw new Error(`Habit ${habit.id} has an incomplete journey definition`);
+    }
+    if (hasJourneyStart && hasJourneyLength) {
+      const journeyEnd = addCalendarDays(habit.journeyStartDate!, habit.journeyLength! - 1);
+      if (date < habit.journeyStartDate! || date > journeyEnd) {
+        throw new CheckinConflictError("This date is outside the habit's 22-day journey.");
+      }
+      if (!dayPlan) {
+        throw new Error(`Habit ${habit.id} is missing its journey plan for ${date}`);
+      }
+      if (!dayPlan.scheduled) {
+        throw new CheckinConflictError("This is a rest day; check-ins are not accepted for it.");
+      }
+    }
     const [existing] = await tx.select().from(checkinsTable)
       .where(and(eq(checkinsTable.habitId, habit.id), eq(checkinsTable.date, date)));
-    const targetSnapshot = existing?.targetSnapshot ?? habit.targetValue;
+    // Omitted fields in a value-only retry are not reflection clears.
+    const effectiveValue = value !== undefined ? value : existing?.value ?? null;
+    const effectiveNote = note !== undefined ? note : existing?.note ?? null;
+    const effectiveMoodRating = moodRating !== undefined ? moodRating : existing?.moodRating ?? null;
+    const effectiveDifficulty = difficulty !== undefined ? difficulty : existing?.difficulty ?? null;
+    const effectiveMissedReason = missedReason !== undefined ? missedReason : existing?.missedReason ?? null;
+    const targetSnapshot = existing?.targetSnapshot ?? dayPlan?.targetValue ?? habit.targetValue;
     const minimumSnapshot = existing?.minimumSnapshot
-      ?? effectiveMinimum(habit.targetValue, habit.minimumValue);
-    const successLimitSnapshot = existing?.successLimitSnapshot ?? habit.successLimitValue;
+      ?? dayPlan?.minimumValue ?? effectiveMinimum(habit.targetValue, habit.minimumValue);
+    const successLimitSnapshot = existing?.successLimitSnapshot
+      ?? dayPlan?.successLimitValue ?? habit.successLimitValue;
+    const goalTypeSnapshot = existing?.goalTypeSnapshot ?? dayPlan?.goalType ?? habit.goalType;
     const { completed, targetCompleted } = evaluateHabitCheckin({
-      goalType: habit.goalType,
+      goalType: goalTypeSnapshot,
       targetValue: targetSnapshot,
       minimumValue: minimumSnapshot,
       successLimitValue: successLimitSnapshot,
-      value,
-      legacyCompleted: input.completed,
+      value: effectiveValue,
+      legacyCompleted: input.completed ?? existing?.completed,
     });
     if (existing?.completed && !completed) {
       throw new CheckinConflictError("A successful check-in cannot be changed to incomplete");
@@ -88,14 +116,15 @@ export async function recordCheckin(
       userId,
       date,
       completed,
-      value: value ?? null,
-      note: note ?? null,
-      moodRating: moodRating ?? null,
-      difficulty: difficulty ?? null,
-      missedReason: missedReason ?? null,
+      value: effectiveValue,
+      note: effectiveNote,
+      moodRating: effectiveMoodRating,
+      difficulty: effectiveDifficulty,
+      missedReason: effectiveMissedReason,
       targetSnapshot,
       minimumSnapshot,
       successLimitSnapshot,
+      goalTypeSnapshot,
       targetCompleted,
       rewardGranted: shouldReward,
       coinsEarned,
@@ -103,12 +132,16 @@ export async function recordCheckin(
       target: [checkinsTable.habitId, checkinsTable.date],
       set: {
         completed,
-        value: value ?? null,
-        note: note ?? null,
-        moodRating: moodRating ?? null,
-        difficulty: difficulty ?? null,
-        missedReason: missedReason ?? null,
+        value: effectiveValue,
+        note: effectiveNote,
+        moodRating: effectiveMoodRating,
+        difficulty: effectiveDifficulty,
+        missedReason: effectiveMissedReason,
+        targetSnapshot,
+        minimumSnapshot,
+        successLimitSnapshot,
         targetCompleted,
+        goalTypeSnapshot,
         ...(shouldReward ? { rewardGranted: true, coinsEarned } : {}),
       },
     }).returning();

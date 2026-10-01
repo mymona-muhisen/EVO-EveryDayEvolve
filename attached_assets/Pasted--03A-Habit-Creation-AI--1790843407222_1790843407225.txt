@@ -1,0 +1,1476 @@
+وأقترح أن نفصلها إلى نظامين يعملان معًا:
+
+03A — Habit Creation
+المستخدم ينشئ عادة → AI يصمم البداية المناسبة
+
+03B — Adaptive Habit Engine
+النظام يراقب التنفيذ → يفهم الصعوبة → يعدّل الخطة
+03 — Habit Creation + Adaptive Habit Engine
+الهدف
+
+المستخدم قد يدخل بأحد السيناريوهات التالية:
+
+"أريد أن أقرأ ساعة يوميًا."
+
+أو:
+
+"أريد أن أبدأ الرياضة."
+
+أو:
+
+"أريد أن أقلل TikTok."
+
+أو:
+
+"أريد أن أتوقف عن السهر."
+
+أو حتى:
+
+"أريد أن أدرس أكثر."
+
+ولا نريد أن نحول كلامه مباشرة إلى:
+
+Read 60 minutes every day.
+
+بل:
+
+User intention
+      ↓
+Understand
+      ↓
+Break down
+      ↓
+Start tiny
+      ↓
+Set target + minimum
+      ↓
+Create journey
+      ↓
+Track
+      ↓
+Adapt
+أولًا: نوعا العادات
+
+عندنا في المنتج نوعان رئيسيان.
+
+A. Build Habit
+
+عادة نريد زيادتها.
+
+مثل:
+
+القراءة
+الرياضة
+شرب الماء
+الدراسة
+التأمل
+الكتابة
+B. Reduce Habit
+
+عادة نريد تقليلها.
+
+مثل:
+
+Social Media
+Gaming
+السهر
+التصفح
+الوجبات غير المرغوبة
+
+وهنا لا نستخدم نفس معنى "Minimum".
+
+Build Habit
+
+لدينا:
+
+Target
+
+الهدف المرغوب.
+
+Minimum
+
+أصغر نسخة تجعل اليوم ناجحًا.
+
+مثلاً:
+
+Target = 10 min
+Minimum = 5 min
+Reduce Habit
+
+لدينا:
+
+Target Limit
+
+الحد الذي نريد الوصول إليه.
+
+Maximum for Success
+
+أعلى مدة ما زال اليوم يعتبر ناجحًا عندها.
+
+مثلاً:
+
+Current = 180 min
+Target Limit = 120 min
+Maximum for Success = 150 min
+
+لكن في الواجهة يمكن تبسيطها للمستخدم إلى:
+
+هدف اليوم: أقل من ساعتين
+
+والـ"threshold" يبقى داخليًا.
+
+1. نقطة الدخول
+
+يمكن للمستخدم الوصول إلى Habit Creation من ثلاثة أماكن:
+
+من AI Insight
+
+استعد 20 دقيقة من Social Media.
+
+زر:
+
+ابدأ هذه العادة
+
+من Dashboard
+
+زر:
+
++ عادة جديدة
+
+من صفحة Habits
+
+زر:
+
+أنشئ عادة
+
+2. الشاشة الأولى
+
+لا نريد Form طويل.
+
+ماذا تريد أن تغيّر؟
+
+Input كبير:
+
+اكتب هدفك بطريقتك...
+
+Placeholder:
+
+مثال: أريد أن أقرأ ساعة كل يوم
+
+وتحتها:
+
+أو اختر هدفًا سريعًا
+
+📚 القراءة
+🏃 الحركة
+💧 شرب الماء
+😴 النوم
+📱 تقليل الهاتف
+🎯 الدراسة
+🧘 الاسترخاء
+
+وزر:
+
+لنبدأ
+
+3. AI يفهم نية المستخدم
+
+مثلاً:
+
+أريد أن أقرأ ساعة كل يوم.
+
+النظام لا ينشئ العادة فورًا.
+
+يظهر:
+
+فهمت هدفك
+
+تريد بناء عادة القراءة اليومية.
+
+ثم:
+
+الهدف الذي ذكرته
+
+60 دقيقة يوميًا
+
+ثم:
+
+كبداية، أقترح أن نجعل الخطوة الأولى أصغر.
+
+4. AI Habit Proposal
+Your starting plan
+🎯 الهدف
+
+القراءة يوميًا
+
+البداية المقترحة
+
+10 دقائق يوميًا
+
+الحد الأدنى
+
+5 دقائق
+
+التكرار
+
+كل يوم
+
+ثم:
+
+الهدف النهائي يمكن أن يكبر معك، لكننا لن نبدأ به كاملًا.
+
+5. المستخدم يستطيع تعديل اقتراح AI
+
+هذه نقطة أساسية.
+
+مثلاً:
+
+Target
+[ 10 ] min
+
+Minimum
+[ 5 ] min
+
+Frequency
+[ Daily ▼ ]
+
+ويستطيع تعديلها.
+
+إذا كتب:
+
+30 دقيقة
+
+AI يمكنه الرد:
+
+30 دقيقة ممكنة، لكن بما أنها بداية جديدة أقترح أن يكون الحد الأدنى 10 دقائق حتى يبقى اليوم قابلًا للإنجاز في الأيام الصعبة.
+
+ثم:
+
+اعتماد الخطة
+
+أو:
+
+تعديل بنفسي
+
+6. لا نضع كل الإعدادات في شاشة واحدة
+
+نقسمها إلى خطوات قصيرة.
+
+1. Goal
+2. Starting plan
+3. Cue / Time
+4. Journey
+5. Reward
+7. Cue / Timing
+
+بعد تحديد العادة:
+
+متى تريد فعلها؟
+
+يمكن أن يكون:
+
+وقتًا ثابتًا
+
+7:00 PM
+
+أو:
+
+مرتبطة بعادة موجودة
+
+بعد القهوة الصباحية
+
+أو:
+
+بعد تنظيف الأسنان
+
+أو:
+
+قبل فتح Instagram
+
+وهنا نستفيد من بيانات Time Tracking عندما تكون موجودة.
+
+8. AI يقترح الوقت
+
+مثلاً من بيانات المستخدم:
+
+Study mostly at 10 AM
+Reading history not available
+Morning coffee around 9 AM
+
+يمكن أن يقترح:
+
+9:15 AM might fit your current routine.
+
+مع:
+
+اعتماد
+
+أو:
+
+اختيار وقت آخر
+
+مهم: AI يقترح فقط إذا لديه بيانات كافية، ولا يدعي معرفة شيء لا يعرفه.
+
+9. Habit Friction
+
+هناك جزء مهم أريد إضافته للـHabit Builder.
+
+بعد الخطة:
+
+ما الذي قد يجعل هذه العادة صعبة؟
+
+مثلاً للقراءة:
+
+📱 الهاتف
+😴 التعب
+🕐 ضيق الوقت
+🤷 لا أعرف ماذا أقرأ
+🏠 البيئة
+
+المستخدم يختار.
+
+ثم AI يعطي نصيحة واحدة صغيرة.
+
+مثلاً:
+
+الهاتف قد يكون أكبر عائق لديك.
+
+جرّب وضعه بعيدًا عنك أثناء أول 10 دقائق.
+
+لا نعطيه 7 نصائح.
+
+10. تعريف النجاح
+
+قبل بدء الرحلة، يجب أن يكون واضحًا:
+
+Build Habit
+
+مثلاً:
+
+Target: 10 min
+Minimum: 5 min
+
+النظام الداخلي:
+
+actual >= minimum
+→ successful day
+
+ولو وصل إلى target:
+
+Full completion
+
+وهذا يسمح لنا لاحقًا بمنح XP/coins بطريقة واضحة.
+
+11. Reduce Habit
+
+مثلاً المستخدم يقول:
+
+أريد أن أقلل TikTok.
+
+نطلب baseline إن لم يكن لدينا بيانات كافية:
+
+كم تقضي عليه عادة؟
+
+أو إذا كنا نملك بيانات من Time Tracking:
+
+أنت قضيت 3h 42m أمس.
+
+ثم:
+
+بدل محاولة الوصول إلى ساعة واحدة مباشرة، لنبدأ بتقليل 20 دقيقة.
+
+الـAI يقترح:
+
+Current average = 180 min
+
+Initial limit = 160 min
+Success threshold = 170 min
+
+ثم بعد الاستقرار:
+
+160
+↓
+140
+↓
+120
+
+هذه الأرقام مثال على منطق التدرج، وليست قاعدة علمية ثابتة.
+
+12. Habit Creation Summary
+
+قبل الضغط النهائي، نعرض:
+
+Your Habit
+
+📚 Reading
+
+Goal
+
+10 minutes/day
+
+Minimum
+
+5 minutes
+
+Cue
+
+After morning coffee
+
+Duration
+
+22 days
+
+Reward
+
+🎧 Headphones
+
+ثم:
+
+ابدأ رحلتي
+
+13. إنشاء الـJourney
+
+عند الضغط:
+
+ابدأ رحلتي
+
+يتم إنشاء:
+
+Habit
++
+22 Habit Days
++
+Journey
++
+Reward
++
+Starting Target
++
+Minimum
+
+ثم:
+
+Your 22-day journey begins tomorrow / today
+
+حسب وقت إنشاء العادة.
+
+ولا نخلط بين 22 يومًا وبين ادعاء علمي حول الوقت الدقيق لتكوين العادة.
+
+الآن الجزء الأهم
+03B — Adaptive Habit Engine
+
+بعد أن ينشئ المستخدم العادة، لا تصبح:
+
+Target = 10 forever.
+
+بل النظام يتابع:
+
+Completion
++
+Difficulty
++
+Missed reason
++
+Recent history
+
+ثم يحدد ما إذا كانت الخطة تحتاج تغييرًا.
+
+14. بعد تنفيذ العادة
+
+المستخدم يضغط:
+
+أنجزتها
+
+فتظهر:
+
+كيف شعرت مع هذه المهمة؟
+😊 سهلة
+😐 عادية
+😣 صعبة
+😞 صعبة جدًا
+
+اختياري:
+
+أخبرني أكثر
+
+Text:
+
+15. نجاح جزئي
+
+لو:
+
+Target = 10
+Minimum = 5
+Actual = 6
+
+فهذا:
+
+Minimum achieved
+
+وليس:
+
+Failed
+
+واجهة المستخدم:
+
+Enough for today.
+
+ثم:
+
+أنجزت الحد الأدنى.
+
+ولو وصل 10:
+
+Target complete 🎯
+
+وهذا مهم جدًا نفسيًا.
+
+16. نظام التكيف
+
+لا نستدعي AI فقط ليقرر كل شيء.
+
+نعمل:
+
+User Data
+   ↓
+Rule Engine
+   ↓
+Recommended Adjustment
+   ↓
+AI Explanation
+17. قواعد التكيف — Build Habit
+حالة Easy
+
+مثلاً:
+
+Easy
+Easy
+Easy
+
+النظام:
+
+يقترح زيادة بسيطة.
+
+مثلاً:
+
+10 → 15 min
+
+لكن لا يفرضها.
+
+الواجهة:
+
+يبدو أن 10 دقائق أصبحت سهلة عليك.
+
+هل تريد أن نجرب 15 دقيقة؟
+
+نعم
+
+أبقى على 10
+
+18. حالة Normal
+Normal
+Normal
+Normal
+
+لا نغير شيئًا.
+
+الخطة تبدو مناسبة لك.
+
+19. حالة Hard
+
+مثلاً:
+
+Hard
+Hard
+
+نظام التكيف:
+
+Current Target = 10
+New Target = 8
+New Minimum = 5
+
+والـAI:
+
+يبدو أن 10 دقائق أثقل من اللازم حاليًا، لذلك سنخفف الهدف قليلًا بدل أن نجعل الاستمرار أصعب.
+
+20. Very Hard
+
+إذا تكرر:
+
+Very Hard
+Very Hard
+
+نخفض الهدف بوضوح أكبر.
+
+مثلاً:
+
+10 → 5
+
+ثم:
+
+لن نترك اليوم يحدد الرحلة كلها. سنجعل الخطوة أصغر ونبني من هناك.
+
+21. لا نغير الهدف بسبب يوم واحد
+
+هذه قاعدة مهمة.
+
+مثلاً:
+
+Day 1 = Very Hard
+Day 2 = Easy
+Day 3 = Normal
+
+لا نعدل.
+
+نحتاج pattern وليس reaction مبالغ فيها.
+
+22. اقتراح الزيادة أيضًا ليس تلقائيًا دائمًا
+
+لو المستخدم حقق:
+
+Easy
+Easy
+Easy
+Easy
+
+لا نفعل:
+
+10 → 50
+
+بل زيادة محدودة.
+
+مثلاً:
+
+10 → 12
+
+أو:
+
+10 → 15
+
+حسب نوع الوحدة.
+
+23. Minimum Floor
+
+هناك حد أدنى لا ننزل تحته إلا إذا وافق المستخدم.
+
+مثلاً:
+
+Target = 10
+Minimum = 5
+
+إذا صار صعبًا جدًا:
+
+اقتراح جديد: 5 دقائق.
+
+لكن لا نستمر:
+
+5 → 2 → 1
+
+إلى ما لا نهاية.
+
+نضع:
+
+minimum_floor
+
+يحدد أثناء إنشاء العادة أو حسب نوعها.
+
+24. أسباب الانتكاسة
+
+إذا لم يكمل المستخدم:
+
+What got in the way?
+😫 Too difficult
+🕐 No time
+😴 Forgot
+😕 Lost motivation
+⚡ Unexpected event
+✍️ Other
+25. كل سبب يؤدي إلى Strategy مختلفة
+Too difficult
+
+نخفض الهدف.
+
+No time
+
+لا نخفض بالضرورة الخطة الأساسية فقط.
+
+قد ننشئ:
+
+Busy Day Version
+
+مثلاً:
+
+Normal: 10 min
+Busy day: 3 min
+
+وهذا رائع جدًا.
+
+26. Forgot
+
+لا نخفض الهدف.
+
+بل نعدل الـCue.
+
+مثلاً:
+
+هل نربطها بشيء تفعله يوميًا؟
+
+بعد القهوة ☕
+
+أو:
+
+تذكير الساعة 8:00.
+
+27. Lost motivation
+
+هنا نخفض الاحتكاك:
+
+اجعل البداية أسهل.
+
+مثلاً:
+
+افتح الكتاب فقط.
+
+أو:
+
+ارتدِ حذاء الرياضة.
+
+ويصبح:
+
+Start action
+
+جزءًا من الخطة.
+
+28. Unexpected Event
+
+لا نعدل الخطة مباشرة.
+
+نسجل:
+
+اليوم كان استثناءً.
+
+ونكمل.
+
+29. Reflection → Future Plan
+
+كل يوم يصبح Input لليوم التالي:
+
+Day 1
+target 10
+easy
+
+Day 2
+target 10
+normal
+
+Day 3
+target 10
+hard
+
+Day 4
+target 8
+normal
+
+هذا هو الـAdaptive Loop.
+
+30. صفحة Habit نفسها
+
+أريد لها أن تكون واضحة جدًا.
+
+مثلاً:
+
+📚 Reading
+Today
+
+8 / 10 min
+
+Progress:
+
+████████░░
+
+Minimum
+
+5 min
+
+إن كان يومك صعبًا، يكفي إكمال 5 دقائق.
+
+Journey
+
+Day 7 / 22
+
+Consistency
+
+6 successful days / 7
+
+Reward
+
+🎧 Headphones
+
+31. إذا لم يبدأ المستخدم اليوم
+
+بدل:
+
+❌ Not completed
+
+نعرض:
+
+Your day is still open.
+
+ثم:
+
+ابدأ الآن
+
+32. إذا أتم الحد الأدنى
+5 / 10
+
+نظهر:
+
+Minimum reached ✓
+
+ثم:
+
+هل تريد الاستمرار؟
+
+Continue
+
+Done for today
+
+33. إذا أتم الهدف
+10 / 10
+
+نظهر احتفال صغير:
+
+Target complete 🎯
+
+ثم:
+
+XP
+Coins
+→ move character
+34. إذا تجاوز الهدف
+
+مثلاً:
+
+25 / 10
+
+لا نجعل الـAI يقرر تلقائيًا:
+
+target tomorrow = 25
+
+بل:
+
+لقد تجاوزت هدفك اليوم.
+
+هل تريد أن نبقي الهدف 10 أم نجرب زيادة صغيرة؟
+
+35. Habit Dashboard History
+
+يستطيع المستخدم رؤية:
+
+Day 1   ✅ Easy
+Day 2   ✅ Normal
+Day 3   ✅ Hard
+Day 4   ✅ Normal
+Day 5   ❌ No time
+Day 6   ✅ Easy
+
+هذا يساعده على رؤية التطور، وليس فقط streak.
+
+36. AI Personality هنا
+
+AI لا يظهر طوال الوقت.
+
+يظهر عندما لديه شيء مفيد.
+
+مثلاً:
+
+بعد 3 أيام سهلة
+
+أعتقد أننا نستطيع أن نخطو خطوة صغيرة للأعلى.
+
+بعد يومين صعبين
+
+لاحظت أن الهدف بدأ يصبح ثقيلًا. لنخفف الضغط قليلًا.
+
+بعد missed day
+
+ما حدث بالأمس ليس نهاية الرحلة. أخبرني ما الذي حصل وسأساعدك بتعديل الخطة.
+
+37. AI Prompt — Habit Builder
+You are the habit-planning coach inside a personal growth application.
+
+The user may describe a large or vague goal.
+
+Your task:
+1. Understand the user's intended behavior.
+2. Determine whether this is a BUILD or REDUCE habit.
+3. Preserve the user's intention.
+4. Recommend a smaller starting action.
+5. Recommend a realistic target.
+6. Recommend a minimum viable action for BUILD habits.
+7. For REDUCE habits, recommend a realistic initial limit and a softer success threshold.
+8. Suggest a useful cue or routine connection when enough context exists.
+9. Never claim that 22 days scientifically creates a habit.
+10. Never force the user to accept your recommendation.
+11. Do not shame the user.
+
+Return structured JSON only.
+
+For BUILD:
+{
+  "habit_name": "...",
+  "type": "build",
+  "target": 10,
+  "minimum": 5,
+  "unit": "minutes",
+  "frequency": "daily",
+  "cue": "...",
+  "reason": "...",
+  "coach_message": "..."
+}
+
+For REDUCE:
+{
+  "habit_name": "...",
+  "type": "reduce",
+  "baseline": 180,
+  "target_limit": 160,
+  "success_limit": 170,
+  "unit": "minutes",
+  "frequency": "daily",
+  "cue": "...",
+  "reason": "...",
+  "coach_message": "..."
+}
+38. AI Prompt — Adaptive Coach
+You are an adaptive habit coach.
+
+The application has already calculated the adjustment using deterministic rules.
+
+Your job is only to explain the adjustment naturally and helpfully.
+
+Input:
+- habit
+- previous target
+- new target
+- recent completion history
+- difficulty history
+- missed-day reason if applicable
+- adjustment reason
+
+Return:
+
+{
+  "headline": "...",
+  "explanation": "...",
+  "next_step": "...",
+  "encouragement": "..."
+}
+
+Do not change the numeric values.
+Do not invent behavior.
+Do not diagnose.
+Do not shame.
+Use natural Arabic.
+Keep the message concise.
+39. الـRules Engine
+
+يمكن أن يكون تقريبًا:
+
+BUILD HABIT
+
+If 3 recent successful days
+and majority = Easy
+→ suggest small increase
+
+If 2+ Hard/Very Hard in recent history
+→ reduce target
+
+If Very Hard repeats
+→ reduce target more
+
+If missed reason = Too difficult
+→ reduce next minimum/target
+
+If missed reason = No time
+→ create a Busy Day Version
+
+If missed reason = Forgot
+→ modify cue/reminder
+
+If missed reason = Lost motivation
+→ simplify starting action
+
+If missed reason = Unexpected
+→ keep plan
+40. Data Model
+
+أقترح أن يحتوي habits على:
+
+id
+user_id
+title
+type                 // build | reduce
+description
+frequency
+target_value
+minimum_value
+target_limit         // reduce habits
+success_limit        // reduce habits
+unit
+cue
+busy_day_value
+minimum_floor
+original_goal
+active
+created_at
+
+وhabit_days:
+
+id
+habit_id
+day_number
+date
+target_value
+minimum_value
+actual_value
+status
+difficulty
+missed_reason
+coach_message
+created_at
+
+بهذا الخطة التاريخية لا تتغير عندما نعدل خطة المستقبل.
+
+وهذا مهم جدًا.
+
+مثلاً:
+
+Day 1 target = 10
+Day 2 target = 10
+Day 3 target = 8
+
+لا نريد تحديث Day 1 إلى 8.
+
+41. حالة خاصة مهمة: تغيير الخطة
+
+عندما يقول المستخدم:
+
+لا أريد 10 دقائق، أريد 15.
+
+لا نعدل الأيام الماضية.
+
+ننشيء:
+
+Current target = 15
+Effective from = Day 8
+
+وهكذا نستطيع حفظ تاريخ التعديلات.
+
+42. Empty / Loading / Error States
+Empty
+
+لم تنشئ عادة بعد.
+
+أنشئ عادتي الأولى
+
+AI Loading
+
+نبحث عن أصغر بداية مناسبة لك...
+
+AI Success
+
+عرض الخطة.
+
+AI Error
+
+لم نتمكن من الحصول على اقتراح ذكي الآن.
+
+ثم fallback:
+
+ابدأ بـ5 دقائق.
+
+No history
+
+ما زلنا نتعرف على نمطك.
+
+43. Acceptance Criteria
+
+هذه الميزة تعتبر مكتملة فقط عندما:
+
+ المستخدم يستطيع كتابة هدف بأي صيغة.
+ يستطيع اختيار Build أو Reduce.
+ AI يفهم الهدف ويقترح خطة.
+ AI يستطيع تصغير هدف كبير.
+ المستخدم يستطيع تعديل اقتراح AI.
+ يوجد Target وMinimum بشكل واضح لعادات Build.
+ يوجد Limit وSuccess Threshold لعادات Reduce.
+ يستطيع المستخدم تحديد cue/time.
+ يستطيع البدء برحلة 22 يومًا.
+ كل يوم له target خاص به.
+ تسجيل التنفيذ يحدث على Habit Day.
+ Difficulty محفوظ.
+ Missed reason محفوظ.
+ Rules Engine يعدّل المستقبل فقط.
+ AI يشرح التعديل ولا يتحكم بالأرقام.
+ الحد الأدنى لا ينخفض بلا نهاية.
+ تجاوز الهدف لا يرفع هدف الغد تلقائيًا.
+ المستخدم يستطيع قبول/رفض الزيادة.
+ الخطة القديمة تبقى محفوظة.
+ كل شيء RTL.
+ فشل AI لا يكسر التجربة.
+44. Prompt جاهز لـReplit
+
+وهذا هو الجزء الذي أنصح بنسخه بعد Prompt ميزة AI Day Analysis:
+
+Implement Feature 03:
+HABIT CREATION + ADAPTIVE HABIT ENGINE
+
+IMPORTANT:
+Do not redesign unrelated features.
+Do not remove existing Time Tracking or AI functionality.
+Inspect the existing habit, journey, dashboard, and AI services before making changes.
+Reuse existing APIs and components whenever possible.
+
+PRODUCT GOAL:
+
+Users may enter a large or vague goal such as:
+- "I want to read for one hour every day."
+- "I want to start exercising."
+- "I want to reduce TikTok."
+- "I want to sleep earlier."
+
+The system must preserve the user's intention while turning it into a smaller, more sustainable starting behavior.
+
+The AI should assist, but the deterministic application logic must remain the source of truth for:
+- targets
+- minimums
+- limits
+- day numbers
+- completion
+- consistency
+- XP
+- coins
+- journey progress
+
+==================================================
+PART A — HABIT CREATION
+==================================================
+
+Entry points:
+- AI daily insight
+- Dashboard
+- Habits page
+
+Creation flow:
+
+1. Ask:
+"What do you want to change?"
+
+Allow free text.
+
+Also show quick suggestions.
+
+2. Detect habit type:
+- build
+- reduce
+
+3. If BUILD:
+Create:
+- target
+- minimum
+- unit
+- frequency
+- cue
+- busy-day version
+- minimum floor
+
+4. If REDUCE:
+Create:
+- baseline if known
+- target limit
+- success limit
+- unit
+- frequency
+- cue
+- busy-day version
+
+5. AI should convert ambitious goals into smaller starting actions.
+
+Example:
+User:
+"I want to read for one hour every day."
+
+AI suggestion:
+Target = 10 min
+Minimum = 5 min
+
+6. User can edit every AI recommendation.
+
+7. Show a final habit summary.
+
+8. Ask for journey length:
+22 days.
+
+IMPORTANT:
+Treat 22 days as the product journey/challenge length.
+Do not claim that 22 days scientifically creates a habit.
+
+9. Create:
+- habit
+- habit days
+- journey
+- current target
+- reward reference if available
+
+==================================================
+PART B — HABIT EXECUTION
+==================================================
+
+Habit page must display:
+
+- habit name
+- today's target
+- today's minimum or success limit
+- today's progress
+- journey day
+- consistency
+- reward
+- completion CTA
+
+For BUILD habits:
+- actual >= minimum = successful day
+- actual >= target = target completed
+
+For REDUCE habits:
+- actual <= success limit = successful day
+- actual <= target limit = target achieved
+
+Do not label a minimum-achieved day as a failure.
+
+==================================================
+PART C — DIFFICULTY
+==================================================
+
+After completion ask:
+
+😊 Easy
+😐 Normal
+😣 Hard
+😞 Very Hard
+
+Allow optional note.
+
+Save the result to habit_days/reflections.
+
+==================================================
+PART D — MISSED DAY
+==================================================
+
+When user misses a habit, ask:
+
+😫 Too difficult
+🕐 No time
+😴 Forgot
+😕 Lost motivation
+⚡ Unexpected event
+✍️ Other
+
+Save reason.
+
+Do not reset the journey.
+
+==================================================
+PART E — ADAPTIVE RULE ENGINE
+==================================================
+
+Implement deterministic rules.
+
+BUILD HABITS:
+
+- one difficult day alone must not trigger a major change
+- repeated Hard/Very Hard results should reduce the future target
+- repeated Easy results may trigger a small increase suggestion
+- Normal results should generally keep the current target
+- Too difficult -> reduce future target/minimum
+- No time -> provide Busy Day Version instead of automatically lowering the standard target
+- Forgot -> suggest a cue/reminder adjustment
+- Lost motivation -> simplify the starting action
+- Unexpected event -> normally keep the plan
+
+REDUCE HABITS:
+
+- repeated successful reductions may gradually lower the limit
+- repeated difficulty should slow the reduction rate
+- do not force aggressive reductions
+- preserve a user-editable target
+
+Target changes must be gradual.
+
+Never:
+- reset the whole journey because of one miss
+- dramatically increase the target after a few easy days
+- decrease the minimum forever
+- allow the LLM to directly modify numeric values
+
+==================================================
+PART F — ADAPTATION + AI
+==================================================
+
+Architecture:
+
+User data
+→ deterministic rules
+→ recommended adjustment
+→ AI explanation
+→ UI
+
+Create:
+
+adaptHabit()
+
+Input:
+- current target
+- current minimum/limit
+- recent completion
+- difficulty history
+- missed-day reasons
+
+Output from deterministic engine:
+- action
+- new target
+- new minimum/limit
+- reason
+
+Then call AI only to explain the adjustment naturally in Arabic.
+
+AI must NOT change the numbers.
+
+==================================================
+PART G — HABIT STACKING / CUES
+==================================================
+
+Allow:
+- fixed time
+- existing routine
+- custom cue
+
+Examples:
+- after coffee
+- after brushing teeth
+- before opening social media
+
+Use known user context when available.
+
+Do not invent existing routines.
+
+==================================================
+PART H — BUSY DAY VERSION
+==================================================
+
+Support a smaller fallback action.
+
+Example:
+Normal target = 10 min
+Minimum = 5 min
+Busy-day version = 3 min
+
+This should be used when the user reports:
+"No time"
+
+Do not automatically destroy the main habit target.
+
+==================================================
+PART I — HISTORY
+==================================================
+
+Each day must preserve its own target/minimum.
+
+Do not retroactively modify completed days.
+
+Example:
+
+Day 1 target = 10
+Day 2 target = 10
+Day 3 target = 8
+Day 4 target = 8
+
+The database must preserve all values independently.
+
+==================================================
+PART J — UI STATES
+==================================================
+
+Implement:
+- empty habit state
+- creation state
+- AI loading
+- AI proposal
+- editing proposal
+- accepted proposal
+- active habit
+- minimum reached
+- target reached
+- target exceeded
+- difficult day
+- missed day
+- adaptation available
+- adaptation accepted
+- adaptation rejected
+- AI failure
+- deterministic fallback
+
+==================================================
+PART K — LANGUAGE
+==================================================
+
+The product is Arabic-first and RTL.
+
+All AI user-facing text must be natural Arabic.
+
+Avoid guilt/shame language.
+
+Prefer:
+- "لنخفف الخطوة قليلاً."
+- "يبدو أن الهدف كان كبيرًا."
+- "دعنا نجعل البداية أسهل."
+- "هذا اليوم لا يلغي رحلتك."
+
+Never:
+- "فشلت"
+- "أفسدت رحلتك"
+- "عد إلى الصفر"
+
+==================================================
+PART L — TESTING
+==================================================
+
+Test at minimum:
+
+1. New BUILD habit.
+2. Large goal converted to small target.
+3. User edits AI recommendation.
+4. Minimum completion.
+5. Full target completion.
+6. Easy → increase suggestion.
+7. Hard → adjustment.
+8. Repeated Hard → stronger adjustment.
+9. Missed day due to no time.
+10. Missed day due to forgot.
+11. Missed day due to difficulty.
+12. REDUCE habit.
+13. Target progression for REDUCE habit.
+14. Target change preserves historical days.
+15. AI failure fallback.
+16. Refresh preserves state.
+17. Logout/login preserves state.
+18. Mobile RTL layout.
+
+Before coding:
+- inspect existing implementation
+- identify reusable components/API routes/database tables
+- report the files you intend to change
+
+Then implement the feature incrementally.
+
+Do not start unrelated features.

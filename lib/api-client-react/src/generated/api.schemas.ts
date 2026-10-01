@@ -129,6 +129,18 @@ export const HabitUnit = {
   custom: 'custom',
 } as const;
 
+/**
+ * @nullable
+ */
+export type HabitCueType = typeof HabitCueType[keyof typeof HabitCueType] | null;
+
+
+export const HabitCueType = {
+  time: 'time',
+  routine: 'routine',
+  custom: 'custom',
+} as const;
+
 export type HabitDifficulty = typeof HabitDifficulty[keyof typeof HabitDifficulty];
 
 
@@ -168,6 +180,37 @@ export interface Habit {
   baselineValue: number | null;
   /** @nullable */
   successLimitValue: number | null;
+  /** @nullable */
+  cueType: HabitCueType;
+  /**
+     * @nullable
+     * @pattern ^([01][0-9]|2[0-3]):[0-5][0-9]$
+     */
+  cueTime: string | null;
+  /** @nullable */
+  cue: string | null;
+  /** @nullable */
+  startAction: string | null;
+  /** @nullable */
+  friction: string | null;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  minimumFloor: number | null;
+  /** @nullable */
+  journeyStartDate: string | null;
+  /**
+     * @minimum 1
+     * @maximum 22
+     * @nullable
+     */
+  journeyLength: number | null;
+  /**
+     * @minimum 1
+     * @nullable
+     */
+  rewardId: number | null;
   difficulty: HabitDifficulty;
   goalType: HabitGoalType;
   isActive: boolean;
@@ -213,6 +256,18 @@ export const HabitInputUnit = {
   custom: 'custom',
 } as const;
 
+/**
+ * @nullable
+ */
+export type HabitInputCueType = typeof HabitInputCueType[keyof typeof HabitInputCueType] | null;
+
+
+export const HabitInputCueType = {
+  time: 'time',
+  routine: 'routine',
+  custom: 'custom',
+} as const;
+
 export type HabitInputDifficulty = typeof HabitInputDifficulty[keyof typeof HabitInputDifficulty];
 
 
@@ -242,15 +297,39 @@ export interface HabitInput {
      */
   customDays?: number[];
   unit: HabitInputUnit;
+  /** @minimum 0 */
   targetValue: number;
-  /** @exclusiveMinimum 0 */
+  /** @minimum 0 */
   minimumValue?: number;
-  /** @exclusiveMinimum 0 */
+  /** @minimum 0 */
   busyDayValue?: number;
-  /** @exclusiveMinimum 0 */
+  /** @minimum 0 */
   baselineValue?: number;
-  /** @exclusiveMinimum 0 */
+  /** @minimum 0 */
   successLimitValue?: number;
+  /** @nullable */
+  cueType?: HabitInputCueType;
+  /**
+     * @nullable
+     * @pattern ^([01][0-9]|2[0-3]):[0-5][0-9]$
+     */
+  cueTime?: string | null;
+  /** @nullable */
+  cue?: string | null;
+  /** @nullable */
+  startAction?: string | null;
+  /** @nullable */
+  friction?: string | null;
+  /** @minimum 0 */
+  minimumFloor?: number;
+  journeyStartDate?: string;
+  /**
+     * @minimum 1
+     * @maximum 22
+     */
+  journeyLength?: number;
+  /** @minimum 1 */
+  rewardId?: number;
   difficulty: HabitInputDifficulty;
   goalType: HabitInputGoalType;
   milestones?: HabitMilestone[];
@@ -290,6 +369,18 @@ export const HabitUpdateUnit = {
   custom: 'custom',
 } as const;
 
+/**
+ * @nullable
+ */
+export type HabitUpdateCueType = typeof HabitUpdateCueType[keyof typeof HabitUpdateCueType] | null;
+
+
+export const HabitUpdateCueType = {
+  time: 'time',
+  routine: 'routine',
+  custom: 'custom',
+} as const;
+
 export type HabitUpdateDifficulty = typeof HabitUpdateDifficulty[keyof typeof HabitUpdateDifficulty];
 
 
@@ -297,6 +388,14 @@ export const HabitUpdateDifficulty = {
   easy: 'easy',
   medium: 'medium',
   hard: 'hard',
+} as const;
+
+export type HabitUpdateGoalType = typeof HabitUpdateGoalType[keyof typeof HabitUpdateGoalType];
+
+
+export const HabitUpdateGoalType = {
+  build: 'build',
+  quit: 'quit',
 } as const;
 
 export interface HabitUpdate {
@@ -311,20 +410,67 @@ export interface HabitUpdate {
      */
   customDays?: number[];
   unit?: HabitUpdateUnit;
+  /** @minimum 0 */
   targetValue?: number;
-  /** @exclusiveMinimum 0 */
+  /** @minimum 0 */
   minimumValue?: number;
-  /** @exclusiveMinimum 0 */
-  busyDayValue?: number;
-  /** @exclusiveMinimum 0 */
-  baselineValue?: number;
-  /** @exclusiveMinimum 0 */
-  successLimitValue?: number;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  busyDayValue?: number | null;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  baselineValue?: number | null;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  successLimitValue?: number | null;
+  /** @nullable */
+  cueType?: HabitUpdateCueType;
+  /**
+     * @nullable
+     * @pattern ^([01][0-9]|2[0-3]):[0-5][0-9]$
+     */
+  cueTime?: string | null;
+  /** @nullable */
+  cue?: string | null;
+  /** @nullable */
+  startAction?: string | null;
+  /** @nullable */
+  friction?: string | null;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  minimumFloor?: number | null;
+  /** @nullable */
+  journeyStartDate?: string | null;
+  /**
+     * @minimum 1
+     * @maximum 22
+     * @nullable
+     */
+  journeyLength?: number | null;
+  /**
+     * @minimum 1
+     * @nullable
+     */
+  rewardId?: number | null;
   /** If provided with targetValue, update only when the stored target still equals this value */
   expectedTargetValue?: number;
   /** Compare-and-set guard for minimumValue updates */
   expectedMinimumValue?: number;
+  /**
+     * Compare-and-set guard for successLimitValue updates
+     * @nullable
+     */
+  expectedSuccessLimitValue?: number | null;
   difficulty?: HabitUpdateDifficulty;
+  goalType?: HabitUpdateGoalType;
   isActive?: boolean;
   milestones?: HabitMilestone[];
 }
@@ -357,6 +503,17 @@ export const CheckinMissedReason = {
   other: 'other',
 } as const;
 
+/**
+ * @nullable
+ */
+export type CheckinGoalTypeSnapshot = typeof CheckinGoalTypeSnapshot[keyof typeof CheckinGoalTypeSnapshot] | null;
+
+
+export const CheckinGoalTypeSnapshot = {
+  build: 'build',
+  quit: 'quit',
+} as const;
+
 export interface Checkin {
   id: number;
   habitId: number;
@@ -378,6 +535,8 @@ export interface Checkin {
   minimumSnapshot: number | null;
   /** @nullable */
   successLimitSnapshot: number | null;
+  /** @nullable */
+  goalTypeSnapshot: CheckinGoalTypeSnapshot;
   targetCompleted: boolean;
   coinsEarned: number;
   createdAt: string;
@@ -489,6 +648,15 @@ export const HabitAdaptationMissedReason = {
   other: 'other',
 } as const;
 
+export interface HabitAdaptationActions {
+  /** @nullable */
+  cue: string | null;
+  /** @nullable */
+  startAction: string | null;
+  /** @nullable */
+  busyDayValue: number | null;
+}
+
 export interface HabitAdaptationPhrasing {
   headline: string;
   explanation: string;
@@ -502,12 +670,17 @@ export interface HabitAdaptation {
   suggestion: boolean;
   expectedTargetValue: number;
   expectedMinimumValue: number;
+  /** @nullable */
+  expectedSuccessLimitValue: number | null;
   targetValue: number;
   minimumValue: number;
+  /** @nullable */
+  newSuccessLimitValue: number | null;
   /** @nullable */
   busyDayValue: number | null;
   /** @nullable */
   missedReason: HabitAdaptationMissedReason;
+  actions: HabitAdaptationActions;
   phrasing: HabitAdaptationPhrasing;
   coachMessage: string;
   /** @minimum 0 */
@@ -532,6 +705,38 @@ export const HabitBuilderInputGoalType = {
   quit: 'quit',
 } as const;
 
+export type HabitBuilderInputTrackingContextCategory = typeof HabitBuilderInputTrackingContextCategory[keyof typeof HabitBuilderInputTrackingContextCategory];
+
+
+export const HabitBuilderInputTrackingContextCategory = {
+  health: 'health',
+  learning: 'learning',
+  productivity: 'productivity',
+  mindfulness: 'mindfulness',
+  social: 'social',
+  creativity: 'creativity',
+  finance: 'finance',
+  custom: 'custom',
+} as const;
+
+export type HabitBuilderInputTrackingContextUnit = typeof HabitBuilderInputTrackingContextUnit[keyof typeof HabitBuilderInputTrackingContextUnit];
+
+
+export const HabitBuilderInputTrackingContextUnit = {
+  minutes: 'minutes',
+  count: 'count',
+  pages: 'pages',
+  custom: 'custom',
+} as const;
+
+/**
+ * Optional category/unit hints only; baseline is resolved from the supplied user baseline or server-owned matching tracking rows
+ */
+export type HabitBuilderInputTrackingContext = {
+  category?: HabitBuilderInputTrackingContextCategory;
+  unit?: HabitBuilderInputTrackingContextUnit;
+};
+
 export interface HabitBuilderInput {
   /** @minLength 1 */
   intent: string;
@@ -539,15 +744,132 @@ export interface HabitBuilderInput {
   requestedDuration: number;
   unit: HabitBuilderInputUnit;
   goalType?: HabitBuilderInputGoalType;
+  /** @minimum 0 */
+  baselineValue?: number;
+  /**
+     * Optional user-identified obstacle used only to generate one grounded tip
+     * @minLength 1
+     */
+  friction?: string;
+  /** Optional category/unit hints only; baseline is resolved from the supplied user baseline or server-owned matching tracking rows */
+  trackingContext?: HabitBuilderInputTrackingContext;
 }
+
+export type HabitBuilderResultCategory = typeof HabitBuilderResultCategory[keyof typeof HabitBuilderResultCategory];
+
+
+export const HabitBuilderResultCategory = {
+  health: 'health',
+  learning: 'learning',
+  productivity: 'productivity',
+  mindfulness: 'mindfulness',
+  social: 'social',
+  creativity: 'creativity',
+  finance: 'finance',
+  custom: 'custom',
+} as const;
+
+export type HabitBuilderResultGoalType = typeof HabitBuilderResultGoalType[keyof typeof HabitBuilderResultGoalType];
+
+
+export const HabitBuilderResultGoalType = {
+  build: 'build',
+  quit: 'quit',
+} as const;
+
+export type HabitBuilderResultUnit = typeof HabitBuilderResultUnit[keyof typeof HabitBuilderResultUnit];
+
+
+export const HabitBuilderResultUnit = {
+  minutes: 'minutes',
+  count: 'count',
+  pages: 'pages',
+  custom: 'custom',
+} as const;
+
+/**
+ * @nullable
+ */
+export type HabitBuilderResultCueType = typeof HabitBuilderResultCueType[keyof typeof HabitBuilderResultCueType] | null;
+
+
+export const HabitBuilderResultCueType = {
+  time: 'time',
+  routine: 'routine',
+  custom: 'custom',
+} as const;
+
+export type HabitBuilderResultSource = typeof HabitBuilderResultSource[keyof typeof HabitBuilderResultSource];
+
+
+export const HabitBuilderResultSource = {
+  ai: 'ai',
+  deterministic: 'deterministic',
+} as const;
 
 export interface HabitBuilderResult {
   title: string;
+  category: HabitBuilderResultCategory;
+  goalType: HabitBuilderResultGoalType;
+  unit: HabitBuilderResultUnit;
+  originalGoal: string;
+  understoodGoal: string;
+  /** @nullable */
+  baselineValue: number | null;
   targetValue: number;
   minimumValue: number;
   busyDayValue: number;
+  /** @nullable */
+  successLimitValue: number | null;
+  /** @minimum 0 */
+  minimumFloor: number;
+  /** @nullable */
+  cueType: HabitBuilderResultCueType;
+  /** @nullable */
+  cueTime: string | null;
+  /** @nullable */
+  cue: string | null;
+  /** @nullable */
+  startAction: string | null;
+  needsBaseline: boolean;
   reason: string;
   coachMessage: string;
+  frictionTip: string;
+  source: HabitBuilderResultSource;
+}
+
+export type HabitDayGoalType = typeof HabitDayGoalType[keyof typeof HabitDayGoalType];
+
+
+export const HabitDayGoalType = {
+  build: 'build',
+  quit: 'quit',
+} as const;
+
+export interface HabitDay {
+  date: string;
+  dayNumber: number;
+  scheduled: boolean;
+  targetValue: number;
+  minimumValue: number;
+  /** @nullable */
+  busyDayValue: number | null;
+  /** @nullable */
+  successLimitValue: number | null;
+  goalType: HabitDayGoalType;
+  checkin: Checkin | null;
+}
+
+export interface HabitJourney {
+  habitId: number;
+  /** @nullable */
+  startDate: string | null;
+  length: number;
+  total: number;
+  completed: number;
+  successful: number;
+  currentDay: number;
+  days: HabitDay[];
 }
 
 export type CheckinResult = Checkin & {
@@ -877,13 +1199,26 @@ export interface JourneyProgress {
   milestones: JourneyMilestone[];
 }
 
+export type DashboardHabitTodayGoalType = typeof DashboardHabitTodayGoalType[keyof typeof DashboardHabitTodayGoalType];
+
+
+export const DashboardHabitTodayGoalType = {
+  build: 'build',
+  quit: 'quit',
+} as const;
+
 export interface DashboardHabitToday {
   habitId: number;
   title: string;
   emoji: string;
   unit: string;
   targetValue: number;
+  minimumValue: number;
+  goalType: DashboardHabitTodayGoalType;
+  /** @nullable */
+  successLimitValue: number | null;
   completedToday: boolean;
+  targetCompleted: boolean;
   /** @nullable */
   valueToday: number | null;
   currentStreak: number;
@@ -892,7 +1227,9 @@ export interface DashboardHabitToday {
 
 export interface DashboardToday {
   /** Today's calendar date in the user's saved timezone */
-  date?: string;
+  date: string;
+  /** Today in the user's saved timezone unless local hour is 21:00 or later */
+  suggestedJourneyStartDate: string;
   activeHabitsCount: number;
   completedTodayCount: number;
   scheduledTodayCount: number;

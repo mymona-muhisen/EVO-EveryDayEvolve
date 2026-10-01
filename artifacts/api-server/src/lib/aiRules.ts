@@ -41,6 +41,52 @@ export function effectiveMinimum(targetValue: number, minimumValue?: number | nu
   return minimumValue ?? targetValue;
 }
 
+export function defaultMinimumFloor(
+  goalType: "build" | "quit",
+  configuredFloor?: number | null,
+): number {
+  return configuredFloor ?? (goalType === "quit" ? 0 : 1);
+}
+
+export function checkinsForPlanRevision<T extends { date: string }>(
+  checkins: T[],
+  planDays: { date: string; planRevision: number }[],
+  currentRevision?: number,
+): T[] {
+  if (currentRevision === undefined) return checkins;
+  const revisionByDate = new Map(planDays.map((day) => [day.date, day.planRevision]));
+  return checkins.filter((checkin) => revisionByDate.get(checkin.date) === currentRevision);
+}
+
+export interface HabitPlanUpdateGuards {
+  expectedTargetValue?: number;
+  expectedMinimumValue?: number;
+  expectedSuccessLimitValue?: number | null;
+}
+
+export interface HabitPlanGuardState {
+  targetValue: number;
+  minimumValue: number;
+  successLimitValue: number | null;
+}
+
+/** Called only after locking the habit row; expected values guard, not update. */
+export function validateHabitPlanUpdate(
+  expected: HabitPlanUpdateGuards,
+  current: HabitPlanGuardState,
+  hasActualUpdate: boolean,
+): "conflict" | "empty" | null {
+  if ((expected.expectedTargetValue !== undefined
+      && expected.expectedTargetValue !== current.targetValue)
+    || (expected.expectedMinimumValue !== undefined
+      && expected.expectedMinimumValue !== current.minimumValue)
+    || (expected.expectedSuccessLimitValue !== undefined
+      && expected.expectedSuccessLimitValue !== current.successLimitValue)) {
+    return "conflict";
+  }
+  return hasActualUpdate ? null : "empty";
+}
+
 export function evaluateHabitCheckin(input: {
   goalType: "build" | "quit";
   targetValue: number;
@@ -112,6 +158,7 @@ export interface HabitAdaptation {
   missedReason: MissedReason | null;
   targetValue: number;
   minimumValue: number;
+  successLimitValue: number | null;
   busyDayValue: number | null;
 }
 
@@ -120,47 +167,117 @@ export function proposeHabitAdaptation(input: {
   targetValue: number;
   minimumValue?: number | null;
   busyDayValue?: number | null;
+  goalType?: "build" | "quit";
+  successLimitValue?: number | null;
+  baselineValue?: number | null;
+  minimumFloor?: number | null;
   checkins: { difficulty: string | null; missedReason: MissedReason | null; completed: boolean }[];
+  numericCheckins?: { difficulty: string | null; missedReason: MissedReason | null; completed: boolean }[];
 }): HabitAdaptation {
   const currentTarget = input.targetValue;
   const currentMinimum = effectiveMinimum(currentTarget, input.minimumValue);
+  const isQuit = input.goalType === "quit";
+  const currentSuccessLimit = isQuit
+    ? Math.max(currentTarget, input.successLimitValue ?? currentTarget)
+    : null;
+  const floor = Math.max(0, defaultMinimumFloor(isQuit ? "quit" : "build", input.minimumFloor));
   const recent = input.checkins.slice(-7);
-  if (!recent.length) return { reason: "no_history", missedReason: null, targetValue: currentTarget, minimumValue: currentMinimum, busyDayValue: input.busyDayValue ?? null };
-  const hard = recent.filter((c) => c.difficulty === "hard" || c.difficulty === "very_hard").length;
-  const easy = recent.filter((c) => c.difficulty === "easy").length;
+  const unchanged = {
+    targetValue: currentTarget,
+    minimumValue: currentMinimum,
+    successLimitValue: currentSuccessLimit,
+    busyDayValue: input.busyDayValue ?? null,
+  };
+  if (!recent.length) return { reason: "no_history", missedReason: null, ...unchanged };
+  const numericRecent = (input.numericCheckins ?? input.checkins).slice(-7);
+  const veryHard = numericRecent.filter((c) => c.difficulty === "very_hard").length;
+  const hard = numericRecent.filter((c) => c.difficulty === "hard" || c.difficulty === "very_hard").length;
+  const successfulRecent = numericRecent.filter((c) => c.completed);
+  const easySuccessful = successfulRecent.filter((c) => c.difficulty === "easy").length;
+  const majorityEasy = successfulRecent.length >= 3
+    && easySuccessful >= Math.ceil(successfulRecent.length / 2);
+  const numericTooDifficultCount = numericRecent.filter((c) => c.missedReason === "too_difficult").length;
   const reasonCounts = new Map<MissedReason, number>();
   for (const checkin of recent) {
     if (checkin.missedReason) reasonCounts.set(checkin.missedReason, (reasonCounts.get(checkin.missedReason) ?? 0) + 1);
   }
-  if (hard >= 3 || (reasonCounts.get("too_difficult") ?? 0) >= 2) {
-    const targetValue = Math.max(1, Math.floor(currentTarget * 0.8));
-    const minimumValue = Math.max(1, Math.min(targetValue, Math.floor(currentMinimum * 0.8)));
-    return { reason: hard >= 3 ? "repeated_hard" : "missed_reasons", missedReason: hard >= 3 ? null : "too_difficult", targetValue, minimumValue, busyDayValue: input.busyDayValue ?? null };
+  if (veryHard >= 2 || hard >= 2 || numericTooDifficultCount >= 2) {
+    if (isQuit) {
+      const limit = currentSuccessLimit ?? currentTarget;
+      const baseline = Math.max(limit, input.baselineValue ?? limit);
+      const returnFraction = veryHard >= 2 ? 0.5 : 0.25;
+      const newLimit = Math.min(baseline, limit + Math.max(1, Math.ceil((baseline - limit) * returnFraction)));
+      return {
+        reason: hard >= 2 || veryHard >= 2 ? "repeated_hard" : "missed_reasons",
+        missedReason: hard >= 2 || veryHard >= 2 ? null : "too_difficult",
+        ...unchanged,
+        successLimitValue: Math.max(currentTarget, newLimit),
+      };
+    }
+    const reduction = veryHard >= 2 ? 0.5 : 0.8;
+    const targetValue = Math.max(floor, Math.floor(currentTarget * reduction));
+    const minimumValue = Math.max(floor, Math.min(targetValue, Math.floor(currentMinimum * reduction)));
+    return {
+      reason: hard >= 2 || veryHard >= 2 ? "repeated_hard" : "missed_reasons",
+      missedReason: hard >= 2 || veryHard >= 2 ? null : "too_difficult",
+      targetValue, minimumValue, successLimitValue: null,
+      busyDayValue: input.busyDayValue == null ? null : Math.min(input.busyDayValue, minimumValue),
+    };
   }
-  if ((reasonCounts.get("no_time") ?? 0) >= 2) {
+  if ((reasonCounts.get("no_time") ?? 0) >= 1) {
     return {
       reason: "missed_reasons", missedReason: "no_time", targetValue: currentTarget,
-      minimumValue: currentMinimum,
-      busyDayValue: Math.max(1, Math.min(currentMinimum, Math.floor(currentTarget * 0.3))),
+      minimumValue: currentMinimum, successLimitValue: currentSuccessLimit,
+      busyDayValue: Math.max(0, Math.min(currentMinimum, Math.floor(currentTarget * 0.3))),
     };
   }
-  if ((reasonCounts.get("forgot") ?? 0) >= 2) {
-    return { reason: "missed_reasons", missedReason: "forgot", targetValue: currentTarget, minimumValue: currentMinimum, busyDayValue: input.busyDayValue ?? null };
+  if ((reasonCounts.get("forgot") ?? 0) >= 1) {
+    return { reason: "missed_reasons", missedReason: "forgot", ...unchanged };
   }
-  if ((reasonCounts.get("lost_motivation") ?? 0) >= 2) {
+  if ((reasonCounts.get("lost_motivation") ?? 0) >= 1) {
     return {
       reason: "missed_reasons", missedReason: "lost_motivation", targetValue: currentTarget,
-      minimumValue: Math.max(1, Math.floor(currentMinimum * 0.9)), busyDayValue: input.busyDayValue ?? null,
+      minimumValue: currentMinimum,
+      successLimitValue: currentSuccessLimit, busyDayValue: input.busyDayValue ?? null,
     };
   }
-  if ((reasonCounts.get("unexpected") ?? 0) >= 2) {
-    return { reason: "missed_reasons", missedReason: "unexpected", targetValue: currentTarget, minimumValue: currentMinimum, busyDayValue: input.busyDayValue ?? null };
+  if ((reasonCounts.get("unexpected") ?? 0) >= 1) {
+    return { reason: "missed_reasons", missedReason: "unexpected", ...unchanged };
   }
-  if (easy >= 5 && recent.filter((c) => c.completed).length >= 5) {
+  if (numericTooDifficultCount >= 1) {
+    return { reason: "missed_reasons", missedReason: "too_difficult", ...unchanged };
+  }
+  if (isQuit && easySuccessful >= 3) {
+    const limit = currentSuccessLimit ?? currentTarget;
+    if (limit <= currentTarget) {
+      const roundedStep = Math.round((currentTarget * 0.125) / 10) * 10;
+      const fallbackStep = Math.max(1, Math.round(currentTarget * 0.1));
+      const maxStep = Math.max(1, Math.floor(currentTarget * 0.2));
+      const step = Math.min(20, maxStep, roundedStep || fallbackStep);
+      const targetValue = Math.max(floor, currentTarget - step);
+      if (targetValue < currentTarget) {
+        const minimumValue = Math.min(currentMinimum, targetValue);
+        return {
+          reason: "repeated_easy",
+          missedReason: null,
+          targetValue,
+          minimumValue,
+          // Keep the previous target as a softer success ceiling after progress.
+          successLimitValue: currentTarget,
+          busyDayValue: input.busyDayValue == null ? null : Math.min(input.busyDayValue, minimumValue),
+        };
+      }
+      return { reason: "steady", missedReason: null, ...unchanged };
+    }
+    const newLimit = Math.max(currentTarget, limit - Math.max(1, Math.floor(limit * 0.1)));
+    return { reason: "repeated_easy", missedReason: null, ...unchanged, successLimitValue: newLimit };
+  }
+  if (!isQuit && majorityEasy) {
     const targetValue = Math.min(Math.max(currentTarget + 1, Math.ceil(currentTarget * 1.1)), currentTarget * 2);
-    return { reason: "repeated_easy", missedReason: null, targetValue, minimumValue: Math.min(targetValue, Math.max(currentMinimum, Math.ceil(currentMinimum * 1.1))), busyDayValue: input.busyDayValue ?? null };
+    const boundedTarget = Math.max(floor, targetValue);
+    return { reason: "repeated_easy", missedReason: null, targetValue: boundedTarget, minimumValue: Math.min(boundedTarget, Math.max(floor, currentMinimum, Math.ceil(currentMinimum * 1.1))), successLimitValue: null, busyDayValue: input.busyDayValue ?? null };
   }
-  return { reason: "steady", missedReason: null, targetValue: currentTarget, minimumValue: currentMinimum, busyDayValue: input.busyDayValue ?? null };
+  return { reason: "steady", missedReason: null, ...unchanged };
 }
 
 export function buildHabitTargets(requestedDuration: number): {

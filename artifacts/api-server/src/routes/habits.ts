@@ -1,6 +1,8 @@
 import { Router, type IRouter } from "express";
-import { eq, and, desc, or, isNull } from "drizzle-orm";
-import { db, habitsTable, checkinsTable } from "@workspace/db";
+import { eq, and, desc } from "drizzle-orm";
+import {
+  db, habitsTable, checkinsTable, habitDaysTable, habitPlanRevisionsTable, rewardsTable,
+} from "@workspace/db";
 import {
   ListHabitsQueryParams,
   ListHabitsResponse,
@@ -12,11 +14,21 @@ import {
   UpdateHabitBody,
   UpdateHabitResponse,
   DeleteHabitParams,
+  GetHabitJourneyParams,
+  GetHabitJourneyResponse,
 } from "@workspace/api-zod";
 import { requireAuth } from "../middlewares/requireAuth";
 import { ensureUser } from "../lib/userService";
-import { effectiveMinimum, missedScheduledDays, proposeHabitAdaptation } from "../lib/aiRules";
+import {
+  checkinsForPlanRevision, defaultMinimumFloor, effectiveMinimum, missedScheduledDays,
+  proposeHabitAdaptation, validateHabitPlanUpdate,
+} from "../lib/aiRules";
 import { habitAdaptationMessages } from "../lib/aiMessages";
+import { toDateOnly, todayInTimezone } from "../lib/dates";
+import {
+  addCalendarDays, HABIT_JOURNEY_LENGTH, isScheduledDate, makeJourneyDays, snapshotPlan,
+} from "../lib/habitJourney";
+import { reviseFutureUnrecordedDays } from "../lib/habitPlanService";
 
 const router: IRouter = Router();
 router.use(requireAuth);
@@ -44,38 +56,120 @@ router.get("/habits", async (req, res): Promise<void> => {
 });
 
 router.post("/habits", async (req, res): Promise<void> => {
-  await ensureUser(req.userId!);
+  const user = await ensureUser(req.userId!);
   const parsed = CreateHabitBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  const minimumValue = parsed.data.minimumValue ?? parsed.data.targetValue;
-  if (minimumValue > parsed.data.targetValue) {
-    res.status(400).json({ error: "Minimum value cannot exceed target value" });
+  const input = parsed.data;
+  const minimumValue = input.minimumValue ?? input.targetValue;
+  const minimumFloor = defaultMinimumFloor(input.goalType, input.minimumFloor);
+  const successLimitValue = input.successLimitValue ?? (input.goalType === "quit" ? input.targetValue : null);
+  const today = todayInTimezone(user.timezone);
+  const journeyStartDate = input.journeyStartDate == null
+    ? today
+    : typeof input.journeyStartDate === "string"
+      ? input.journeyStartDate
+      : toDateOnly(input.journeyStartDate);
+  const journeyLength = input.journeyLength ?? HABIT_JOURNEY_LENGTH;
+  if ((input.goalType === "build" && input.targetValue <= 0)
+    || (input.goalType === "quit" && input.targetValue < 0)) {
+    res.status(400).json({ error: "Build targets must be positive; reduce targets cannot be negative" });
     return;
   }
-  if (parsed.data.busyDayValue !== undefined
-    && parsed.data.busyDayValue > minimumValue) {
+  if (minimumValue > input.targetValue || minimumFloor > input.targetValue) {
+    res.status(400).json({ error: "Minimum and floor values cannot exceed the target value" });
+    return;
+  }
+  if (input.goalType === "build" && minimumValue <= 0) {
+    res.status(400).json({ error: "Build minimum values must be positive" });
+    return;
+  }
+  if (input.goalType === "quit" && (input.baselineValue === undefined || input.baselineValue < input.targetValue)) {
+    res.status(400).json({ error: "A reduce habit requires a confirmed baseline at or above its target" });
+    return;
+  }
+  if (input.cadence === "custom_days" && (!input.customDays || input.customDays.length === 0)) {
+    res.status(400).json({ error: "Custom cadence requires at least one selected weekday" });
+    return;
+  }
+  if (input.goalType === "quit" && (successLimitValue == null || successLimitValue < input.targetValue)) {
+    res.status(400).json({ error: "Reduce success limit must be at or above its target" });
+    return;
+  }
+  if (input.busyDayValue !== undefined && (input.busyDayValue < 0 || input.busyDayValue > minimumValue)) {
     res.status(400).json({ error: "Busy-day value must be positive and no greater than the minimum value" });
     return;
   }
+  if (journeyLength !== HABIT_JOURNEY_LENGTH || journeyStartDate < today) {
+    res.status(400).json({ error: "New habit journeys must be 22 days and cannot start before today in your timezone" });
+    return;
+  }
 
-  const [habit] = await db
-    .insert(habitsTable)
-    .values({
+  const result = await db.transaction(async (tx) => {
+    if (input.rewardId != null) {
+      const [reward] = await tx.select({ id: rewardsTable.id }).from(rewardsTable)
+        .where(and(eq(rewardsTable.id, input.rewardId), eq(rewardsTable.userId, req.userId!)))
+        .for("update");
+      if (!reward) return { error: "Reward not found for this user" } as const;
+    }
+    const [habit] = await tx.insert(habitsTable).values({
       userId: req.userId!,
-      ...parsed.data,
+      ...input,
       minimumValue,
-      busyDayValue: parsed.data.busyDayValue ?? null,
-      baselineValue: parsed.data.baselineValue ?? null,
-      successLimitValue: parsed.data.successLimitValue ?? null,
-      customDays: parsed.data.customDays ?? null,
-      milestones: parsed.data.milestones ?? [],
-    })
-    .returning();
+      minimumFloor,
+      busyDayValue: input.busyDayValue ?? null,
+      baselineValue: input.baselineValue ?? null,
+      successLimitValue,
+      customDays: input.customDays ?? null,
+      cueType: input.cueType ?? null,
+      cueTime: input.cueTime ?? null,
+      cue: input.cue ?? null,
+      startAction: input.startAction ?? null,
+      friction: input.friction ?? null,
+      journeyStartDate,
+      journeyLength,
+      rewardId: input.rewardId ?? null,
+      milestones: input.milestones ?? [],
+    }).returning();
+    const plan = snapshotPlan({
+      title: habit.title,
+      cadence: habit.cadence,
+      customDays: habit.customDays,
+      targetValue: habit.targetValue,
+      minimumValue: habit.minimumValue ?? habit.targetValue,
+      busyDayValue: habit.busyDayValue,
+      successLimitValue: habit.successLimitValue,
+      minimumFloor: habit.minimumFloor,
+      goalType: habit.goalType,
+      cueType: habit.cueType,
+      cueTime: habit.cueTime,
+      cue: habit.cue,
+      startAction: habit.startAction,
+      friction: habit.friction,
+    });
+    await tx.insert(habitDaysTable).values(makeJourneyDays(habit.id, journeyStartDate, journeyLength, {
+      targetValue: habit.targetValue,
+      minimumValue: habit.minimumValue ?? habit.targetValue,
+      busyDayValue: habit.busyDayValue,
+      successLimitValue: habit.successLimitValue,
+      goalType: habit.goalType,
+      planRevision: 1,
+      cadence: habit.cadence,
+      customDays: habit.customDays,
+    }));
+    await tx.insert(habitPlanRevisionsTable).values({
+      habitId: habit.id, revision: 1, effectiveFrom: journeyStartDate, plan,
+    });
+    return { habit } as const;
+  });
 
-  res.status(201).json(CreateHabitResponse.parse(habit));
+  if ("error" in result) {
+    res.status(400).json({ error: result.error });
+    return;
+  }
+  res.status(201).json(CreateHabitResponse.parse(result.habit));
 });
 
 router.get("/habits/:habitId", async (req, res): Promise<void> => {
@@ -99,8 +193,59 @@ router.get("/habits/:habitId", async (req, res): Promise<void> => {
   res.json(GetHabitResponse.parse(habit));
 });
 
+router.get("/habits/:habitId/journey", async (req, res): Promise<void> => {
+  const user = await ensureUser(req.userId!);
+  const params = GetHabitJourneyParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+  const [habit] = await db.select().from(habitsTable).where(and(
+    eq(habitsTable.id, params.data.habitId),
+    eq(habitsTable.userId, req.userId!),
+  ));
+  if (!habit) {
+    res.status(404).json({ error: "Habit not found" });
+    return;
+  }
+  const days = await db.select().from(habitDaysTable)
+    .where(eq(habitDaysTable.habitId, habit.id))
+    .orderBy(habitDaysTable.dayNumber);
+  const checkins = days.length
+    ? await db.select().from(checkinsTable).where(eq(checkinsTable.habitId, habit.id))
+    : [];
+  const byDate = new Map(checkins.map((checkin) => [checkin.date, checkin]));
+  const scheduledDays = days.filter((day) => day.scheduled);
+  const today = todayInTimezone(user.timezone);
+  const startDate = habit.journeyStartDate;
+  const elapsed = startDate
+    ? Math.floor((Date.parse(`${today}T00:00:00Z`) - Date.parse(`${startDate}T00:00:00Z`)) / 86_400_000) + 1
+    : 0;
+  const payload = {
+    habitId: habit.id,
+    startDate,
+    length: habit.journeyLength ?? 0,
+    total: scheduledDays.length,
+    completed: scheduledDays.filter((day) => byDate.has(day.date)).length,
+    successful: scheduledDays.filter((day) => byDate.get(day.date)?.completed).length,
+    currentDay: days.length === 0 || elapsed < 1 ? 0 : Math.min(days.length, elapsed),
+    days: days.map((day) => ({
+      date: day.date,
+      dayNumber: day.dayNumber,
+      scheduled: day.scheduled,
+      targetValue: day.targetValue,
+      minimumValue: day.minimumValue,
+      busyDayValue: day.busyDayValue,
+      successLimitValue: day.successLimitValue,
+      goalType: day.goalType,
+      checkin: byDate.get(day.date) ?? null,
+    })),
+  };
+  res.json(GetHabitJourneyResponse.parse(payload));
+});
+
 router.get("/habits/:habitId/adaptation", async (req, res): Promise<void> => {
-  await ensureUser(req.userId!);
+  const user = await ensureUser(req.userId!);
   const params = GetHabitParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -120,17 +265,55 @@ router.get("/habits/:habitId/adaptation", async (req, res): Promise<void> => {
   }).from(checkinsTable)
     .where(eq(checkinsTable.habitId, habit.id))
     .orderBy(desc(checkinsTable.date));
+  const [journeyDays, latestRevisionRows] = await Promise.all([
+    db.select({
+    date: habitDaysTable.date,
+    scheduled: habitDaysTable.scheduled,
+    planRevision: habitDaysTable.planRevision,
+  }).from(habitDaysTable).where(eq(habitDaysTable.habitId, habit.id)),
+    db.select({
+      revision: habitPlanRevisionsTable.revision,
+      effectiveFrom: habitPlanRevisionsTable.effectiveFrom,
+    }).from(habitPlanRevisionsTable)
+      .where(eq(habitPlanRevisionsTable.habitId, habit.id))
+      .orderBy(desc(habitPlanRevisionsTable.revision)).limit(1),
+  ]);
+  const scheduledDates = new Set(journeyDays.filter((day) => day.scheduled).map((day) => day.date));
+  const analysisHistory = journeyDays.length
+    ? history.filter((row) => scheduledDates.has(row.date))
+    : history.filter((row) => {
+      const scheduleAnchor = habit.journeyStartDate ?? toDateOnly(habit.createdAt);
+      const offset = Math.floor(
+        (Date.parse(`${row.date}T00:00:00Z`) - Date.parse(`${scheduleAnchor}T00:00:00Z`)) / 86_400_000,
+      );
+      return offset >= 0
+        && isScheduledDate(row.date, offset + 1, habit.cadence, habit.customDays);
+    });
+  const latestRevisionRow = latestRevisionRows[0];
+  const numericHistory = journeyDays.length
+    ? checkinsForPlanRevision(analysisHistory, journeyDays, latestRevisionRow?.revision ?? 0)
+    : latestRevisionRow
+      ? analysisHistory.filter((row) => row.date >= latestRevisionRow.effectiveFrom)
+      : analysisHistory;
   const currentMinimum = effectiveMinimum(habit.targetValue, habit.minimumValue);
   const proposal = proposeHabitAdaptation({
     targetValue: habit.targetValue,
     minimumValue: currentMinimum,
     busyDayValue: habit.busyDayValue,
-    checkins: history.reverse(),
+    goalType: habit.goalType,
+    successLimitValue: habit.successLimitValue,
+    baselineValue: habit.baselineValue,
+    minimumFloor: habit.minimumFloor,
+    checkins: analysisHistory.reverse(),
+    numericCheckins: numericHistory.reverse(),
   });
-  const today = new Date().toISOString().slice(0, 10);
-  const missedDays = missedScheduledDays(
-    habit.cadence, habit.customDays, history.map((row) => row.date), today, habit.createdAt,
-  );
+  const today = todayInTimezone(user.timezone);
+  const recordedDates = new Set(history.map((row) => row.date));
+  const missedDays = journeyDays.length
+    ? journeyDays.filter((day) => day.scheduled && day.date < today && !recordedDates.has(day.date)).length
+    : missedScheduledDays(
+      habit.cadence, habit.customDays, history.map((row) => row.date), today, habit.createdAt,
+    );
   const phrasing = await habitAdaptationMessages({
     reason: proposal.reason,
     missedReason: proposal.missedReason,
@@ -143,9 +326,21 @@ router.get("/habits/:habitId/adaptation", async (req, res): Promise<void> => {
     ...proposal,
     suggestion: proposal.targetValue !== habit.targetValue
       || proposal.minimumValue !== currentMinimum
+      || proposal.successLimitValue !== habit.successLimitValue
       || proposal.busyDayValue !== habit.busyDayValue,
     expectedTargetValue: habit.targetValue,
     expectedMinimumValue: currentMinimum,
+    expectedSuccessLimitValue: habit.successLimitValue,
+    newSuccessLimitValue: proposal.successLimitValue,
+    actions: {
+      cue: proposal.missedReason === "forgot"
+        ? "اربطها بإشارة يومية ثابتة تختارها"
+        : habit.cue,
+      startAction: proposal.missedReason === "lost_motivation"
+        ? "ابدأ بأصغر خطوة في العادة التي اخترتها"
+        : habit.startAction,
+      busyDayValue: proposal.busyDayValue,
+    },
     phrasing,
     coachMessage: phrasing.explanation,
     missedDays,
@@ -153,7 +348,7 @@ router.get("/habits/:habitId/adaptation", async (req, res): Promise<void> => {
 });
 
 router.patch("/habits/:habitId", async (req, res): Promise<void> => {
-  await ensureUser(req.userId!);
+  const user = await ensureUser(req.userId!);
   const params = UpdateHabitParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -165,92 +360,222 @@ router.patch("/habits/:habitId", async (req, res): Promise<void> => {
     return;
   }
 
-  const { expectedTargetValue, expectedMinimumValue, ...changes } = parsed.data;
-  if (changes.targetValue !== undefined && (!Number.isFinite(changes.targetValue) || changes.targetValue <= 0)) {
-    res.status(400).json({ error: "Target value must be positive" });
-    return;
-  }
-  if (expectedTargetValue !== undefined && (changes.targetValue === undefined || !Number.isFinite(expectedTargetValue) || expectedTargetValue <= 0)) {
-    res.status(400).json({ error: "Expected target value requires a target update and must be positive" });
-    return;
-  }
-  if (changes.minimumValue !== undefined && (!Number.isFinite(changes.minimumValue) || changes.minimumValue <= 0)) {
-    res.status(400).json({ error: "Minimum value must be positive" });
-    return;
-  }
-  if (expectedMinimumValue !== undefined && (changes.minimumValue === undefined || !Number.isFinite(expectedMinimumValue) || expectedMinimumValue <= 0)) {
-    res.status(400).json({ error: "Expected minimum value requires a minimum update and must be positive" });
-    return;
-  }
-  if (changes.targetValue !== undefined && changes.minimumValue !== undefined && changes.minimumValue > changes.targetValue) {
-    res.status(400).json({ error: "Minimum value cannot exceed target value" });
-    return;
-  }
-  const [before] = await db.select({
-    id: habitsTable.id,
-    targetValue: habitsTable.targetValue,
-    minimumValue: habitsTable.minimumValue,
-    busyDayValue: habitsTable.busyDayValue,
-  }).from(habitsTable)
-    .where(and(eq(habitsTable.id, params.data.habitId), eq(habitsTable.userId, req.userId!)));
-  if (before) {
+  const {
+    expectedTargetValue, expectedMinimumValue, expectedSuccessLimitValue, ...changes
+  } = parsed.data;
+  const today = todayInTimezone(user.timezone);
+  const outcome = await db.transaction(async (tx) => {
+    const [before] = await tx.select().from(habitsTable).where(and(
+      eq(habitsTable.id, params.data.habitId),
+      eq(habitsTable.userId, req.userId!),
+    )).for("update");
+    if (!before) return { kind: "not_found" } as const;
+    const currentMinimum = effectiveMinimum(before.targetValue, before.minimumValue);
+    const guardStatus = validateHabitPlanUpdate({
+      expectedTargetValue,
+      expectedMinimumValue,
+      expectedSuccessLimitValue,
+    }, {
+      targetValue: before.targetValue,
+      minimumValue: currentMinimum,
+      successLimitValue: before.successLimitValue,
+    }, Object.keys(changes).length > 0);
+    if (guardStatus === "conflict") {
+      return { kind: "conflict" } as const;
+    }
+    if (guardStatus === "empty") {
+      return { kind: "invalid", error: "At least one habit field must be updated" } as const;
+    }
+
+    const nextGoalType = changes.goalType ?? before.goalType;
+    const nextCadence = changes.cadence ?? before.cadence;
+    const nextCustomDays = changes.customDays ?? before.customDays;
+    if (nextCadence === "custom_days" && (!nextCustomDays || nextCustomDays.length === 0)) {
+      return { kind: "invalid", error: "Custom cadence requires at least one selected weekday" } as const;
+    }
+    const nextTarget = changes.targetValue ?? before.targetValue;
     if (changes.targetValue !== undefined && changes.minimumValue === undefined) {
-      changes.minimumValue = Math.min(
-        effectiveMinimum(before.targetValue, before.minimumValue),
-        changes.targetValue,
-      );
-      if (before.busyDayValue != null) {
+      changes.minimumValue = Math.min(currentMinimum, nextTarget);
+      if (before.busyDayValue != null && changes.busyDayValue === undefined) {
         changes.busyDayValue = Math.min(before.busyDayValue, changes.minimumValue);
       }
     }
-    if (changes.minimumValue !== undefined && before.busyDayValue != null
-      && changes.busyDayValue === undefined) {
-      changes.busyDayValue = Math.min(before.busyDayValue, changes.minimumValue);
+    const nextMinimum = changes.minimumValue ?? currentMinimum;
+    const nextFloor = changes.minimumFloor ?? before.minimumFloor ?? defaultMinimumFloor(nextGoalType);
+    if (nextGoalType === "build" && (nextTarget <= 0 || nextMinimum <= 0)) {
+      return { kind: "invalid", error: "Build target and minimum must be positive" } as const;
     }
-    const nextTarget = changes.targetValue ?? before.targetValue;
-    const nextMinimum = changes.minimumValue ?? effectiveMinimum(before.targetValue, before.minimumValue);
-    if (nextMinimum > nextTarget) {
-      res.status(400).json({ error: "Minimum value cannot exceed target value" });
-      return;
+    if (nextGoalType === "quit" && nextTarget < 0) {
+      return { kind: "invalid", error: "Reduce target cannot be negative" } as const;
     }
-  }
-  if (changes.busyDayValue !== undefined && changes.busyDayValue !== null) {
-    const minimum = changes.minimumValue
-      ?? (before ? effectiveMinimum(before.targetValue, before.minimumValue) : undefined);
-    if (minimum !== undefined && changes.busyDayValue > minimum) {
-      res.status(400).json({ error: "Busy-day value must be positive and no greater than the minimum value" });
-      return;
+    if (nextMinimum < 0 || nextMinimum > nextTarget || nextFloor < 0 || nextFloor > nextTarget) {
+      return { kind: "invalid", error: "Minimum and floor must be nonnegative and no greater than the target" } as const;
     }
-  }
-
-  const [habit] = await db
-    .update(habitsTable)
-    .set(changes)
-    .where(and(
-      eq(habitsTable.id, params.data.habitId),
-      eq(habitsTable.userId, req.userId!),
-      ...(expectedTargetValue === undefined ? [] : [eq(habitsTable.targetValue, expectedTargetValue)]),
-      ...(expectedMinimumValue === undefined ? [] : [or(
-        eq(habitsTable.minimumValue, expectedMinimumValue),
-        and(isNull(habitsTable.minimumValue), eq(habitsTable.targetValue, expectedMinimumValue)),
-      )!]),
-    ))
-    .returning();
-
-  if (!habit) {
-    if (expectedTargetValue !== undefined || expectedMinimumValue !== undefined) {
-      const [existing] = await db.select({ id: habitsTable.id }).from(habitsTable)
-        .where(and(eq(habitsTable.id, params.data.habitId), eq(habitsTable.userId, req.userId!)));
-      if (existing) {
-        res.status(409).json({ error: "Habit target changed since the suggestion was made; request a new suggestion" });
-        return;
+    const nextBaseline = changes.baselineValue !== undefined ? changes.baselineValue : before.baselineValue;
+    let nextSuccessLimit = changes.successLimitValue !== undefined
+      ? changes.successLimitValue
+      : before.successLimitValue;
+    if (nextGoalType === "quit") {
+      if (nextBaseline == null || nextBaseline < nextTarget) {
+        return { kind: "invalid", error: "Reduce habits require a confirmed baseline at or above the target" } as const;
+      }
+      if (nextSuccessLimit == null && before.goalType !== "quit") nextSuccessLimit = nextTarget;
+      if (nextSuccessLimit == null || nextSuccessLimit < nextTarget) {
+        return { kind: "invalid", error: "Reduce success limit must be at or above its target" } as const;
+      }
+      if (changes.successLimitValue === undefined && before.goalType !== "quit") {
+        changes.successLimitValue = nextSuccessLimit;
+      }
+    } else if (before.goalType === "quit" && changes.successLimitValue === undefined) {
+      changes.successLimitValue = null;
+      nextSuccessLimit = null;
+    }
+    const nextBusyDay = changes.busyDayValue !== undefined ? changes.busyDayValue : before.busyDayValue;
+    if (nextBusyDay != null && (nextBusyDay < 0 || nextBusyDay > nextMinimum)) {
+      return { kind: "invalid", error: "Busy-day value must be nonnegative and no greater than the minimum" } as const;
+    }
+    let journeyStartDate = before.journeyStartDate;
+    let journeyLength = before.journeyLength;
+    const askedForJourney = changes.journeyStartDate !== undefined || changes.journeyLength !== undefined;
+    if (askedForJourney) {
+      const requestedStartInput = changes.journeyStartDate;
+      const requestedStart = requestedStartInput == null
+        ? journeyStartDate ?? today
+        : typeof requestedStartInput === "string"
+          ? requestedStartInput
+          : toDateOnly(requestedStartInput);
+      const requestedLength = changes.journeyLength ?? journeyLength ?? HABIT_JOURNEY_LENGTH;
+      if (journeyStartDate != null && requestedStart !== journeyStartDate) {
+        return { kind: "invalid", error: "Journey start date is immutable once assigned" } as const;
+      }
+      if (journeyLength != null && requestedLength !== journeyLength) {
+        return { kind: "invalid", error: "Journey length is immutable once assigned" } as const;
+      }
+      if (requestedStart < today || requestedLength !== HABIT_JOURNEY_LENGTH) {
+        return { kind: "invalid", error: "A journey must be 22 days and cannot start before today in your timezone" } as const;
+      }
+      if (journeyStartDate == null) {
+        const [existingDay] = await tx.select({ id: habitDaysTable.id }).from(habitDaysTable)
+          .where(eq(habitDaysTable.habitId, before.id)).limit(1);
+        const [existingCheckin] = await tx.select({ id: checkinsTable.id }).from(checkinsTable)
+          .where(eq(checkinsTable.habitId, before.id)).limit(1);
+        if (existingDay || existingCheckin) {
+          return { kind: "invalid", error: "A journey cannot be initialized after a habit already has day history" } as const;
+        }
+        journeyStartDate = requestedStart;
+        journeyLength = requestedLength;
+        changes.journeyStartDate = new Date(`${requestedStart}T00:00:00.000Z`);
+        changes.journeyLength = requestedLength;
       }
     }
+
+    if (changes.rewardId !== undefined && changes.rewardId !== null) {
+      const [reward] = await tx.select({ id: rewardsTable.id }).from(rewardsTable)
+        .where(and(eq(rewardsTable.id, changes.rewardId), eq(rewardsTable.userId, req.userId!)))
+        .for("update");
+      if (!reward) return { kind: "invalid", error: "Reward not found for this user" } as const;
+    }
+
+    const planFields = [
+      "targetValue", "minimumValue", "busyDayValue", "successLimitValue", "minimumFloor",
+      "goalType", "cueType", "cueTime", "cue", "startAction", "friction", "baselineValue",
+      "cadence", "customDays",
+    ] as const;
+    const planChanged = planFields.some((field) => changes[field] !== undefined);
+    const { journeyStartDate: requestedDate, ...habitChanges } = changes;
+    void requestedDate;
+    const updateChanges = {
+      ...habitChanges,
+      ...(journeyStartDate !== before.journeyStartDate && journeyStartDate !== null
+        ? { journeyStartDate }
+        : {}),
+    };
+    const [habit] = await tx.update(habitsTable).set(updateChanges)
+      .where(and(eq(habitsTable.id, before.id), eq(habitsTable.userId, req.userId!)))
+      .returning();
+
+    if (journeyStartDate && journeyLength && before.journeyStartDate == null) {
+      await tx.insert(habitDaysTable).values(makeJourneyDays(habit.id, journeyStartDate, journeyLength, {
+        targetValue: habit.targetValue,
+        minimumValue: habit.minimumValue ?? habit.targetValue,
+        busyDayValue: habit.busyDayValue,
+        successLimitValue: habit.successLimitValue,
+        goalType: habit.goalType,
+        planRevision: 1,
+        cadence: habit.cadence,
+        customDays: habit.customDays,
+      }));
+      const initialPlan = snapshotPlan({
+        title: habit.title,
+        cadence: habit.cadence,
+        customDays: habit.customDays,
+        targetValue: habit.targetValue,
+        minimumValue: habit.minimumValue ?? habit.targetValue,
+        busyDayValue: habit.busyDayValue,
+        successLimitValue: habit.successLimitValue,
+        minimumFloor: habit.minimumFloor,
+        goalType: habit.goalType,
+        cueType: habit.cueType,
+        cueTime: habit.cueTime,
+        cue: habit.cue,
+        startAction: habit.startAction,
+        friction: habit.friction,
+      });
+      await tx.insert(habitPlanRevisionsTable).values({
+        habitId: habit.id, revision: 1, effectiveFrom: journeyStartDate, plan: initialPlan,
+      });
+    } else if (planChanged) {
+      const [latest] = await tx.select({ revision: habitPlanRevisionsTable.revision })
+        .from(habitPlanRevisionsTable)
+        .where(eq(habitPlanRevisionsTable.habitId, habit.id))
+        .orderBy(desc(habitPlanRevisionsTable.revision)).limit(1);
+      const revision = (latest?.revision ?? 0) + 1;
+      const effectiveFrom = addCalendarDays(today, 1);
+      const revisionPlan = snapshotPlan({
+        title: habit.title,
+        cadence: habit.cadence,
+        customDays: habit.customDays,
+        targetValue: habit.targetValue,
+        minimumValue: habit.minimumValue ?? habit.targetValue,
+        busyDayValue: habit.busyDayValue,
+        successLimitValue: habit.successLimitValue,
+        minimumFloor: habit.minimumFloor,
+        goalType: habit.goalType,
+        cueType: habit.cueType,
+        cueTime: habit.cueTime,
+        cue: habit.cue,
+        startAction: habit.startAction,
+        friction: habit.friction,
+      });
+      await tx.insert(habitPlanRevisionsTable).values({
+        habitId: habit.id, revision, effectiveFrom, plan: revisionPlan,
+      });
+      await reviseFutureUnrecordedDays(tx, habit.id, today, revision, {
+        targetValue: habit.targetValue,
+        minimumValue: habit.minimumValue ?? habit.targetValue,
+        busyDayValue: habit.busyDayValue,
+        successLimitValue: habit.successLimitValue,
+        goalType: habit.goalType,
+        cadence: habit.cadence,
+        customDays: habit.customDays,
+      });
+    }
+    return { kind: "ok", habit } as const;
+  });
+
+  if (outcome.kind === "not_found") {
     res.status(404).json({ error: "Habit not found" });
     return;
   }
-
-  res.json(UpdateHabitResponse.parse(habit));
+  if (outcome.kind === "conflict") {
+    res.status(409).json({ error: "Habit plan changed since the suggestion was made; request a new suggestion" });
+    return;
+  }
+  if (outcome.kind === "invalid") {
+    res.status(400).json({ error: outcome.error });
+    return;
+  }
+  res.json(UpdateHabitResponse.parse(outcome.habit));
 });
 
 router.delete("/habits/:habitId", async (req, res): Promise<void> => {

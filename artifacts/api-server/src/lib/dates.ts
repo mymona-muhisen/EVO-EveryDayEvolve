@@ -4,17 +4,44 @@ export function toDateOnly(d: Date): string {
 }
 
 /** Today's date as "YYYY-MM-DD" in the given IANA timezone. */
-export function todayInTimezone(timezone: string): string {
+export function todayInTimezone(timezone: string, now = new Date()): string {
   try {
     return new Intl.DateTimeFormat("en-CA", {
       timeZone: timezone,
       year: "numeric",
       month: "2-digit",
       day: "2-digit",
-    }).format(new Date());
+    }).format(now);
   } catch {
-    return toDateOnly(new Date());
+    return toDateOnly(now);
   }
+}
+
+/** Server-authoritative habit start suggestion: tomorrow from 21:00 local, today otherwise. */
+export function suggestedJourneyStartDate(timezone: string, now = new Date()): string {
+  let today: string;
+  try {
+    today = new Intl.DateTimeFormat("en-CA", {
+      timeZone: timezone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(now);
+    const localParts = new Intl.DateTimeFormat("en-GB", {
+      timeZone: timezone,
+      hour: "2-digit",
+      hourCycle: "h23",
+    }).formatToParts(now);
+    const hour = Number(localParts.find((part) => part.type === "hour")?.value ?? "0");
+    if (hour < 21) return today;
+  } catch {
+    today = toDateOnly(now);
+    const hour = now.getUTCHours();
+    if (hour < 21) return today;
+  }
+  const tomorrow = new Date(`${today}T00:00:00.000Z`);
+  tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+  return toDateOnly(tomorrow);
 }
 
 /**

@@ -181,6 +181,28 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
 
+  /habits/{habitId}/journey:
+    get:
+      operationId: getHabitJourney
+      tags: [habits]
+      summary: Get the habit-specific 22-day journey and scheduled thresholds
+      parameters:
+        - name: habitId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Journey and its per-day plans; legacy habits may have no journey
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/HabitJourney" }
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
   /checkins:
     get:
       operationId: listHabitCheckins
@@ -1145,7 +1167,7 @@ components:
         order: { type: integer }
     Habit:
       type: object
-      required: [id, title, emoji, category, cadence, customDays, unit, targetValue, minimumValue, busyDayValue, baselineValue, successLimitValue, difficulty, goalType, isActive, currentStreak, longestStreak, lastCheckinDate, milestones, createdAt]
+      required: [id, title, emoji, category, cadence, customDays, unit, targetValue, minimumValue, busyDayValue, baselineValue, successLimitValue, cueType, cueTime, cue, startAction, friction, minimumFloor, journeyStartDate, journeyLength, rewardId, difficulty, goalType, isActive, currentStreak, longestStreak, lastCheckinDate, milestones, createdAt]
       properties:
         id: { type: integer }
         title: { type: string }
@@ -1161,6 +1183,15 @@ components:
         busyDayValue: { type: ["number", "null"] }
         baselineValue: { type: ["number", "null"] }
         successLimitValue: { type: ["number", "null"] }
+        cueType: { type: ["string", "null"], enum: [time, routine, custom, null] }
+        cueTime: { type: ["string", "null"], pattern: '^([01][0-9]|2[0-3]):[0-5][0-9]$' }
+        cue: { type: ["string", "null"] }
+        startAction: { type: ["string", "null"] }
+        friction: { type: ["string", "null"] }
+        minimumFloor: { type: ["number", "null"], minimum: 0 }
+        journeyStartDate: { type: ["string", "null"], format: date }
+        journeyLength: { type: ["integer", "null"], minimum: 1, maximum: 22 }
+        rewardId: { type: ["integer", "null"], minimum: 1 }
         difficulty: { type: string, enum: [easy, medium, hard] }
         goalType: { type: string, enum: [build, quit] }
         isActive: { type: boolean }
@@ -1183,11 +1214,20 @@ components:
           type: array
           items: { type: integer, minimum: 0, maximum: 6 }
         unit: { type: string, enum: [minutes, count, pages, custom] }
-        targetValue: { type: number }
-        minimumValue: { type: number, exclusiveMinimum: 0 }
-        busyDayValue: { type: number, exclusiveMinimum: 0 }
-        baselineValue: { type: number, exclusiveMinimum: 0 }
-        successLimitValue: { type: number, exclusiveMinimum: 0 }
+        targetValue: { type: number, minimum: 0 }
+        minimumValue: { type: number, minimum: 0 }
+        busyDayValue: { type: number, minimum: 0 }
+        baselineValue: { type: number, minimum: 0 }
+        successLimitValue: { type: number, minimum: 0 }
+        cueType: { type: ["string", "null"], enum: [time, routine, custom, null] }
+        cueTime: { type: ["string", "null"], pattern: '^([01][0-9]|2[0-3]):[0-5][0-9]$' }
+        cue: { type: ["string", "null"] }
+        startAction: { type: ["string", "null"] }
+        friction: { type: ["string", "null"] }
+        minimumFloor: { type: number, minimum: 0 }
+        journeyStartDate: { type: string, format: date }
+        journeyLength: { type: integer, minimum: 1, maximum: 22 }
+        rewardId: { type: integer, minimum: 1 }
         difficulty: { type: string, enum: [easy, medium, hard] }
         goalType: { type: string, enum: [build, quit] }
         milestones:
@@ -1204,16 +1244,27 @@ components:
           type: array
           items: { type: integer, minimum: 0, maximum: 6 }
         unit: { type: string, enum: [minutes, count, pages, custom] }
-        targetValue: { type: number }
-        minimumValue: { type: number, exclusiveMinimum: 0 }
-        busyDayValue: { type: number, exclusiveMinimum: 0 }
-        baselineValue: { type: number, exclusiveMinimum: 0 }
-        successLimitValue: { type: number, exclusiveMinimum: 0 }
+        targetValue: { type: number, minimum: 0 }
+        minimumValue: { type: number, minimum: 0 }
+        busyDayValue: { type: ["number", "null"], minimum: 0 }
+        baselineValue: { type: ["number", "null"], minimum: 0 }
+        successLimitValue: { type: ["number", "null"], minimum: 0 }
+        cueType: { type: ["string", "null"], enum: [time, routine, custom, null] }
+        cueTime: { type: ["string", "null"], pattern: '^([01][0-9]|2[0-3]):[0-5][0-9]$' }
+        cue: { type: ["string", "null"] }
+        startAction: { type: ["string", "null"] }
+        friction: { type: ["string", "null"] }
+        minimumFloor: { type: ["number", "null"], minimum: 0 }
+        journeyStartDate: { type: ["string", "null"], format: date }
+        journeyLength: { type: ["integer", "null"], minimum: 1, maximum: 22 }
+        rewardId: { type: ["integer", "null"], minimum: 1 }
         expectedTargetValue:
           type: number
           description: If provided with targetValue, update only when the stored target still equals this value
         expectedMinimumValue: { type: number, description: Compare-and-set guard for minimumValue updates }
+        expectedSuccessLimitValue: { type: ["number", "null"], description: Compare-and-set guard for successLimitValue updates }
         difficulty: { type: string, enum: [easy, medium, hard] }
+        goalType: { type: string, enum: [build, quit] }
         isActive: { type: boolean }
         milestones:
           type: array
@@ -1221,7 +1272,7 @@ components:
 
     Checkin:
       type: object
-      required: [id, habitId, date, completed, value, note, moodRating, difficulty, missedReason, targetSnapshot, minimumSnapshot, successLimitSnapshot, targetCompleted, coinsEarned, createdAt]
+      required: [id, habitId, date, completed, value, note, moodRating, difficulty, missedReason, targetSnapshot, minimumSnapshot, successLimitSnapshot, goalTypeSnapshot, targetCompleted, coinsEarned, createdAt]
       properties:
         id: { type: integer }
         habitId: { type: integer }
@@ -1235,6 +1286,7 @@ components:
         targetSnapshot: { type: ["number", "null"] }
         minimumSnapshot: { type: ["number", "null"] }
         successLimitSnapshot: { type: ["number", "null"] }
+        goalTypeSnapshot: { type: ["string", "null"], enum: [build, quit, null] }
         targetCompleted: { type: boolean }
         coinsEarned: { type: integer }
         createdAt: { type: string, format: date-time }
@@ -1258,17 +1310,20 @@ components:
         missedReason: { type: ["string", "null"], enum: [too_difficult, no_time, forgot, lost_motivation, unexpected, other, null] }
     HabitAdaptation:
       type: object
-      required: [habitId, reason, suggestion, expectedTargetValue, expectedMinimumValue, targetValue, minimumValue, busyDayValue, missedReason, phrasing, coachMessage, missedDays]
+      required: [habitId, reason, suggestion, expectedTargetValue, expectedMinimumValue, expectedSuccessLimitValue, targetValue, minimumValue, newSuccessLimitValue, busyDayValue, missedReason, actions, phrasing, coachMessage, missedDays]
       properties:
         habitId: { type: integer }
         reason: { type: string, enum: [repeated_hard, repeated_easy, missed_reasons, steady, no_history] }
         suggestion: { type: boolean }
         expectedTargetValue: { type: number }
         expectedMinimumValue: { type: number }
+        expectedSuccessLimitValue: { type: ["number", "null"] }
         targetValue: { type: number }
         minimumValue: { type: number }
+        newSuccessLimitValue: { type: ["number", "null"] }
         busyDayValue: { type: ["number", "null"] }
         missedReason: { type: ["string", "null"], enum: [too_difficult, no_time, forgot, lost_motivation, unexpected, other, null] }
+        actions: { $ref: "#/components/schemas/HabitAdaptationActions" }
         phrasing: { $ref: "#/components/schemas/HabitAdaptationPhrasing" }
         coachMessage: { type: string }
         missedDays: { type: integer, minimum: 0 }
@@ -1280,6 +1335,13 @@ components:
         explanation: { type: string }
         next_step: { type: string }
         encouragement: { type: string }
+    HabitAdaptationActions:
+      type: object
+      required: [cue, startAction, busyDayValue]
+      properties:
+        cue: { type: ["string", "null"] }
+        startAction: { type: ["string", "null"] }
+        busyDayValue: { type: ["number", "null"] }
     HabitBuilderInput:
       type: object
       required: [intent, requestedDuration, unit]
@@ -1288,16 +1350,66 @@ components:
         requestedDuration: { type: number, exclusiveMinimum: 0 }
         unit: { type: string, enum: [minutes, count, pages, custom] }
         goalType: { type: string, enum: [build, quit] }
+        baselineValue: { type: number, minimum: 0 }
+        friction: { type: string, minLength: 1, description: Optional user-identified obstacle used only to generate one grounded tip }
+        trackingContext:
+          description: Optional category/unit hints only; baseline is resolved from the supplied user baseline or server-owned matching tracking rows
+          type: object
+          properties:
+            category: { type: string, enum: [health, learning, productivity, mindfulness, social, creativity, finance, custom] }
+            unit: { type: string, enum: [minutes, count, pages, custom] }
     HabitBuilderResult:
       type: object
-      required: [title, targetValue, minimumValue, busyDayValue, reason, coachMessage]
+      required: [title, category, goalType, unit, originalGoal, understoodGoal, baselineValue, targetValue, minimumValue, busyDayValue, successLimitValue, minimumFloor, cueType, cueTime, cue, startAction, needsBaseline, reason, coachMessage, frictionTip, source]
       properties:
         title: { type: string }
+        category: { type: string, enum: [health, learning, productivity, mindfulness, social, creativity, finance, custom] }
+        goalType: { type: string, enum: [build, quit] }
+        unit: { type: string, enum: [minutes, count, pages, custom] }
+        originalGoal: { type: string }
+        understoodGoal: { type: string }
+        baselineValue: { type: ["number", "null"] }
         targetValue: { type: number }
         minimumValue: { type: number }
         busyDayValue: { type: number }
+        successLimitValue: { type: ["number", "null"] }
+        minimumFloor: { type: number, minimum: 0 }
+        cueType: { type: ["string", "null"], enum: [time, routine, custom, null] }
+        cueTime: { type: ["string", "null"] }
+        cue: { type: ["string", "null"] }
+        startAction: { type: ["string", "null"] }
+        needsBaseline: { type: boolean }
         reason: { type: string }
         coachMessage: { type: string }
+        frictionTip: { type: string }
+        source: { type: string, enum: [ai, deterministic] }
+    HabitJourney:
+      type: object
+      required: [habitId, startDate, length, total, completed, successful, currentDay, days]
+      properties:
+        habitId: { type: integer }
+        startDate: { type: ["string", "null"], format: date }
+        length: { type: integer }
+        total: { type: integer }
+        completed: { type: integer }
+        successful: { type: integer }
+        currentDay: { type: integer }
+        days:
+          type: array
+          items: { $ref: "#/components/schemas/HabitDay" }
+    HabitDay:
+      type: object
+      required: [date, dayNumber, scheduled, targetValue, minimumValue, busyDayValue, successLimitValue, goalType, checkin]
+      properties:
+        date: { type: string, format: date }
+        dayNumber: { type: integer }
+        scheduled: { type: boolean }
+        targetValue: { type: number }
+        minimumValue: { type: number }
+        busyDayValue: { type: ["number", "null"] }
+        successLimitValue: { type: ["number", "null"] }
+        goalType: { type: string, enum: [build, quit] }
+        checkin: { oneOf: [{ $ref: "#/components/schemas/Checkin" }, { type: "null" }] }
     CheckinResult:
       allOf:
         - $ref: "#/components/schemas/Checkin"
@@ -1560,22 +1672,27 @@ components:
 
     DashboardHabitToday:
       type: object
-      required: [habitId, title, emoji, unit, targetValue, completedToday, valueToday, currentStreak, scheduledToday]
+      required: [habitId, title, emoji, unit, targetValue, minimumValue, goalType, successLimitValue, completedToday, targetCompleted, valueToday, currentStreak, scheduledToday]
       properties:
         habitId: { type: integer }
         title: { type: string }
         emoji: { type: string }
         unit: { type: string }
         targetValue: { type: number }
+        minimumValue: { type: number }
+        goalType: { type: string, enum: [build, quit] }
+        successLimitValue: { type: ["number", "null"] }
         completedToday: { type: boolean }
+        targetCompleted: { type: boolean }
         valueToday: { type: ["number", "null"] }
         currentStreak: { type: integer }
         scheduledToday: { type: boolean }
     DashboardToday:
       type: object
-      required: [activeHabitsCount, completedTodayCount, scheduledTodayCount, timeTrackedMinutesToday, coins, level, xp, xpToNextLevel, habitsToday]
+      required: [date, suggestedJourneyStartDate, activeHabitsCount, completedTodayCount, scheduledTodayCount, timeTrackedMinutesToday, coins, level, xp, xpToNextLevel, habitsToday]
       properties:
         date: { type: string, format: date, description: Today's calendar date in the user's saved timezone }
+        suggestedJourneyStartDate: { type: string, format: date, description: Today in the user's saved timezone unless local hour is 21:00 or later, then tomorrow }
         activeHabitsCount: { type: integer }
         completedTodayCount: { type: integer }
         scheduledTodayCount: { type: integer }

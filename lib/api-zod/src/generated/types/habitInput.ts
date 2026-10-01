@@ -7,6 +7,7 @@
  */
 import type { HabitInputCadence } from './habitInputCadence';
 import type { HabitInputCategory } from './habitInputCategory';
+import type { HabitInputCueType } from './habitInputCueType';
 import type { HabitInputDifficulty } from './habitInputDifficulty';
 import type { HabitInputGoalType } from './habitInputGoalType';
 import type { HabitInputUnit } from './habitInputUnit';
@@ -24,15 +25,39 @@ export interface HabitInput {
      */
   customDays?: number[];
   unit: HabitInputUnit;
+  /** @minimum 0 */
   targetValue: number;
-  /** @exclusiveMinimum 0 */
+  /** @minimum 0 */
   minimumValue?: number;
-  /** @exclusiveMinimum 0 */
+  /** @minimum 0 */
   busyDayValue?: number;
-  /** @exclusiveMinimum 0 */
+  /** @minimum 0 */
   baselineValue?: number;
-  /** @exclusiveMinimum 0 */
+  /** @minimum 0 */
   successLimitValue?: number;
+  /** @nullable */
+  cueType?: HabitInputCueType;
+  /**
+     * @nullable
+     * @pattern ^([01][0-9]|2[0-3]):[0-5][0-9]$
+     */
+  cueTime?: string | null;
+  /** @nullable */
+  cue?: string | null;
+  /** @nullable */
+  startAction?: string | null;
+  /** @nullable */
+  friction?: string | null;
+  /** @minimum 0 */
+  minimumFloor?: number;
+  journeyStartDate?: Date;
+  /**
+     * @minimum 1
+     * @maximum 22
+     */
+  journeyLength?: number;
+  /** @minimum 1 */
+  rewardId?: number;
   difficulty: HabitInputDifficulty;
   goalType: HabitInputGoalType;
   milestones?: HabitMilestone[];

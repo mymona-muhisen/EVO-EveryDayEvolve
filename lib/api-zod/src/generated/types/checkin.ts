@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { CheckinDifficulty } from './checkinDifficulty';
+import type { CheckinGoalTypeSnapshot } from './checkinGoalTypeSnapshot';
 import type { CheckinMissedReason } from './checkinMissedReason';
 
 export interface Checkin {
@@ -29,6 +30,8 @@ export interface Checkin {
   minimumSnapshot: number | null;
   /** @nullable */
   successLimitSnapshot: number | null;
+  /** @nullable */
+  goalTypeSnapshot: CheckinGoalTypeSnapshot;
   targetCompleted: boolean;
   coinsEarned: number;
   createdAt: Date;

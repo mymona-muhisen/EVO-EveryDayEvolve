@@ -9,26 +9,24 @@ import {
 import { requireAuth } from "../middlewares/requireAuth";
 import { ensureUser } from "../lib/userService";
 import { xpToNextLevel, isScheduledOn } from "../lib/rules";
-import { todayInTimezone } from "../lib/dates";
+import { suggestedJourneyStartDate, todayInTimezone } from "../lib/dates";
+import { DashboardSnapshotError, getDashboardHabitsToday } from "../lib/dashboardService";
 
 const router: IRouter = Router();
 router.use(requireAuth);
 
 router.get("/dashboard/today", async (req, res): Promise<void> => {
   const user = await ensureUser(req.userId!);
-  const today = todayInTimezone(user.timezone);
-  const todayDate = new Date(`${today}T00:00:00Z`);
-
-  const habits = await db
-    .select()
-    .from(habitsTable)
-    .where(and(eq(habitsTable.userId, req.userId!), eq(habitsTable.isActive, true)));
-
-  const todaysCheckins = await db
-    .select()
-    .from(checkinsTable)
-    .where(and(eq(checkinsTable.userId, req.userId!), eq(checkinsTable.date, today)));
-  const checkinByHabit = new Map(todaysCheckins.map((c) => [c.habitId, c]));
+  const now = new Date();
+  const today = todayInTimezone(user.timezone, now);
+  let habitsToday: Awaited<ReturnType<typeof getDashboardHabitsToday>>;
+  try {
+    habitsToday = await getDashboardHabitsToday(req.userId!, today);
+  } catch (error) {
+    if (!(error instanceof DashboardSnapshotError)) throw error;
+    res.status(500).json({ error: error.message });
+    return;
+  }
 
   const timeEntriesToday = await db
     .select()
@@ -36,26 +34,11 @@ router.get("/dashboard/today", async (req, res): Promise<void> => {
     .where(and(eq(timeEntriesTable.userId, req.userId!), eq(timeEntriesTable.date, today)));
   const timeTrackedMinutesToday = timeEntriesToday.reduce((sum, e) => sum + e.durationMinutes, 0);
 
-  const habitsToday = habits.map((h) => {
-    const scheduledToday = isScheduledOn(h.cadence, h.customDays, todayDate);
-    const checkin = checkinByHabit.get(h.id);
-    return {
-      habitId: h.id,
-      title: h.title,
-      emoji: h.emoji,
-      unit: h.unit,
-      targetValue: h.targetValue,
-      completedToday: !!checkin?.completed,
-      valueToday: checkin?.value ?? null,
-      currentStreak: h.currentStreak,
-      scheduledToday,
-    };
-  });
-
   res.json(
     GetDashboardTodayResponse.parse({
       date: today,
-      activeHabitsCount: habits.length,
+      suggestedJourneyStartDate: suggestedJourneyStartDate(user.timezone, now),
+      activeHabitsCount: habitsToday.length,
       completedTodayCount: habitsToday.filter((h) => h.completedToday).length,
       scheduledTodayCount: habitsToday.filter((h) => h.scheduledToday).length,
       timeTrackedMinutesToday,

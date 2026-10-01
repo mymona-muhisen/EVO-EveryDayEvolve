@@ -33,6 +33,7 @@ export const habitDifficultyEnum = pgEnum("habit_difficulty", [
 ]);
 
 export const habitGoalTypeEnum = pgEnum("habit_goal_type", ["build", "quit"]);
+export const habitCueTypeEnum = pgEnum("habit_cue_type", ["time", "routine", "custom"]);
 
 export interface HabitMilestoneJson {
   title: string;
@@ -57,6 +58,15 @@ export const habitsTable = pgTable("habits", {
   busyDayValue: doublePrecision("busy_day_value"),
   baselineValue: doublePrecision("baseline_value"),
   successLimitValue: doublePrecision("success_limit_value"),
+  cueType: habitCueTypeEnum("cue_type"),
+  cueTime: text("cue_time"),
+  cue: text("cue"),
+  startAction: text("start_action"),
+  friction: text("friction"),
+  minimumFloor: doublePrecision("minimum_floor"),
+  journeyStartDate: date("journey_start_date", { mode: "string" }),
+  journeyLength: integer("journey_length"),
+  rewardId: integer("reward_id"),
   difficulty: habitDifficultyEnum("difficulty").notNull(),
   goalType: habitGoalTypeEnum("goal_type").notNull(),
   isActive: boolean("is_active").notNull().default(true),
