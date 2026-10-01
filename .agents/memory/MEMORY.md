@@ -6,3 +6,4 @@
 - [Gemini model listings can include retired generators](gemini-model-availability.md) — a listed model may return 404 on generation; probe generation before trusting listings.
 - [Isolated API test bundling](isolated-api-test-bundling.md) — bundle workspace libraries for Node test runners; externalizing them can expose extensionless ESM imports.
 - [Time awareness data boundaries](time-awareness-boundaries.md) — count only explicitly categorized intervals; never fill missed check-ins or let generated prose invent numeric conclusions.
+- [Historical reward preservation](historical-reward-policy.md) — ambiguous old reward markers are not evidence of nonpayment; atomicity fixes must not retroactively grant rewards.

@@ -18,6 +18,8 @@ export type CoinReason =
   | "challenge_bonus"
   | "manual";
 
+export type RewardTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
 /**
  * Grants XP and/or coins to a user, logs the coin transaction, and grants
  * any journey milestones newly crossed by the resulting level (each
@@ -27,32 +29,38 @@ export type CoinReason =
 export async function grantRewards(
   userId: string,
   opts: { xp?: number; coins?: number; reason: CoinReason },
+  tx?: RewardTransaction,
 ): Promise<UserRow> {
-  const [user] = await db
+  // Reuse the caller's transaction so the check-in, streak and reward commit
+  // together. Standalone callers get the same atomicity.
+  if (!tx) return db.transaction((transaction) => grantRewards(userId, opts, transaction));
+
+  const [user] = await tx
     .select()
     .from(usersTable)
-    .where(eq(usersTable.id, userId));
+    .where(eq(usersTable.id, userId))
+    .for("update");
   if (!user) throw new Error(`User ${userId} not found`);
 
   const xpGained = opts.xp ?? 0;
   const coinsGained = opts.coins ?? 0;
   const { level, xp } = applyXp(user.level, user.xp, xpGained);
 
-  const [updated] = await db
+  const [updated] = await tx
     .update(usersTable)
     .set({ level, xp, coins: sql`${usersTable.coins} + ${coinsGained}` })
     .where(eq(usersTable.id, userId))
     .returning();
 
   if (coinsGained !== 0) {
-    await db
+    await tx
       .insert(coinTransactionsTable)
       .values({ userId, amount: coinsGained, reason: opts.reason });
   }
 
   if (level > user.level) {
-    await grantJourneyMilestones(userId, user.level, level);
-    const [final] = await db
+    await grantJourneyMilestones(tx, userId, user.level, level);
+    const [final] = await tx
       .select()
       .from(usersTable)
       .where(eq(usersTable.id, userId));
@@ -88,11 +96,12 @@ export async function spendCoins(
 }
 
 async function grantJourneyMilestones(
+  tx: RewardTransaction,
   userId: string,
   oldLevel: number,
   newLevel: number,
 ): Promise<void> {
-  const crossed = await db
+  const crossed = await tx
     .select()
     .from(journeyMilestonesTable)
     .where(
@@ -103,18 +112,18 @@ async function grantJourneyMilestones(
     );
 
   for (const milestone of crossed) {
-    const [inserted] = await db
+    const [inserted] = await tx
       .insert(userJourneyMilestonesTable)
       .values({ userId, milestoneId: milestone.id })
       .onConflictDoNothing()
       .returning();
 
     if (inserted && milestone.rewardCoins > 0) {
-      await db
+      await tx
         .update(usersTable)
         .set({ coins: sql`${usersTable.coins} + ${milestone.rewardCoins}` })
         .where(eq(usersTable.id, userId));
-      await db.insert(coinTransactionsTable).values({
+      await tx.insert(coinTransactionsTable).values({
         userId,
         amount: milestone.rewardCoins,
         reason: "manual",

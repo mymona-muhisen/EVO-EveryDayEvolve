@@ -1,0 +1,651 @@
+import assert from "node:assert/strict";
+import { createRequire } from "node:module";
+import { test } from "node:test";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { dirname, join, resolve } from "node:path";
+import { randomUUID } from "node:crypto";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { build } from "esbuild";
+
+const apiDir = dirname(dirname(fileURLToPath(import.meta.url)));
+const repositoryDir = resolve(apiDir, "../..");
+const dbDir = resolve(repositoryDir, "lib/db");
+const databaseUrl =
+  process.env.API_TEST_DATABASE_URL ??
+  process.env.TEST_DATABASE_URL ??
+  process.env.DATABASE_URL;
+
+if (!databaseUrl) {
+  throw new Error(
+    "PostgreSQL reward integration tests require API_TEST_DATABASE_URL, TEST_DATABASE_URL, or DATABASE_URL.",
+  );
+}
+
+const originalDatabaseUrl = process.env.DATABASE_URL;
+const schema = `api_reward_it_${randomUUID().replaceAll("-", "")}`;
+const quote = (name) => `"${schema}"."${name}"`;
+const scopedUrl = new URL(databaseUrl);
+const currentOptions = scopedUrl.searchParams.get("options");
+scopedUrl.searchParams.set(
+  "options",
+  [currentOptions, `-c search_path=${schema}`].filter(Boolean).join(" "),
+);
+process.env.DATABASE_URL = scopedUrl.toString();
+
+const dbRequire = createRequire(join(dbDir, "package.json"));
+const { Pool } = dbRequire("pg");
+const pgEntry = dbRequire.resolve("pg");
+const adminPool = new Pool({ connectionString: databaseUrl });
+const servicePools = [];
+let tempDir;
+let cleanupStarted = false;
+
+const ddl = [
+  `CREATE SCHEMA "${schema}"`,
+  `CREATE TYPE ${quote("motivation_style")} AS ENUM ('encouraging', 'tough_love', 'data_driven')`,
+  `CREATE TYPE ${quote("goal_category")} AS ENUM ('health', 'learning', 'productivity', 'mindfulness', 'social', 'creativity', 'finance', 'custom')`,
+  `CREATE TYPE ${quote("habit_cadence")} AS ENUM ('daily', 'weekdays', 'weekly', 'custom_days')`,
+  `CREATE TYPE ${quote("habit_unit")} AS ENUM ('minutes', 'count', 'pages', 'custom')`,
+  `CREATE TYPE ${quote("habit_difficulty")} AS ENUM ('easy', 'medium', 'hard')`,
+  `CREATE TYPE ${quote("habit_goal_type")} AS ENUM ('build', 'quit')`,
+  `CREATE TYPE ${quote("checkin_difficulty")} AS ENUM ('easy', 'normal', 'hard', 'very_hard')`,
+  `CREATE TYPE ${quote("missed_reason")} AS ENUM ('too_difficult', 'no_time', 'forgot', 'lost_motivation', 'unexpected', 'other')`,
+  `CREATE TYPE ${quote("coin_transaction_reason")} AS ENUM ('checkin', 'streak_bonus', 'streak_recovery', 'reward_redemption', 'item_purchase', 'challenge_bonus', 'manual')`,
+  `CREATE TABLE ${quote("users")} (
+    id text PRIMARY KEY,
+    display_name text NOT NULL,
+    avatar_emoji text NOT NULL DEFAULT '🌱',
+    level integer NOT NULL DEFAULT 1,
+    xp integer NOT NULL DEFAULT 0,
+    coins integer NOT NULL DEFAULT 0,
+    motivation_style ${quote("motivation_style")} NOT NULL DEFAULT 'encouraging',
+    primary_goal_category ${quote("goal_category")},
+    onboarding_completed boolean NOT NULL DEFAULT false,
+    timezone text NOT NULL DEFAULT 'UTC',
+    created_at timestamptz NOT NULL DEFAULT now()
+  )`,
+  `CREATE TABLE ${quote("habits")} (
+    id serial PRIMARY KEY,
+    user_id text NOT NULL REFERENCES ${quote("users")}(id) ON DELETE CASCADE,
+    title text NOT NULL,
+    emoji text NOT NULL,
+    category ${quote("goal_category")} NOT NULL,
+    cadence ${quote("habit_cadence")} NOT NULL,
+    custom_days integer[],
+    unit ${quote("habit_unit")} NOT NULL,
+    target_value double precision NOT NULL,
+    minimum_value double precision,
+    busy_day_value double precision,
+    baseline_value double precision,
+    success_limit_value double precision,
+    difficulty ${quote("habit_difficulty")} NOT NULL,
+    goal_type ${quote("habit_goal_type")} NOT NULL,
+    is_active boolean NOT NULL DEFAULT true,
+    current_streak integer NOT NULL DEFAULT 0,
+    longest_streak integer NOT NULL DEFAULT 0,
+    last_checkin_date date,
+    last_broken_streak integer,
+    streak_broken_at date,
+    milestones jsonb NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now()
+  )`,
+  `CREATE TABLE ${quote("checkins")} (
+    id serial PRIMARY KEY,
+    habit_id integer NOT NULL REFERENCES ${quote("habits")}(id) ON DELETE CASCADE,
+    user_id text NOT NULL REFERENCES ${quote("users")}(id) ON DELETE CASCADE,
+    date date NOT NULL,
+    completed boolean NOT NULL,
+    value double precision,
+    note text,
+    mood_rating integer,
+    difficulty ${quote("checkin_difficulty")},
+    missed_reason ${quote("missed_reason")},
+    target_snapshot double precision,
+    minimum_snapshot double precision,
+    success_limit_snapshot double precision,
+    target_completed boolean NOT NULL DEFAULT false,
+    reward_granted boolean NOT NULL DEFAULT false,
+    coins_earned integer NOT NULL DEFAULT 0,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT checkins_habit_date_unique UNIQUE (habit_id, date)
+  )`,
+  `CREATE TABLE ${quote("coin_transactions")} (
+    id serial PRIMARY KEY,
+    user_id text NOT NULL REFERENCES ${quote("users")}(id) ON DELETE CASCADE,
+    amount integer NOT NULL,
+    reason ${quote("coin_transaction_reason")} NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now()
+  )`,
+  `CREATE TABLE ${quote("journey_milestones")} (
+    id serial PRIMARY KEY,
+    level_required integer NOT NULL UNIQUE,
+    title text NOT NULL,
+    description text NOT NULL,
+    emoji text NOT NULL,
+    reward_coins integer NOT NULL
+  )`,
+  `CREATE TABLE ${quote("user_journey_milestones")} (
+    id serial PRIMARY KEY,
+    user_id text NOT NULL REFERENCES ${quote("users")}(id) ON DELETE CASCADE,
+    milestone_id integer NOT NULL REFERENCES ${quote("journey_milestones")}(id) ON DELETE CASCADE,
+    reached_at timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT user_journey_milestones_user_milestone_unique UNIQUE (user_id, milestone_id)
+  )`,
+];
+
+async function cleanup() {
+  if (cleanupStarted) return;
+  cleanupStarted = true;
+  try {
+    await Promise.all(servicePools.map((pool) => pool.end()));
+  } finally {
+    try {
+      await adminPool.query(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`);
+    } finally {
+      await adminPool.end();
+      if (tempDir) await rm(tempDir, { recursive: true, force: true });
+      if (originalDatabaseUrl === undefined) delete process.env.DATABASE_URL;
+      else process.env.DATABASE_URL = originalDatabaseUrl;
+    }
+  }
+}
+
+async function prepare() {
+  for (const statement of ddl) await adminPool.query(statement);
+  tempDir = await mkdtemp(join(apiDir, ".reward-test-"));
+  const testEntry = join(tempDir, "reward-test-entry.ts");
+  const serviceBundle = join(tempDir, "reward-test-entry.mjs");
+  await writeFile(
+    testEntry,
+    `
+      export { recordCheckin, CheckinConflictError } from ${JSON.stringify(join(apiDir, "src/lib/checkinService.ts"))};
+      export { grantRewards } from ${JSON.stringify(join(apiDir, "src/lib/gamificationService.ts"))};
+      export { pool } from "@workspace/db";
+    `,
+  );
+  const adapterPlugin = {
+    name: "isolated-postgres-schema",
+    setup(esbuild) {
+      esbuild.onResolve({ filter: /^@workspace\/db$/ }, () => ({
+        path: "isolated-db-adapter",
+        namespace: "isolated-db",
+      }));
+      esbuild.onResolve({ filter: /^pg$/ }, () => ({
+        path: pgEntry,
+        external: true,
+      }));
+      esbuild.onLoad({ filter: /.*/, namespace: "isolated-db" }, () => ({
+        resolveDir: dbDir,
+        loader: "js",
+        contents: `
+          import pg from "pg";
+          import { drizzle } from "drizzle-orm/node-postgres";
+          import * as schema from "./src/schema/index.ts";
+          const { Pool } = pg;
+          export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+          export const db = drizzle(pool, { schema });
+          export * from "./src/schema/index.ts";
+        `,
+      }));
+    },
+  };
+  await build({
+    entryPoints: [testEntry],
+    outfile: serviceBundle,
+    bundle: true,
+    platform: "node",
+    format: "esm",
+    plugins: [adapterPlugin],
+    logLevel: "silent",
+  });
+  const module = await import(pathToFileURL(serviceBundle).href);
+  servicePools.push(module.pool);
+  if (typeof module.recordCheckin !== "function") {
+    throw new Error("Production checkinService must export recordCheckin.");
+  }
+  if (typeof module.grantRewards !== "function") {
+    throw new Error("Production gamificationService must export grantRewards.");
+  }
+  return module;
+}
+
+let service;
+try {
+  service = await prepare();
+} catch (error) {
+  await cleanup();
+  throw error;
+}
+
+test.after(cleanup);
+
+async function reset() {
+  await adminPool.query(
+    `TRUNCATE ${quote("user_journey_milestones")}, ${quote("journey_milestones")},
+     ${quote("coin_transactions")}, ${quote("checkins")}, ${quote("habits")},
+     ${quote("users")} RESTART IDENTITY CASCADE`,
+  );
+}
+
+async function seedUser({ id = "reward-test-user", level = 1, xp = 0, coins = 0 } = {}) {
+  await adminPool.query(
+    `INSERT INTO ${quote("users")} (id, display_name, level, xp, coins)
+     VALUES ($1, 'Integration test', $2, $3, $4)`,
+    [id, level, xp, coins],
+  );
+  return id;
+}
+
+async function seedHabit({
+  userId = "reward-test-user",
+  cadence = "daily",
+  currentStreak = 0,
+  longestStreak = 0,
+  lastCheckinDate = null,
+} = {}) {
+  const result = await adminPool.query(
+    `INSERT INTO ${quote("habits")} (
+       user_id, title, emoji, category, cadence, unit, target_value,
+       minimum_value, difficulty, goal_type, current_streak, longest_streak,
+       last_checkin_date, milestones
+     ) VALUES ($1, 'Walk', '🌱', 'health', $2, 'minutes', 10, 3, 'easy',
+               'build', $3, $4, $5, '[]'::jsonb)
+     RETURNING id`,
+    [userId, cadence, currentStreak, longestStreak, lastCheckinDate],
+  );
+  return result.rows[0].id;
+}
+
+async function seedMilestone(levelRequired = 2, rewardCoins = 25) {
+  return adminPool.query(
+    `INSERT INTO ${quote("journey_milestones")}
+       (level_required, title, description, emoji, reward_coins)
+     VALUES ($1, 'Level milestone', 'Integration test milestone', '✨', $2)
+     RETURNING id`,
+    [levelRequired, rewardCoins],
+  ).then((result) => result.rows[0].id);
+}
+
+async function seedCheckin({
+  habitId,
+  userId = "reward-test-user",
+  date = "2026-06-01",
+  completed = true,
+  rewardGranted = false,
+  coinsEarned = 0,
+  value = 10,
+}) {
+  return adminPool.query(
+    `INSERT INTO ${quote("checkins")} (
+       habit_id, user_id, date, completed, value, target_snapshot,
+       minimum_snapshot, target_completed, reward_granted, coins_earned
+     ) VALUES ($1, $2, $3, $4, $5, 10, 3, $4, $6, $7)
+     RETURNING id`,
+    [habitId, userId, date, completed, value, rewardGranted, coinsEarned],
+  ).then((result) => result.rows[0].id);
+}
+
+function input(date = "2026-06-01", value = 10) {
+  return { date: new Date(`${date}T00:00:00.000Z`), value };
+}
+
+async function rows(table, orderBy = "id") {
+  const result = await adminPool.query(
+    `SELECT * FROM ${quote(table)} ORDER BY "${orderBy}"`,
+  );
+  return result.rows;
+}
+
+async function snapshot(userId, habitId) {
+  const [users, habits, checkins, transactions, milestones, reached] = await Promise.all([
+    adminPool.query(`SELECT * FROM ${quote("users")} WHERE id = $1`, [userId]),
+    adminPool.query(`SELECT * FROM ${quote("habits")} WHERE id = $1`, [habitId]),
+    adminPool.query(`SELECT * FROM ${quote("checkins")} WHERE habit_id = $1 ORDER BY id`, [habitId]),
+    adminPool.query(`SELECT * FROM ${quote("coin_transactions")} WHERE user_id = $1 ORDER BY id`, [userId]),
+    adminPool.query(`SELECT * FROM ${quote("journey_milestones")} ORDER BY id`),
+    adminPool.query(`SELECT * FROM ${quote("user_journey_milestones")} WHERE user_id = $1 ORDER BY id`, [userId]),
+  ]);
+  return {
+    users: users.rows,
+    habits: habits.rows,
+    checkins: checkins.rows,
+    transactions: transactions.rows,
+    milestones: milestones.rows,
+    reached: reached.rows,
+  };
+}
+
+async function installFailure(table, operation, condition) {
+  await adminPool.query(`
+    CREATE FUNCTION ${quote("reject_test_write")}() RETURNS trigger
+    LANGUAGE plpgsql AS $$
+    BEGIN
+      RAISE EXCEPTION 'intentional reward integration test write failure';
+    END;
+    $$`);
+  await adminPool.query(`
+    CREATE TRIGGER injected_reward_failure
+    BEFORE ${operation} ON ${quote(table)}
+    FOR EACH ROW
+    ${condition ? `WHEN (${condition})` : ""}
+    EXECUTE FUNCTION ${quote("reject_test_write")}()`);
+}
+
+async function removeFailure(table) {
+  await adminPool.query(
+    `DROP TRIGGER IF EXISTS injected_reward_failure ON ${quote(table)}`,
+  );
+  await adminPool.query(
+    `DROP FUNCTION IF EXISTS ${quote("reject_test_write")}()`,
+  );
+}
+
+async function expectSuccessfulRetry({
+  userId,
+  habitId,
+  date = "2026-06-01",
+  value = 10,
+  expectedXp = 10,
+  expectedCoins = 5,
+}) {
+  const result = await service.recordCheckin(userId, habitId, input(date, value));
+  assert.ok(result, "retry should return the successful check-in");
+  const [user] = await rows("users");
+  const [checkin] = await rows("checkins");
+  assert.equal(checkin.reward_granted, true);
+  assert.equal(user.xp, expectedXp);
+  assert.equal(user.coins, expectedCoins);
+}
+
+test("parallel same-day submissions grant one reward; parallel habits retain both XP updates", async (t) => {
+  await t.test("same habit and day", async () => {
+    await reset();
+    const userId = await seedUser();
+    const habitId = await seedHabit({ userId });
+
+    const results = await Promise.all([
+      service.recordCheckin(userId, habitId, input()),
+      service.recordCheckin(userId, habitId, input()),
+    ]);
+
+    assert.ok(results.every(Boolean));
+    const [user] = await rows("users");
+    const [checkin] = await rows("checkins");
+    const transactions = await rows("coin_transactions");
+    assert.equal(user.xp, 10);
+    assert.equal(user.coins, 5);
+    assert.equal(checkin.reward_granted, true);
+    assert.equal(checkin.coins_earned, 5);
+    assert.equal((await rows("checkins")).length, 1);
+    const [habit] = await rows("habits");
+    assert.equal(habit.current_streak, 1);
+    assert.equal(transactions.length, 1);
+  });
+
+  await t.test("different habits for one user", async () => {
+    await reset();
+    const userId = await seedUser({ xp: 90 });
+    await seedMilestone(2, 25);
+    const firstHabit = await seedHabit({ userId });
+    const secondHabit = await seedHabit({ userId });
+
+    const results = await Promise.all([
+      service.recordCheckin(userId, firstHabit, input()),
+      service.recordCheckin(userId, secondHabit, input()),
+    ]);
+
+    assert.ok(results.every(Boolean));
+    const [user] = await rows("users");
+    assert.equal(user.level, 2);
+    assert.equal(user.xp, 10);
+    assert.equal(user.coins, 35);
+    assert.equal((await rows("checkins")).length, 2);
+    assert.equal((await rows("user_journey_milestones")).length, 1);
+    const transactions = await rows("coin_transactions");
+    assert.equal(transactions.length, 3);
+    assert.equal(transactions.filter(({ reason }) => reason === "manual").length, 1);
+  });
+});
+
+test("duplicate retry is idempotent, incomplete check-ins can succeed later, and downgrades conflict", async (t) => {
+  await t.test("duplicate successful request does not pay twice", async () => {
+    await reset();
+    const userId = await seedUser();
+    const habitId = await seedHabit({ userId });
+    await service.recordCheckin(userId, habitId, input());
+    await service.recordCheckin(userId, habitId, input());
+
+    const [user] = await rows("users");
+    assert.equal(user.xp, 10);
+    assert.equal(user.coins, 5);
+    assert.equal((await rows("coin_transactions")).length, 1);
+  });
+
+  await t.test("incomplete check-in later completed", async () => {
+    await reset();
+    const userId = await seedUser();
+    const habitId = await seedHabit({ userId });
+    const date = "2026-06-02";
+    const incomplete = await service.recordCheckin(userId, habitId, input(date, 1));
+    assert.equal(incomplete.completed, false);
+    assert.equal((await rows("coin_transactions")).length, 0);
+
+    const completed = await service.recordCheckin(userId, habitId, input(date, 3));
+    assert.equal(completed.completed, true);
+    const [user] = await rows("users");
+    const [habit] = await rows("habits");
+    assert.equal(user.xp, 10);
+    assert.equal(user.coins, 5);
+    assert.equal(habit.current_streak, 1);
+    assert.equal((await rows("checkins")).length, 1);
+    assert.equal((await rows("coin_transactions")).length, 1);
+  });
+
+  await t.test("failed upgrade preserves the existing incomplete check-in for retry", async () => {
+    await reset();
+    const userId = await seedUser();
+    const habitId = await seedHabit({ userId });
+    const date = "2026-06-03";
+    const incomplete = await service.recordCheckin(userId, habitId, input(date, 1));
+    assert.equal(incomplete.completed, false);
+    const before = await snapshot(userId, habitId);
+
+    await installFailure("checkins", "UPDATE");
+    try {
+      await assert.rejects(
+        service.recordCheckin(userId, habitId, input(date, 3)),
+      );
+      assert.deepEqual(await snapshot(userId, habitId), before);
+    } finally {
+      await removeFailure("checkins");
+    }
+
+    const [preserved] = await rows("checkins");
+    assert.equal(preserved.completed, false);
+    assert.equal(preserved.reward_granted, false);
+    assert.equal(preserved.coins_earned, 0);
+    const retry = await service.recordCheckin(userId, habitId, input(date, 3));
+    assert.equal(retry.completed, true);
+    const [user] = await rows("users");
+    const [habit] = await rows("habits");
+    assert.equal(user.xp, 10);
+    assert.equal(user.coins, 5);
+    assert.equal(habit.current_streak, 1);
+    assert.equal((await rows("checkins")).length, 1);
+    assert.equal((await rows("coin_transactions")).length, 1);
+  });
+
+  await t.test("successful check-in cannot be downgraded", async () => {
+    await reset();
+    const userId = await seedUser();
+    const habitId = await seedHabit({ userId });
+    await service.recordCheckin(userId, habitId, input());
+    const before = await snapshot(userId, habitId);
+
+    await assert.rejects(
+      service.recordCheckin(userId, habitId, input("2026-06-01", 0)),
+      (error) => error instanceof service.CheckinConflictError,
+    );
+    assert.deepEqual(await snapshot(userId, habitId), before);
+  });
+});
+
+test("legacy reward markers and coins are honored without retroactive grants", async (t) => {
+  for (const legacy of [
+    { rewardGranted: false, coinsEarned: 0 },
+    { rewardGranted: false, coinsEarned: 8 },
+    { rewardGranted: true, coinsEarned: 0 },
+  ]) {
+    await t.test(
+      `rewardGranted=${legacy.rewardGranted}, coinsEarned=${legacy.coinsEarned}`,
+      async () => {
+        await reset();
+        const userId = await seedUser();
+        const habitId = await seedHabit({ userId });
+        await seedCheckin({ habitId, ...legacy });
+
+        await service.recordCheckin(userId, habitId, input());
+
+        const [user] = await rows("users");
+        const [checkin] = await rows("checkins");
+        assert.equal(user.xp, 0);
+        assert.equal(user.coins, 0);
+        assert.equal(checkin.reward_granted, legacy.rewardGranted);
+        assert.equal(checkin.coins_earned, legacy.coinsEarned);
+        assert.equal((await rows("coin_transactions")).length, 0);
+      },
+    );
+  }
+});
+
+test("a failed write rolls back the whole check-in transaction and can be retried", async (t) => {
+  const failures = [
+    { table: "checkins", operation: "INSERT" },
+    { table: "habits", operation: "UPDATE" },
+    { table: "users", operation: "UPDATE" },
+    { table: "coin_transactions", operation: "INSERT" },
+    { table: "user_journey_milestones", operation: "INSERT", milestone: true },
+    {
+      table: "coin_transactions",
+      operation: "INSERT",
+      condition: "NEW.reason = 'manual'",
+      milestone: true,
+      label: "manual milestone ledger insert",
+    },
+  ];
+
+  for (const failure of failures) {
+    await t.test(`rollback on ${failure.label ?? `${failure.table} write`}`, async () => {
+      await reset();
+      const userId = await seedUser({ xp: failure.milestone ? 90 : 0 });
+      const habitId = await seedHabit({ userId });
+      if (failure.milestone) await seedMilestone();
+      const before = await snapshot(userId, habitId);
+
+      await installFailure(failure.table, failure.operation, failure.condition);
+      try {
+        await assert.rejects(service.recordCheckin(userId, habitId, input()));
+        assert.deepEqual(await snapshot(userId, habitId), before);
+      } finally {
+        await removeFailure(failure.table);
+      }
+
+      await expectSuccessfulRetry({
+        userId,
+        habitId,
+        expectedXp: failure.milestone ? 0 : 10,
+        expectedCoins: failure.milestone ? 30 : 5,
+      });
+      if (failure.milestone) {
+        const [user] = await rows("users");
+        assert.equal(user.level, 2);
+        assert.equal(user.xp, 0);
+        assert.equal((await rows("user_journey_milestones")).length, 1);
+      }
+    });
+  }
+});
+
+test("weekly bonus and level milestone roll back together when the bonus ledger insert fails", async () => {
+  await reset();
+  const userId = await seedUser({ xp: 90 });
+  await seedMilestone(2, 25);
+  const habitId = await seedHabit({
+    userId,
+    currentStreak: 6,
+    longestStreak: 6,
+    lastCheckinDate: "2026-06-06",
+  });
+  const date = "2026-06-07";
+  const before = await snapshot(userId, habitId);
+
+  await installFailure(
+    "coin_transactions",
+    "INSERT",
+    "NEW.reason = 'streak_bonus'",
+  );
+  try {
+    await assert.rejects(service.recordCheckin(userId, habitId, input(date)));
+    assert.deepEqual(await snapshot(userId, habitId), before);
+  } finally {
+    await removeFailure("coin_transactions");
+  }
+
+  const result = await service.recordCheckin(userId, habitId, input(date));
+  assert.equal(result.coinsEarned, 15);
+  const [user] = await rows("users");
+  const [habit] = await rows("habits");
+  const [checkin] = await rows("checkins");
+  const transactions = await rows("coin_transactions");
+  assert.equal(user.level, 2);
+  assert.equal(user.xp, 0);
+  assert.equal(user.coins, 40);
+  assert.equal(habit.current_streak, 7);
+  assert.equal(checkin.reward_granted, true);
+  assert.equal(checkin.coins_earned, 15);
+  assert.deepEqual(
+    transactions.map(({ amount, reason }) => [amount, reason]).sort((a, b) => a[1].localeCompare(b[1])),
+    [[5, "checkin"], [25, "manual"], [10, "streak_bonus"]].sort((a, b) => a[1].localeCompare(b[1])),
+  );
+  assert.equal((await rows("user_journey_milestones")).length, 1);
+});
+
+test("standalone grantRewards rolls back its user update when wallet logging fails", async () => {
+  await reset();
+  const userId = await seedUser();
+  const habitId = await seedHabit({ userId });
+  const before = await snapshot(userId, habitId);
+
+  await installFailure("coin_transactions", "INSERT");
+  try {
+    await assert.rejects(
+      service.grantRewards(userId, { xp: 10, coins: 5, reason: "checkin" }),
+    );
+    assert.deepEqual(await snapshot(userId, habitId), before);
+  } finally {
+    await removeFailure("coin_transactions");
+  }
+
+  await service.grantRewards(userId, { xp: 10, coins: 5, reason: "checkin" });
+  const [user] = await rows("users");
+  assert.equal(user.xp, 10);
+  assert.equal(user.coins, 5);
+  assert.equal((await rows("coin_transactions")).length, 1);
+});
+
+test("a habit owned by another user is not mutated", async () => {
+  await reset();
+  const owner = await seedUser({ id: "habit-owner" });
+  const intruder = await seedUser({ id: "not-the-owner" });
+  const habitId = await seedHabit({ userId: owner });
+  const before = await snapshot(owner, habitId);
+
+  assert.equal(await service.recordCheckin(intruder, habitId, input()), null);
+  assert.deepEqual(await snapshot(owner, habitId), before);
+  const [intruderRow] = (await adminPool.query(
+    `SELECT * FROM ${quote("users")} WHERE id = $1`,
+    [intruder],
+  )).rows;
+  assert.equal(intruderRow.xp, 0);
+  assert.equal(intruderRow.coins, 0);
+});

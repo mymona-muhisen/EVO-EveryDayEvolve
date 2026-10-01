@@ -49,6 +49,9 @@ export const checkinsTable = pgTable(
     minimumSnapshot: doublePrecision("minimum_snapshot"),
     successLimitSnapshot: doublePrecision("success_limit_snapshot"),
     targetCompleted: boolean("target_completed").notNull().default(false),
+    // New rewards set this only in the transaction that also persists wallet,
+    // XP, coin ledger, streak and journey milestones. Legacy paid rows may
+    // instead have coinsEarned > 0; never backfill/regrant those rewards.
     rewardGranted: boolean("reward_granted").notNull().default(false),
     coinsEarned: integer("coins_earned").notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true })

@@ -6,7 +6,6 @@ import {
   ListHabitCheckinsResponse,
   CreateCheckinParams,
   CreateCheckinBody,
-  CreateCheckinResponse,
   RecoverStreakParams,
   RecoverStreakResponse,
   UpdateCheckinReflectionParams,
@@ -15,15 +14,10 @@ import {
 } from "@workspace/api-zod";
 import { requireAuth } from "../middlewares/requireAuth";
 import { ensureUser } from "../lib/userService";
-import { grantRewards, spendCoins } from "../lib/gamificationService";
-import {
-  coinsForCheckin,
-  continuesStreak,
-  recoverStreakCost,
-  xpForDifficulty,
-} from "../lib/rules";
+import { spendCoins } from "../lib/gamificationService";
+import { recoverStreakCost } from "../lib/rules";
 import { toDateOnly, coerceQueryDates } from "../lib/dates";
-import { effectiveMinimum, evaluateHabitCheckin } from "../lib/aiRules";
+import { CheckinConflictError, recordCheckin } from "../lib/checkinService";
 
 const router: IRouter = Router();
 router.use(requireAuth);
@@ -73,144 +67,17 @@ router.post("/habits/:habitId/checkins", async (req, res): Promise<void> => {
     return;
   }
 
-  const [habit] = await db
-    .select()
-    .from(habitsTable)
-    .where(and(eq(habitsTable.id, params.data.habitId), eq(habitsTable.userId, req.userId!)));
-  if (!habit) {
-    res.status(404).json({ error: "Habit not found" });
-    return;
-  }
-
-  const date = toDateOnly(parsed.data.date);
-  const { value, note, moodRating, difficulty, missedReason } = parsed.data;
-
-  const [existing] = await db
-    .select()
-    .from(checkinsTable)
-    .where(and(eq(checkinsTable.habitId, habit.id), eq(checkinsTable.date, date)));
-  const isNewDay = !existing;
-  const targetSnapshot = existing?.targetSnapshot ?? habit.targetValue;
-  const minimumSnapshot = existing?.minimumSnapshot
-    ?? effectiveMinimum(habit.targetValue, habit.minimumValue);
-  const successLimitSnapshot = existing?.successLimitSnapshot ?? habit.successLimitValue;
-  const evaluation = evaluateHabitCheckin({
-    goalType: habit.goalType,
-    targetValue: targetSnapshot,
-    minimumValue: minimumSnapshot,
-    successLimitValue: successLimitSnapshot,
-    value,
-    legacyCompleted: parsed.data.completed,
-  });
-  const { completed, targetCompleted } = evaluation;
-  if (existing?.completed && !completed) {
-    res.status(409).json({ error: "A successful check-in cannot be changed to incomplete" });
-    return;
-  }
-
-  let newStreak = habit.currentStreak;
-  let longestStreak = habit.longestStreak;
-  let coinsEarned = existing?.coinsEarned ?? 0;
-  let bonusCoins = 0;
-  let lastBrokenStreak = habit.lastBrokenStreak;
-  let streakBrokenAt = habit.streakBrokenAt;
-  let lastCheckinDate = habit.lastCheckinDate;
-
-  if (isNewDay || (completed && !existing?.completed)) {
-    if (completed) {
-      const continues = continuesStreak(habit.cadence, habit.lastCheckinDate, date, habit.customDays);
-      newStreak = continues ? habit.currentStreak + 1 : 1;
-      longestStreak = Math.max(longestStreak, newStreak);
-      const { base, bonus } = coinsForCheckin(habit.difficulty, newStreak);
-      coinsEarned = base + bonus;
-      bonusCoins = bonus;
-      lastBrokenStreak = null;
-      streakBrokenAt = null;
-      lastCheckinDate = date;
-    } else if (habit.currentStreak > 0) {
-      lastBrokenStreak = habit.currentStreak;
-      streakBrokenAt = date;
-      newStreak = 0;
+  try {
+    const result = await recordCheckin(req.userId!, params.data.habitId, parsed.data);
+    if (!result) {
+      res.status(404).json({ error: "Habit not found" });
+      return;
     }
+    res.status(201).json(result);
+  } catch (error) {
+    if (!(error instanceof CheckinConflictError)) throw error;
+    res.status(409).json({ error: error.message });
   }
-
-  const [checkin] = await db
-    .insert(checkinsTable)
-    .values({
-      habitId: habit.id,
-      userId: req.userId!,
-      date,
-      completed,
-      value: value ?? null,
-      note: note ?? null,
-      moodRating: moodRating ?? null,
-      difficulty: difficulty ?? null,
-      missedReason: missedReason ?? null,
-      targetSnapshot,
-      minimumSnapshot,
-      successLimitSnapshot,
-      targetCompleted,
-      rewardGranted: false,
-      coinsEarned: 0,
-    })
-    .onConflictDoUpdate({
-      target: [checkinsTable.habitId, checkinsTable.date],
-      set: {
-        completed,
-        value: value ?? null,
-        note: note ?? null,
-        moodRating: moodRating ?? null,
-        difficulty: difficulty ?? null,
-        missedReason: missedReason ?? null,
-        targetCompleted,
-      },
-    })
-    .returning();
-
-  const [updatedHabit] = await db
-    .update(habitsTable)
-    .set({
-      currentStreak: newStreak,
-      longestStreak,
-      lastCheckinDate,
-      lastBrokenStreak,
-      streakBrokenAt,
-    })
-    .where(eq(habitsTable.id, habit.id))
-    .returning();
-
-  const alreadyRewarded = Boolean(existing?.rewardGranted || (existing?.coinsEarned ?? 0) > 0);
-  let rewardClaimed = false;
-  if (completed && !alreadyRewarded) {
-    const [claimed] = await db.update(checkinsTable)
-      .set({ rewardGranted: true, coinsEarned })
-      .where(and(eq(checkinsTable.id, checkin.id), eq(checkinsTable.rewardGranted, false)))
-      .returning({ id: checkinsTable.id });
-    rewardClaimed = Boolean(claimed);
-  }
-
-  if (rewardClaimed) {
-    const baseCoins = coinsEarned - bonusCoins;
-    await grantRewards(req.userId!, {
-      xp: xpForDifficulty(habit.difficulty),
-      coins: baseCoins,
-      reason: "checkin",
-    });
-    if (bonusCoins > 0) {
-      await grantRewards(req.userId!, { coins: bonusCoins, reason: "streak_bonus" });
-    }
-  }
-
-  res.status(201).json(
-    CreateCheckinResponse.parse({
-      ...checkin,
-      completed,
-      targetCompleted,
-      coinsEarned: rewardClaimed ? coinsEarned : checkin.coinsEarned,
-      newStreak,
-      habit: updatedHabit,
-    }),
-  );
 });
 
 router.patch("/habits/:habitId/checkins/:date", async (req, res): Promise<void> => {

@@ -10,6 +10,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test:ai": "node ./test/run-ai.mjs",
     "test:recovery": "node ./test/recovery-flow.mjs",
+    "test:rewards": "node ./test/reward-atomicity.mjs",
     "test:ai:live": "node ./test/run-ai.mjs smoke"
   },
   "dependencies": {
