@@ -9,8 +9,8 @@ When building isolated Node test bundles with esbuild, bundle workspace librarie
 
 **How to apply:** For test-only esbuild runners that import workspace source, start with normal bundling and explicitly externalize the minimal runtime dependencies instead of using `packages: "external"`.
 
-An isolated database fixture must include every table exercised by the imported route, including unrelated read-only dependencies.
+An isolated database fixture must include every table exercised by the imported route, including unrelated read-only dependencies, and the complete current columns when a query uses an unprojected select.
 
-**Why:** Adding a dashboard assertion to a reward test reached an existing time-awareness query; the incomplete fixture produced an HTTP 500 even though the development schema was correct.
+**Why:** Adding a dashboard assertion to a reward test reached an existing time-awareness query; the incomplete fixture produced an HTTP 500 even though the development schema was correct. A shared upload-provenance schema change also made an older isolated cover-image test return 500 before reaching its expected ownership rejection.
 
-**How to apply:** When extending a route integration harness, account for its read dependencies as well as its writes. Distinguish fixture/schema failures from application failures before changing production behavior.
+**How to apply:** When extending a route integration harness, account for its read dependencies as well as its writes. Sync shared-table fixture columns across affected harnesses, even when new fields do not appear in the tested request. Distinguish fixture/schema failures from application failures before changing production behavior.

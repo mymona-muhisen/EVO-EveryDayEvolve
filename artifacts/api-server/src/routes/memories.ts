@@ -6,6 +6,7 @@ import {
   habitDaysTable,
   habitsTable,
   memoriesTable,
+  usersTable,
 } from "@workspace/db";
 import {
   CreateMemoryBody,
@@ -256,10 +257,39 @@ router.post("/memories", async (req, res): Promise<void> => {
     return;
   }
 
+  let sourceObjectPath: string;
+  try {
+    sourceObjectPath = await db.transaction(async (tx) => {
+      const [owner] = await tx.select({ id: usersTable.id }).from(usersTable)
+        .where(eq(usersTable.id, req.userId!)).for("update");
+      if (!owner) throw new MemoryCaptureError("User not found", 404);
+      return objectStorageService.trySetObjectEntityAclPolicy(
+        parsed.data.photoObjectPath,
+        { owner: req.userId!, visibility: "private" },
+        req.userId!,
+        tx,
+      );
+    });
+  } catch (error) {
+    if (error instanceof MemoryCaptureError) {
+      res.status(error.statusCode).json({ error: error.message });
+      return;
+    }
+    if (error instanceof ObjectAclOwnershipError) {
+      res.status(403).json({ error: error.message });
+      return;
+    }
+    if (error instanceof ObjectNotFoundError) {
+      res.status(404).json({ error: "Photo object was not found" });
+      return;
+    }
+    throw error;
+  }
+
   let optimizedPath: string;
   try {
     optimizedPath = await memoryImageService.createOptimizedPrivatePhoto(
-      parsed.data.photoObjectPath,
+      sourceObjectPath,
       req.userId!,
     );
   } catch (error) {
@@ -281,6 +311,10 @@ router.post("/memories", async (req, res): Promise<void> => {
 
   try {
     const memory = await db.transaction(async (tx) => {
+      const [owner] = await tx.select({ id: usersTable.id }).from(usersTable)
+        .where(eq(usersTable.id, req.userId!)).for("update");
+      if (!owner) throw new MemoryCaptureError("User not found", 404);
+
       const { day } = await assertCaptureEligible(
         tx,
         req.userId!,
@@ -296,6 +330,15 @@ router.post("/memories", async (req, res): Promise<void> => {
       if (existing) {
         throw new MemoryCaptureError("This saved journey day already has a memory", 409);
       }
+
+      // Adoption and the memory reference share the owner's lock and transaction,
+      // preventing the private-upload cleanup worker from deleting a live photo.
+      const photoObjectPath = await objectStorageService.trySetObjectEntityAclPolicy(
+        optimizedPath,
+        { owner: req.userId!, visibility: "private" },
+        req.userId!,
+        tx,
+      );
       const [created] = await tx.insert(memoriesTable).values({
         userId: req.userId!,
         habitId: parsed.data.habitId,
@@ -303,7 +346,7 @@ router.post("/memories", async (req, res): Promise<void> => {
         note: caption ?? "",
         caption,
         visibility: "private",
-        photoObjectPath: optimizedPath,
+        photoObjectPath,
         date,
       }).returning();
       if (!created) throw new Error("Memory insert returned no row");
@@ -317,14 +360,18 @@ router.post("/memories", async (req, res): Promise<void> => {
     }
     res.status(201).json(CreateMemoryResponse.parse(memoryResponse(row)));
   } catch (error) {
-    try {
-      await objectStorageService.deleteDerivedObjectIfUnreferenced(optimizedPath, req.userId!);
-    } catch {
-      // If reference state cannot be verified, leave the unique private object
-      // for background orphan cleanup rather than risk deleting a shared file.
-    }
+    // The derived object remains provenance-tracked and is eligible for the
+    // cleanup worker only after its ordinary seven-day unreferenced grace.
     if (error instanceof MemoryCaptureError) {
       res.status(error.statusCode).json({ error: error.message });
+      return;
+    }
+    if (error instanceof ObjectAclOwnershipError) {
+      res.status(403).json({ error: error.message });
+      return;
+    }
+    if (error instanceof ObjectNotFoundError) {
+      res.status(404).json({ error: "Photo object was not found" });
       return;
     }
     if (hasDatabaseErrorCode(error, "23505")) {
@@ -400,12 +447,18 @@ router.delete("/memories/:memoryId", async (req, res): Promise<void> => {
     return;
   }
 
-  const [memory] = await db.delete(memoriesTable).where(and(
-    eq(memoriesTable.id, params.data.memoryId),
-    eq(memoriesTable.userId, req.userId!),
-  )).returning({ id: memoriesTable.id });
+  const deleted = await db.transaction(async (tx) => {
+    const [owner] = await tx.select({ id: usersTable.id }).from(usersTable)
+      .where(eq(usersTable.id, req.userId!)).for("update");
+    if (!owner) return false;
+    const [memory] = await tx.delete(memoriesTable).where(and(
+      eq(memoriesTable.id, params.data.memoryId),
+      eq(memoriesTable.userId, req.userId!),
+    )).returning({ id: memoriesTable.id });
+    return Boolean(memory);
+  });
 
-  if (!memory) {
+  if (!deleted) {
     res.status(404).json({ error: "Memory not found" });
     return;
   }

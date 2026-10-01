@@ -49,6 +49,7 @@ export const memoriesTable = pgTable(
   },
   (table) => [
     index("memories_owner_date_idx").on(table.userId, table.date.desc()),
+    index("memories_photo_object_path_idx").on(table.photoObjectPath),
     uniqueIndex("memories_habit_day_unique")
       .on(table.habitDayId)
       .where(sql`${table.habitDayId} IS NOT NULL`),

@@ -1,6 +1,7 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 import { seedCatalogs } from "./lib/seed";
+import { startPrivateUploadCleanupScheduler } from "./lib/privateUploadCleanup";
 
 const rawPort = process.env["PORT"];
 
@@ -29,6 +30,7 @@ async function start(): Promise<void> {
       process.exit(1);
     }
 
+    startPrivateUploadCleanupScheduler();
     logger.info({ port }, "Server listening");
   });
 }

@@ -1,17 +1,22 @@
 import Uppy from '@uppy/core';
 import AwsS3 from '@uppy/aws-s3';
+import { useMemo } from 'react';
+import { useUser } from '@clerk/react';
 import { useRequestUploadUrl } from '@workspace/api-client-react';
+import { createRetryablePhotoUpload } from '@/lib/retryable-photo-upload';
 
 /** Direct-to-storage upload using Uppy; only metadata passes through the application API. */
 export function usePhotoUpload() {
   const request = useRequestUploadUrl();
-  const uploadPhoto = async (file: File): Promise<string> => {
+  const { user } = useUser();
+  const requestUpload = request.mutateAsync;
+  const uploadPhoto = useMemo(() => createRetryablePhotoUpload(async (file: File): Promise<string> => {
     let objectPath = '';
     const uppy = new Uppy({ autoProceed: false, restrictions: { maxNumberOfFiles: 1, allowedFileTypes: ['image/*'] } });
     uppy.use(AwsS3, {
       shouldUseMultipart: false,
       getUploadParameters: async (uppyFile) => {
-        const signed = await request.mutateAsync({ data: {
+        const signed = await requestUpload({ data: {
           name: uppyFile.name,
           size: uppyFile.size || file.size,
           contentType: uppyFile.type || file.type,
@@ -32,6 +37,6 @@ export function usePhotoUpload() {
     } finally {
       uppy.destroy();
     }
-  };
+  }), [requestUpload, user?.id]);
   return { uploadPhoto };
 }

@@ -65,13 +65,13 @@ export async function buildRewardInput(d: RewardDraft, upload: (f: File) => Prom
   return { title: d.title.trim(), type: d.type, ...(d.description.trim() ? { description: d.description.trim() } : {}), ...(imageObjectPath ? { imageObjectPath } : {}), ...(d.value !== '' ? { estimatedValue: Number(d.value) } : {}) };
 }
 
-export function RewardEditor({ draft, onChange, optional = true }: { draft: RewardDraft; onChange: (d: RewardDraft) => void; optional?: boolean }) {
+export function RewardEditor({ draft, onChange, optional = true, disabled = false }: { draft: RewardDraft; onChange: (d: RewardDraft) => void; optional?: boolean; disabled?: boolean }) {
   const set = (p: Partial<RewardDraft>) => onChange({ ...draft, ...p });
   const local = useMemo(() => (draft.file ? URL.createObjectURL(draft.file) : null), [draft.file]);
   useEffect(() => () => { if (local) URL.revokeObjectURL(local); }, [local]);
   const remote = useRewardImage(draft.file ? null : draft.keepPath);
   const preview = local ?? remote.url;
-  return <div className="space-y-3" data-testid="reward-editor">
+  return <fieldset disabled={disabled} className="space-y-3 min-w-0" data-testid="reward-editor">
     {optional && <div className="grid grid-cols-2 gap-2">{([[false, 'بدون مكافأة'], [true, 'أعمل من أجل شيء']] as const).map(([v, t]) => <button type="button" key={String(v)} data-testid={v ? 'button-reward-on' : 'button-reward-off'} aria-pressed={draft.enabled === v} onClick={() => set({ enabled: v })} className={`rounded-xl p-3 border text-sm ${draft.enabled === v ? 'bg-[#dfebdd] border-[#3b765c]' : 'border-[#e3d9c9]'}`}>{t}</button>)}</div>}
     {draft.enabled && <div className="space-y-3">
       <p className="text-sm font-bold">ما الذي تعمل من أجله؟</p>
@@ -86,7 +86,7 @@ export function RewardEditor({ draft, onChange, optional = true }: { draft: Rewa
       </div>
       <p className="text-xs muted">خاصة بك وحدك. لا شراء ولا دفع؛ هذا وعد تقدّمه لنفسك.</p>
     </div>}
-  </div>;
+  </fieldset>;
 }
 
 const statusAr = { pending: 'في الطريق', unlocked: 'مفتوحة', claimed: 'استلمتها' } as const;
@@ -120,7 +120,7 @@ export function RewardEditDialog({ reward, onClose }: { reward: JourneyReward; o
   const upd = useUpdateJourneyReward(), qc = useQueryClient(), { uploadPhoto } = usePhotoUpload();
   const err = draftError(d);
   const save = async () => {
-    if (err || !ok) return;
+    if (busy || err || !ok) return;
     setBusy(true); setFail('');
     try {
       const img = d.file ? await uploadPhoto(d.file) : d.keepPath ? undefined : null;
@@ -129,8 +129,8 @@ export function RewardEditDialog({ reward, onClose }: { reward: JourneyReward; o
       toast.success('حُفظت مكافأتك'); onClose();
     } catch { setFail('تعذّر حفظ التعديل. مكافأتك كما كانت؛ يمكنك المحاولة مجددًا.'); } finally { setBusy(false); }
   };
-  return <Modal title="تعديل المكافأة" onClose={onClose}><div className="space-y-4" dir="rtl">
-    <RewardEditor draft={d} onChange={setD} optional={false} />
+  return <Modal title="تعديل المكافأة" onClose={() => { if (!busy) onClose(); }}><div className="space-y-4" dir="rtl">
+    <RewardEditor draft={d} onChange={setD} optional={false} disabled={busy} />
     {(err || fail) && <p role="alert" data-testid="text-edit-reward-error" className="text-sm text-[#b96355]">{err || fail}</p>}
     <label className="flex gap-2 items-start text-sm"><input data-testid="checkbox-confirm-reward-edit" type="checkbox" checked={ok} onChange={e => setOk(e.target.checked)} className="mt-1" /><span>أؤكد أنني أريد تغيير مكافأة هذه الرحلة. رحلتي وتقدّمي لن يتأثرا.</span></label>
     <button type="button" data-testid="button-save-reward-edit" className="btn" disabled={busy || !ok || !!err} onClick={save}>{busy ? 'نحفظ…' : fail ? 'أعد المحاولة' : 'احفظ التعديل'}</button>
@@ -143,6 +143,7 @@ export function AddRewardPanel({ habitId }: { habitId: number }) {
   const create = useCreateJourneyReward(), qc = useQueryClient(), { uploadPhoto } = usePhotoUpload();
   const err = draftError(d);
   const save = async () => {
+    if (busy) return;
     if (err) { setFail(err); return; }
     setBusy(true); setFail('');
     try {
@@ -153,7 +154,7 @@ export function AddRewardPanel({ habitId }: { habitId: number }) {
     } catch { setFail('تعذّر حفظ المكافأة. حاول مجددًا.'); } finally { setBusy(false); }
   };
   return <><div className="panel rounded-2xl p-3 flex items-center gap-3" data-testid="card-no-reward"><Gift size={20} className="text-[#b87755] shrink-0" /><span className="text-sm flex-1">لا مكافأة لهذه الرحلة بعد.</span><button type="button" data-testid="button-add-reward" className="btn btn-light !py-1.5" onClick={() => setOpen(true)}>أضف مكافأة</button></div>
-    {open && <Modal title="ما الذي تعمل من أجله؟" onClose={() => setOpen(false)}><div className="space-y-4" dir="rtl"><RewardEditor draft={d} onChange={setD} optional={false} />{fail && <p role="alert" data-testid="text-add-reward-error" className="text-sm text-[#b96355]">{fail}</p>}<button type="button" data-testid="button-save-reward" className="btn" disabled={busy} onClick={save}>{busy ? 'نحفظ…' : 'احفظ المكافأة'}</button></div></Modal>}</>;
+    {open && <Modal title="ما الذي تعمل من أجله؟" onClose={() => { if (!busy) setOpen(false); }}><div className="space-y-4" dir="rtl"><RewardEditor draft={d} onChange={setD} optional={false} disabled={busy} />{fail && <p role="alert" data-testid="text-add-reward-error" className="text-sm text-[#b96355]">{fail}</p>}<button type="button" data-testid="button-save-reward" className="btn" disabled={busy} onClick={save}>{busy ? 'نحفظ…' : 'احفظ المكافأة'}</button></div></Modal>}</>;
 }
 
 export function DashboardRewards({ cards }: { cards?: DashboardJourneyRewardCard[] }) {
@@ -201,4 +202,3 @@ export function JourneyHistory({ footer }: { footer?: ReactNode }) {
     {footer}
   </section>;
 }
-

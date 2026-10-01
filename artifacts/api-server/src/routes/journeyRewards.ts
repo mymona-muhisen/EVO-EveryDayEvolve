@@ -159,14 +159,6 @@ router.post("/journey-rewards", async (req, res): Promise<void> => {
     return;
   }
 
-  let content: Awaited<ReturnType<typeof prepareJourneyRewardInput>>;
-  try {
-    content = await prepareJourneyRewardInput(req.userId!, parsed.data);
-  } catch (error) {
-    res.status(400).json({ error: error instanceof Error ? error.message : "Invalid private reward image" });
-    return;
-  }
-
   try {
     const result = await db.transaction(async (tx) => {
       const user = await lockOwner(tx, req.userId!);
@@ -183,6 +175,16 @@ router.post("/journey-rewards", async (req, res): Promise<void> => {
           return { kind: "invalid_journey" } as const;
         }
         habit = matched;
+      }
+
+      let content: Awaited<ReturnType<typeof prepareJourneyRewardInput>>;
+      try {
+        content = await prepareJourneyRewardInput(tx, req.userId!, parsed.data);
+      } catch (error) {
+        return {
+          kind: "invalid_image",
+          message: error instanceof Error ? error.message : "Invalid private reward image",
+        } as const;
       }
 
       const [reward] = await tx.insert(journeyRewardsTable).values({
@@ -214,6 +216,10 @@ router.post("/journey-rewards", async (req, res): Promise<void> => {
     }
     if (result.kind === "invalid_journey") {
       res.status(400).json({ error: "A reward can only attach to a started 22-day journey" });
+      return;
+    }
+    if (result.kind === "invalid_image") {
+      res.status(400).json({ error: result.message });
       return;
     }
     res.status(201).json(CreateJourneyRewardResponse.parse(
@@ -265,20 +271,6 @@ router.patch("/journey-rewards/:journeyRewardId", async (req, res): Promise<void
     return;
   }
 
-  let preparedImage: string | null | undefined;
-  if (Object.hasOwn(parsed.data, "imageObjectPath")) {
-    if (parsed.data.imageObjectPath == null) {
-      preparedImage = null;
-    } else {
-      try {
-        preparedImage = await prepareJourneyRewardImage(req.userId!, parsed.data.imageObjectPath);
-      } catch (error) {
-        res.status(400).json({ error: error instanceof Error ? error.message : "Invalid private reward image" });
-        return;
-      }
-    }
-  }
-
   try {
     const result = await db.transaction(async (tx) => {
       const user = await lockOwner(tx, req.userId!);
@@ -328,6 +320,22 @@ router.patch("/journey-rewards/:journeyRewardId", async (req, res): Promise<void
         nextHabit = matched;
       }
 
+      let preparedImage: string | null | undefined;
+      if (Object.hasOwn(parsed.data, "imageObjectPath")) {
+        try {
+          preparedImage = await prepareJourneyRewardImage(
+            tx,
+            req.userId!,
+            parsed.data.imageObjectPath,
+          );
+        } catch (error) {
+          return {
+            kind: "invalid_image",
+            message: error instanceof Error ? error.message : "Invalid private reward image",
+          } as const;
+        }
+      }
+
       const update: Partial<typeof journeyRewardsTable.$inferInsert> = {
         updatedAt: new Date(),
       };
@@ -357,7 +365,6 @@ router.patch("/journey-rewards/:journeyRewardId", async (req, res): Promise<void
         currentDay: synchronized.lifecycle.calendarDay,
       } as const;
     });
-
     if (result.kind === "not_found") {
       res.status(404).json({ error: "Journey reward not found" });
       return;
@@ -372,6 +379,10 @@ router.patch("/journey-rewards/:journeyRewardId", async (req, res): Promise<void
     }
     if (result.kind === "not_pending") {
       res.status(409).json({ error: "Only pending journey rewards can be changed" });
+      return;
+    }
+    if (result.kind === "invalid_image") {
+      res.status(400).json({ error: result.message });
       return;
     }
     res.json(UpdateJourneyRewardResponse.parse(

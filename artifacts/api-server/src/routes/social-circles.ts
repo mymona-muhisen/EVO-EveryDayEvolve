@@ -1,5 +1,6 @@
 import { Readable } from "node:stream";
 import { Router, type IRouter, type Request, type Response } from "express";
+import { eq } from "drizzle-orm";
 import {
   CreateSocialChallengeBody,
   CreateSocialChallengeResponse,
@@ -46,7 +47,7 @@ import {
   UpdateSocialGroupCoverParams,
   UpdateSocialGroupCoverResponse,
 } from "@workspace/api-zod";
-import { db } from "@workspace/db";
+import { db, usersTable } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
 import { ensureUser } from "../lib/userService";
 import { MemoryImageError, MemoryImageService } from "../lib/memoryImageService";
@@ -270,17 +271,42 @@ router.put("/social/groups/:groupId/cover", route(async (req, res) => {
   await db.transaction((tx) => requireGroupOwner(tx, params.data.groupId, req.userId!));
   let derivedPath: string | null = null;
   if (body.data.imageObjectPath !== null) {
-    if (!body.data.imageObjectPath.startsWith("/objects/uploads/")) {
+    const sourcePath = body.data.imageObjectPath;
+    if (!sourcePath.startsWith("/objects/uploads/")) {
       res.status(400).json({ error: "Cover image must be an authenticated private upload" });
       return;
     }
+    const sourceObjectPath = await db.transaction(async (tx) => {
+      const [owner] = await tx.select({ id: usersTable.id }).from(usersTable)
+        .where(eq(usersTable.id, req.userId!)).for("update");
+      if (!owner) throw new SocialHttpError(404, "User not found");
+      await requireGroupOwner(tx, params.data.groupId, req.userId!);
+      return objectStorageService.trySetObjectEntityAclPolicy(
+        sourcePath,
+        { owner: req.userId!, visibility: "private" },
+        req.userId!,
+        tx,
+      );
+    });
     derivedPath = await memoryImageService.createOptimizedPrivatePhoto(
-      body.data.imageObjectPath,
+      sourceObjectPath,
       req.userId!,
     );
   }
-  const payload = await db.transaction((tx) =>
-    updateGroupCover(tx, params.data.groupId, req.userId!, derivedPath));
+  const payload = await db.transaction(async (tx) => {
+    const [owner] = await tx.select({ id: usersTable.id }).from(usersTable)
+      .where(eq(usersTable.id, req.userId!)).for("update");
+    if (!owner) throw new SocialHttpError(404, "User not found");
+    if (derivedPath) {
+      derivedPath = await objectStorageService.trySetObjectEntityAclPolicy(
+        derivedPath,
+        { owner: req.userId!, visibility: "private" },
+        req.userId!,
+        tx,
+      );
+    }
+    return updateGroupCover(tx, params.data.groupId, req.userId!, derivedPath);
+  });
   res.json(UpdateSocialGroupCoverResponse.parse(payload));
 }));
 

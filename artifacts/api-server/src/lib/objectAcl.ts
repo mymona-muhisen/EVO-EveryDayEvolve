@@ -87,11 +87,42 @@ export async function getObjectAclPolicy(
   objectFile: File,
 ): Promise<ObjectAclPolicy | null> {
   const [metadata] = await objectFile.getMetadata();
+  return objectAclPolicyFromMetadata(metadata);
+}
+
+export function objectAclPolicyFromMetadata(
+  metadata: { metadata?: Record<string, unknown> } | null | undefined,
+): ObjectAclPolicy | null {
+  if (metadata?.metadata != null && (
+    typeof metadata.metadata !== "object"
+    || Array.isArray(metadata.metadata)
+  )) {
+    throw new Error("Malformed object metadata");
+  }
   const aclPolicy = metadata?.metadata?.[ACL_POLICY_METADATA_KEY];
-  if (!aclPolicy) {
+  if (aclPolicy == null) {
     return null;
   }
-  return JSON.parse(aclPolicy as string);
+  if (typeof aclPolicy !== "string") {
+    throw new Error("Malformed object ACL policy metadata");
+  }
+  const parsed: unknown = JSON.parse(aclPolicy);
+  if (
+    typeof parsed !== "object"
+    || parsed == null
+    || Array.isArray(parsed)
+    || typeof (parsed as { owner?: unknown }).owner !== "string"
+    || !["public", "private"].includes(
+      String((parsed as { visibility?: unknown }).visibility),
+    )
+    || (
+      (parsed as { aclRules?: unknown }).aclRules != null
+      && !Array.isArray((parsed as { aclRules?: unknown }).aclRules)
+    )
+  ) {
+    throw new Error("Malformed object ACL policy metadata");
+  }
+  return parsed as ObjectAclPolicy;
 }
 
 export async function canAccessObject({

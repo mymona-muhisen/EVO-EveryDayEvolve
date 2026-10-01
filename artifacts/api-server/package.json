@@ -19,6 +19,7 @@
     "test:social-circles": "node --test ./test/social-challenge-habit.mjs ./test/social-circles-http.mjs",
     "test:recovery": "node ./test/recovery-flow.mjs",
     "test:rewards": "node ./test/reward-atomicity.mjs",
+    "test:private-upload-cleanup": "node --test --test-name-pattern='private upload cleanup' ./test/reward-atomicity.mjs",
     "test:decorations": "node ./test/decoration-atomicity.mjs",
     "test:ai:live": "node ./test/run-ai.mjs smoke"
   },

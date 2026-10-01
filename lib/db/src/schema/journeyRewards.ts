@@ -46,6 +46,7 @@ export const journeyRewardsTable = pgTable("journey_rewards", {
 }, (table) => [
   uniqueIndex("journey_rewards_habit_unique").on(table.habitId),
   index("journey_rewards_owner_created_idx").on(table.userId, table.createdAt),
+  index("journey_rewards_image_url_idx").on(table.imageUrl),
 ]);
 
 export type JourneyRewardRow = typeof journeyRewardsTable.$inferSelect;

@@ -14,8 +14,15 @@ export const objectUploadsTable = pgTable("object_uploads", {
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
+  unreferencedSince: timestamp("unreferenced_since", { withTimezone: true }),
+  lastCleanupAttemptAt: timestamp("last_cleanup_attempt_at", { withTimezone: true }),
 }, (table) => [
   index("object_uploads_owner_idx").on(table.userId),
+  index("object_uploads_cleanup_idx").on(
+    table.unreferencedSince,
+    table.lastCleanupAttemptAt,
+    table.createdAt,
+  ),
 ]);
 
 export type ObjectUploadRow = typeof objectUploadsTable.$inferSelect;

@@ -19,3 +19,4 @@
 - [Valid image fixtures](image-test-fixtures.md) — browsers may display CRC-invalid PNGs that Sharp correctly rejects; generate and validate fixtures before upload testing.
 - [Database target verification](database-target-verification.md) — select the platform SQL environment explicitly; a process flag or database name alone is not target verification.
 - [Social consent boundaries](social-consent-boundaries.md) — no retrospective announcements; group/challenge scopes stay separate, and social reads must not lock rewarded check-ins.
+- [Private upload cleanup](private-upload-cleanup-policy.md) — grace starts when an upload is observed unused; detached rewards remain live, and unknown/public assets are excluded.

@@ -268,10 +268,15 @@ const ddl = [
   `CREATE TABLE ${quote("object_uploads")} (
     object_path text PRIMARY KEY,
     user_id text NOT NULL REFERENCES ${quote("users")}(id) ON DELETE CASCADE,
-    created_at timestamptz NOT NULL DEFAULT now()
+    created_at timestamptz NOT NULL DEFAULT now(),
+    unreferenced_since timestamptz,
+    last_cleanup_attempt_at timestamptz
   )`,
   `CREATE INDEX "journey_rewards_owner_created_idx" ON ${quote("journey_rewards")} (user_id, created_at)`,
+  `CREATE INDEX "journey_rewards_image_url_idx" ON ${quote("journey_rewards")} (image_url)`,
   `CREATE INDEX "object_uploads_owner_idx" ON ${quote("object_uploads")} (user_id)`,
+  `CREATE INDEX "object_uploads_cleanup_idx" ON ${quote("object_uploads")} (unreferenced_since, last_cleanup_attempt_at, created_at)`,
+  `CREATE INDEX "memories_photo_object_path_idx" ON ${quote("memories")} (photo_object_path)`,
   `CREATE TABLE ${quote("rewards")} (
     id serial PRIMARY KEY,
     user_id text NOT NULL REFERENCES ${quote("users")}(id) ON DELETE CASCADE,
@@ -486,6 +491,7 @@ async function prepare() {
       export { default as dashboardRouter } from ${JSON.stringify(join(apiDir, "src/routes/dashboard.ts"))};
       export { default as memoriesRouter } from ${JSON.stringify(join(apiDir, "src/routes/memories.ts"))};
       export { default as storageRouter } from ${JSON.stringify(join(apiDir, "src/routes/storage.ts"))};
+      export { cleanupUnreferencedPrivateUploads } from ${JSON.stringify(join(apiDir, "src/lib/privateUploadCleanup.ts"))};
       export { default as dailyRouter } from ${JSON.stringify(join(apiDir, "src/routes/daily.ts"))};
       export {
         getDailyHabitState, changeDailyHabitExecution, saveDailyHabitReflection,
@@ -564,29 +570,49 @@ async function prepare() {
             async getMetadata() {
               const object = mockStorageObjects.get(this.key);
               if (!object) throw new Error("Mock object not found");
+              if (object.beforeGetMetadata) await object.beforeGetMetadata();
               return [structuredClone(object.metadata)];
             }
             async setMetadata(update) {
               const object = mockStorageObjects.get(this.key);
               if (!object) throw new Error("Mock object not found");
+              if (object.beforeSetMetadata) await object.beforeSetMetadata();
               object.metadata.metadata = {
                 ...(object.metadata.metadata ?? {}),
                 ...(update.metadata ?? {}),
               };
+              if (object.metadata.metageneration != null) {
+                object.metadata.metageneration = String(Number(object.metadata.metageneration) + 1);
+              }
               return [structuredClone(object.metadata)];
             }
             async save(contents, options = {}) {
               mockStorageObjects.set(this.key, {
                 data: Buffer.from(contents),
                 metadata: {
+                  generation: "1",
+                  metageneration: "1",
                   contentType: options.metadata?.contentType,
                   size: String(contents.length),
                   metadata: structuredClone(options.metadata?.metadata ?? {}),
                 },
               });
             }
-            async delete() {
+            async delete(options = {}) {
+              const object = mockStorageObjects.get(this.key);
+              if (!object) return [undefined];
+              if (object.beforeDelete) await object.beforeDelete();
+              if (object.failDelete) throw Object.assign(new Error("Injected object delete failure"), { code: 503 });
+              if (options.ifGenerationMatch != null
+                && String(options.ifGenerationMatch) !== String(object.metadata.generation)) {
+                throw Object.assign(new Error("Generation precondition failed"), { code: 412 });
+              }
+              if (options.ifMetagenerationMatch != null
+                && String(options.ifMetagenerationMatch) !== String(object.metadata.metageneration)) {
+                throw Object.assign(new Error("Metageneration precondition failed"), { code: 412 });
+              }
               mockStorageObjects.delete(this.key);
+              return [undefined];
             }
             createReadStream() {
               const object = mockStorageObjects.get(this.key);
@@ -812,6 +838,9 @@ async function startJourneyApi(userId) {
     service.memoriesRouter,
     service.storageRouter,
   );
+  app.use((error, _req, res, _next) => {
+    res.status(500).json({ error: error instanceof Error ? error.message : "Unexpected test error" });
+  });
   const server = app.listen(0, "127.0.0.1");
   await new Promise((resolve) => server.once("listening", resolve));
   const baseUrl = `http://127.0.0.1:${server.address().port}`;
@@ -828,6 +857,44 @@ async function startJourneyApi(userId) {
       server.close((error) => error ? reject(error) : resolve())),
     requestErrors,
   };
+}
+
+const privateUploadPath = () => `/objects/uploads/${randomUUID()}`;
+const privateUploadStorageKey = (objectPath) =>
+  `test-bucket/private/${objectPath.slice("/objects/".length)}`;
+
+async function seedPrivateUpload(userId, {
+  objectPath = privateUploadPath(),
+  unreferencedSince = null,
+  lastCleanupAttemptAt = null,
+  aclPolicy = { owner: userId, visibility: "private" },
+  contentType = "image/jpeg",
+  contents = validMemoryPng,
+  failDelete = false,
+} = {}) {
+  await adminPool.query(
+    `INSERT INTO ${quote("object_uploads")}
+       (object_path, user_id, unreferenced_since, last_cleanup_attempt_at)
+     VALUES ($1, $2, $3, $4)`,
+    [objectPath, userId, unreferencedSince, lastCleanupAttemptAt],
+  );
+  const object = {
+    metadata: {
+      generation: "1",
+      metageneration: "1",
+      metadata: aclPolicy ? { "custom:aclPolicy": JSON.stringify(aclPolicy) } : {},
+      contentType,
+      size: String(contents.length),
+    },
+    data: Buffer.from(contents),
+    failDelete,
+  };
+  service.mockStorageObjects.set(privateUploadStorageKey(objectPath), object);
+  return { objectPath, object };
+}
+
+async function cleanupUploadsAt(now, options = {}) {
+  return service.cleanupUnreferencedPrivateUploads({ now, ...options });
 }
 
 async function seedDailyJourney(habitId, startDate, {
@@ -3322,8 +3389,10 @@ test("private memory CRUD preserves ownership, saved-day context, and financial/
     assert.deepEqual(ownerUpload.metadata, {
       contentType: "image/png",
       size: String(validMemoryPng.length),
-      metadata: {},
-    }, "a provenance-verified source upload is not modified");
+      metadata: {
+        "custom:aclPolicy": JSON.stringify({ owner: owner.userId, visibility: "private" }),
+      },
+    }, "adoption writes only the authenticated owner's private ACL to the source upload");
 
     const legacyNote = `Preserved legacy memory note: ${"old note ".repeat(45)}`;
     const legacyCreatedAt = new Date("2020-01-02T03:04:05.000Z");
@@ -3649,6 +3718,219 @@ test("memory photo validation enforces MIME/signature, size, pixels, and optimiz
   }
 });
 
+test("private upload cleanup starts grace after observing a failed save and retries adoption", async () => {
+  await reset();
+  const userId = await seedUser({ id: "private-cleanup-save-retry" });
+  const originalPrivateObjectDir = process.env.PRIVATE_OBJECT_DIR;
+  const originalPublicSearchPaths = process.env.PUBLIC_OBJECT_SEARCH_PATHS;
+  process.env.PRIVATE_OBJECT_DIR = "/test-bucket/private";
+  process.env.PUBLIC_OBJECT_SEARCH_PATHS = "/test-bucket/public";
+  const { objectPath, object } = await seedPrivateUpload(userId);
+  const api = await startJourneyApi(userId);
+  const triggerName = quote("reject_failed_reward_save");
+  try {
+    await adminPool.query(`
+      CREATE FUNCTION ${triggerName}() RETURNS trigger LANGUAGE plpgsql AS $function$
+      BEGIN
+        RAISE EXCEPTION 'injected journey reward save failure';
+      END;
+      $function$`);
+    await adminPool.query(
+      `CREATE TRIGGER reject_failed_reward_save
+       BEFORE INSERT ON ${quote("journey_rewards")}
+       FOR EACH ROW EXECUTE FUNCTION ${triggerName}()`,
+    );
+    const failedSave = await api.request("/journey-rewards", "POST", {
+      title: "Retryable draft",
+      type: "physical",
+      imageObjectPath: objectPath,
+    });
+    assert.equal(failedSave.status, 500, "the injected persistence failure reaches the caller");
+    await adminPool.query(
+      `DROP TRIGGER reject_failed_reward_save ON ${quote("journey_rewards")}`,
+    );
+    await adminPool.query(`DROP FUNCTION ${triggerName}()`);
+
+    const firstObservation = new Date("2025-01-01T00:00:00.000Z");
+    const observed = await cleanupUploadsAt(firstObservation);
+    assert.equal(observed.observed, 1);
+    const firstSeen = (await adminPool.query(
+      `SELECT unreferenced_since FROM ${quote("object_uploads")} WHERE object_path = $1`,
+      [objectPath],
+    )).rows[0].unreferenced_since;
+    assert.equal(new Date(firstSeen).toISOString(), firstObservation.toISOString(),
+      "the seven-day clock begins on first unreferenced observation, not issuance");
+    assert.ok(service.mockStorageObjects.has(privateUploadStorageKey(objectPath)));
+
+    const retry = await api.request("/journey-rewards", "POST", {
+      title: "Retryable draft",
+      type: "physical",
+      imageObjectPath: objectPath,
+    });
+    assert.equal(retry.status, 201, "a valid retry can adopt the same upload during grace");
+    const provenance = (await adminPool.query(
+      `SELECT unreferenced_since FROM ${quote("object_uploads")} WHERE object_path = $1`,
+      [objectPath],
+    )).rows[0];
+    assert.equal(provenance.unreferenced_since, null,
+      "adoption resets cleanup grace transactionally");
+
+    const afterGrace = await cleanupUploadsAt(new Date("2025-05-01T00:00:00.000Z"));
+    assert.equal(afterGrace.scanned, 0, "all-status reward references prevent cleanup past grace");
+    assert.ok(service.mockStorageObjects.has(privateUploadStorageKey(objectPath)));
+    assert.equal(object.metadata.metadata["custom:aclPolicy"], JSON.stringify({
+      owner: userId,
+      visibility: "private",
+    }));
+  } finally {
+    await api.close();
+    await adminPool.query(`DROP TRIGGER IF EXISTS reject_failed_reward_save ON ${quote("journey_rewards")}`);
+    await adminPool.query(`DROP FUNCTION IF EXISTS ${triggerName}()`);
+    if (originalPrivateObjectDir === undefined) delete process.env.PRIVATE_OBJECT_DIR;
+    else process.env.PRIVATE_OBJECT_DIR = originalPrivateObjectDir;
+    if (originalPublicSearchPaths === undefined) delete process.env.PUBLIC_OBJECT_SEARCH_PATHS;
+    else process.env.PUBLIC_OBJECT_SEARCH_PATHS = originalPublicSearchPaths;
+  }
+});
+
+test("private upload cleanup handles replacement, null-habit drafts, and shared memory references", async () => {
+  await reset();
+  const owner = await seedMemoryJourney("private-cleanup-references", "private-cleanup-references");
+  const userId = owner.userId;
+  const secondMemoryDate = addDays(owner.startDate, 1);
+  await seedCheckin({
+    userId,
+    habitId: owner.habitId,
+    date: secondMemoryDate,
+    value: 8,
+    difficulty: "normal",
+  });
+  const originalPrivateObjectDir = process.env.PRIVATE_OBJECT_DIR;
+  const originalPublicSearchPaths = process.env.PUBLIC_OBJECT_SEARCH_PATHS;
+  process.env.PRIVATE_OBJECT_DIR = "/test-bucket/private";
+  process.env.PUBLIC_OBJECT_SEARCH_PATHS = "/test-bucket/public";
+  const { objectPath: replacedPath } = await seedPrivateUpload(userId);
+  const { objectPath: replacementPath } = await seedPrivateUpload(userId);
+  const { objectPath: draftPath } = await seedPrivateUpload(userId, {
+    unreferencedSince: new Date("2020-01-01T00:00:00.000Z"),
+  });
+  const { objectPath: sharedMemoryPath } = await seedPrivateUpload(userId, {
+    contentType: "image/png",
+  });
+  const api = await startJourneyApi(userId);
+  try {
+    const created = await api.request("/journey-rewards", "POST", {
+      title: "Original reward",
+      type: "physical",
+      imageObjectPath: replacedPath,
+    });
+    assert.equal(created.status, 201);
+    const reward = await created.json();
+    const draft = await api.request("/journey-rewards", "POST", {
+      title: "Unattached draft",
+      type: "physical",
+      imageObjectPath: draftPath,
+    });
+    assert.equal(draft.status, 201);
+    const draftReward = await draft.json();
+    assert.equal(draftReward.habitId, null);
+
+    const replaced = await api.request(`/journey-rewards/${reward.id}`, "PATCH", {
+      confirm: true,
+      imageObjectPath: replacementPath,
+    });
+    assert.equal(replaced.status, 200, await replaced.clone().text());
+    const now = new Date("2025-02-01T00:00:00.000Z");
+    const firstSweep = await cleanupUploadsAt(now);
+    assert.ok(firstSweep.observed >= 1, "replacement's former image starts grace on observation");
+    const formerImageGrace = (await adminPool.query(
+      `SELECT unreferenced_since FROM ${quote("object_uploads")} WHERE object_path = $1`,
+      [replacedPath],
+    )).rows[0].unreferenced_since;
+    assert.equal(new Date(formerImageGrace).toISOString(), now.toISOString());
+
+    const ownerTable = quote("journey_rewards");
+    await adminPool.query(
+      `UPDATE ${ownerTable} SET status = 'claimed' WHERE id = $1`,
+      [draftReward.id],
+    );
+    await adminPool.query(
+      `UPDATE ${quote("object_uploads")} SET unreferenced_since = $2 WHERE object_path = $1`,
+      [draftPath, new Date("2020-01-01T00:00:00.000Z")],
+    );
+    const sharedMemoryOne = await api.request("/memories", "POST", {
+      habitId: owner.habitId,
+      note: "First memory",
+      photoObjectPath: sharedMemoryPath,
+      date: owner.startDate,
+    });
+    const sharedMemoryTwo = await api.request("/memories", "POST", {
+      habitId: owner.habitId,
+      note: "Second memory",
+      photoObjectPath: sharedMemoryPath,
+      date: secondMemoryDate,
+    });
+    assert.equal(sharedMemoryOne.status, 201);
+    assert.equal(sharedMemoryTwo.status, 201);
+    const memoryOne = await sharedMemoryOne.json();
+    const memoryTwo = await sharedMemoryTwo.json();
+    const memoryOnePhotoPath = memoryOne.photoUrl.replace("/api/storage", "");
+    const memoryTwoPhotoPath = memoryTwo.photoUrl.replace("/api/storage", "");
+    const otherOwnerId = await seedUser({ id: "private-cleanup-other-memory-owner" });
+    const foreignMemory = await adminPool.query(
+      `INSERT INTO ${quote("memories")} (user_id, note, photo_object_path, date)
+       VALUES ($1, 'Legacy shared reference', $2, $3) RETURNING id`,
+      [otherOwnerId, memoryOnePhotoPath, owner.startDate],
+    );
+    const afterGrace = new Date(now.getTime() + 8 * 24 * 60 * 60 * 1000);
+    await cleanupUploadsAt(afterGrace);
+    assert.equal(service.mockStorageObjects.has(privateUploadStorageKey(replacedPath)), false,
+      "the replaced image is removed after the full grace period");
+    assert.equal(service.mockStorageObjects.has(privateUploadStorageKey(replacementPath)), true);
+    assert.equal(service.mockStorageObjects.has(privateUploadStorageKey(sharedMemoryPath)), true,
+      "the adopted source upload starts its own full grace period after becoming an unreferenced source");
+    assert.equal(service.mockStorageObjects.has(privateUploadStorageKey(draftPath)), true,
+      "a null-habit reward draft remains a reference regardless of status");
+    const resetDraft = (await adminPool.query(
+      `SELECT unreferenced_since FROM ${quote("object_uploads")} WHERE object_path = $1`,
+      [draftPath],
+    )).rows[0];
+    assert.equal(resetDraft.unreferenced_since, null);
+    assert.equal(service.mockStorageObjects.has(privateUploadStorageKey(memoryOnePhotoPath)), true,
+      "the optimized photo is retained while any memory references it");
+    assert.equal(service.mockStorageObjects.has(privateUploadStorageKey(memoryTwoPhotoPath)), true,
+      "the second memory protects its independently optimized photo");
+
+    await api.request(`/memories/${memoryOne.id}`, "DELETE");
+    await cleanupUploadsAt(new Date(afterGrace.getTime() + 2 * 60 * 60 * 1000));
+    assert.equal(service.mockStorageObjects.has(privateUploadStorageKey(memoryOnePhotoPath)), true,
+      "a memory reference owned by another user still protects the optimized photo");
+    await api.request(`/memories/${memoryTwo.id}`, "DELETE");
+    const whileForeignMemoryRemains = new Date(afterGrace.getTime() + 4 * 60 * 60 * 1000);
+    await cleanupUploadsAt(whileForeignMemoryRemains);
+    assert.equal(service.mockStorageObjects.has(privateUploadStorageKey(memoryOnePhotoPath)), true,
+      "a globally shared memory reference survives deletion of this user's memory");
+    assert.equal(service.mockStorageObjects.has(privateUploadStorageKey(memoryTwoPhotoPath)), true,
+      "the last memory deletion starts a grace period for its optimized photo");
+    await adminPool.query(`DELETE FROM ${quote("memories")} WHERE id = $1`, [foreignMemory.rows[0].id]);
+    const noLongerReferencedAt = new Date(afterGrace.getTime() + 6 * 60 * 60 * 1000);
+    await cleanupUploadsAt(noLongerReferencedAt);
+    await cleanupUploadsAt(new Date(noLongerReferencedAt.getTime() + 8 * 24 * 60 * 60 * 1000));
+    assert.equal(service.mockStorageObjects.has(privateUploadStorageKey(memoryOnePhotoPath)), false,
+      "the globally last memory reference begins a new grace period before cleanup");
+    assert.equal(service.mockStorageObjects.has(privateUploadStorageKey(memoryTwoPhotoPath)), false,
+      "an optimized photo is removed only after its unreferenced grace period");
+    assert.equal(service.mockStorageObjects.has(privateUploadStorageKey(sharedMemoryPath)), false,
+      "the unreferenced source upload is eventually removed independently of its derived photos");
+  } finally {
+    await api.close();
+    if (originalPrivateObjectDir === undefined) delete process.env.PRIVATE_OBJECT_DIR;
+    else process.env.PRIVATE_OBJECT_DIR = originalPrivateObjectDir;
+    if (originalPublicSearchPaths === undefined) delete process.env.PUBLIC_OBJECT_SEARCH_PATHS;
+    else process.env.PUBLIC_OBJECT_SEARCH_PATHS = originalPublicSearchPaths;
+  }
+});
+
 test("memory database failure cleans only its unreferenced derived object and cannot touch check-in rewards", async () => {
   await reset();
   const owner = await seedMemoryJourney("memory-write-failure", "memory-write-failure");
@@ -3687,13 +3969,33 @@ test("memory database failure cleans only its unreferenced derived object and ca
     assert.equal((await adminPool.query(
       `SELECT count(*)::int AS count FROM ${quote("memories")}`,
     )).rows[0].count, 0);
-    assert.equal((await adminPool.query(
-      `SELECT count(*)::int AS count FROM ${quote("object_uploads")}
+    const generated = (await adminPool.query(
+      `SELECT object_path FROM ${quote("object_uploads")}
        WHERE object_path LIKE '/objects/memory-images/%'`,
-    )).rows[0].count, 0, "verified unreferenced output provenance is cleaned on insert failure");
-    assert.equal([...service.mockStorageObjects.keys()]
-      .some((key) => key.includes("/memory-images/")), false,
-    "the unique unreferenced derived image is removed");
+    )).rows;
+    assert.equal(generated.length, 1,
+      "the failed-save output remains provenance-tracked for scheduled cleanup");
+    const generatedPath = generated[0].object_path;
+    assert.equal(service.mockStorageObjects.has(privateUploadStorageKey(generatedPath)), true,
+      "failed persistence does not bypass the ordinary orphan grace period");
+    const observedAt = new Date();
+    const firstSweep = await cleanupUploadsAt(observedAt);
+    assert.equal(firstSweep.observed, 1);
+    const retainedProvenance = await adminPool.query(
+      `SELECT unreferenced_since FROM ${quote("object_uploads")} WHERE object_path = $1`,
+      [generatedPath],
+    );
+    assert.equal(new Date(retainedProvenance.rows[0].unreferenced_since).toISOString(), observedAt.toISOString());
+    const afterGrace = await cleanupUploadsAt(
+      new Date(observedAt.getTime() + 8 * 24 * 60 * 60 * 1000),
+    );
+    assert.equal(afterGrace.deleted, 1);
+    assert.equal(service.mockStorageObjects.has(privateUploadStorageKey(generatedPath)), false,
+      "the orphaned generated image is removed only after its seven-day grace period");
+    assert.equal((await adminPool.query(
+      `SELECT count(*)::int AS count FROM ${quote("object_uploads")} WHERE object_path = $1`,
+      [generatedPath],
+    )).rows[0].count, 0);
     assert.deepEqual(source.metadata, sourceMetadata, "failed persistence never modifies source metadata");
     assert.deepEqual(source.data, validMemoryPng, "failed persistence never modifies source bytes");
     assert.deepEqual(
@@ -4598,4 +4900,290 @@ test("Feature 10 dashboard PostgreSQL HTTP acceptance matrix", async (t) => {
       await api.close();
     }
   });
+});
+
+test("private upload cleanup protects public, unknown, foreign, and conditionally changed objects and retries failures", async () => {
+  const originalPrivateObjectDir = process.env.PRIVATE_OBJECT_DIR;
+  const originalPublicSearchPaths = process.env.PUBLIC_OBJECT_SEARCH_PATHS;
+  process.env.PRIVATE_OBJECT_DIR = "/test-bucket/private";
+  const due = new Date("2025-03-01T00:00:00.000Z");
+  const oldObservation = new Date(due.getTime() - 8 * 24 * 60 * 60 * 1000);
+  try {
+    await reset();
+    const userId = await seedUser({ id: "private-cleanup-public" });
+    const publicPath = privateUploadPath();
+    await seedPrivateUpload(userId, {
+      objectPath: publicPath,
+      unreferencedSince: oldObservation,
+    });
+    process.env.PUBLIC_OBJECT_SEARCH_PATHS =
+      `/test-bucket/private/uploads/${publicPath.split("/").at(-1)}`;
+    const publicOverlap = await cleanupUploadsAt(due);
+    assert.equal(publicOverlap.protected, 1);
+    assert.ok(service.mockStorageObjects.has(privateUploadStorageKey(publicPath)));
+
+    await reset();
+    const aclOwner = await seedUser({ id: "private-cleanup-acl-owner" });
+    const publicAcl = await seedPrivateUpload(aclOwner, {
+      unreferencedSince: oldObservation,
+      aclPolicy: { owner: aclOwner, visibility: "public" },
+    });
+    process.env.PUBLIC_OBJECT_SEARCH_PATHS = "/test-bucket/public";
+    const publicAclResult = await cleanupUploadsAt(due);
+    assert.equal(publicAclResult.protected, 1);
+    assert.ok(service.mockStorageObjects.has(privateUploadStorageKey(publicAcl.objectPath)));
+
+    await reset();
+    const foreignOwner = await seedUser({ id: "private-cleanup-foreign-owner" });
+    const foreignAcl = await seedPrivateUpload(foreignOwner, {
+      unreferencedSince: oldObservation,
+      aclPolicy: { owner: "different-user", visibility: "private" },
+    });
+    await cleanupUploadsAt(due);
+    assert.ok(service.mockStorageObjects.has(privateUploadStorageKey(foreignAcl.objectPath)),
+      "a foreign private ACL is never deleted");
+
+    await reset();
+    const unknownOwner = await seedUser({ id: "private-cleanup-unknown-owner" });
+    const unknownPath = privateUploadPath();
+    service.mockStorageObjects.set(privateUploadStorageKey(unknownPath), {
+      metadata: { generation: "1", metageneration: "1", metadata: {} },
+    });
+    await seedPrivateUpload(unknownOwner, {
+      objectPath: "/objects/uploads/not-a-uuid",
+      unreferencedSince: oldObservation,
+    });
+    const unknownResult = await cleanupUploadsAt(due);
+    assert.equal(unknownResult.scanned, 0);
+    assert.ok(service.mockStorageObjects.has(privateUploadStorageKey(unknownPath)),
+      "unknown objects are never discovered by bucket enumeration or removed");
+
+    await reset();
+    const missingOwner = await seedUser({ id: "private-cleanup-missing" });
+    const missingUpload = await seedPrivateUpload(missingOwner);
+    service.mockStorageObjects.delete(privateUploadStorageKey(missingUpload.objectPath));
+    const firstMissingObservation = await cleanupUploadsAt(due);
+    assert.equal(firstMissingObservation.observed, 1,
+      "a missing object still receives the full first-observation grace period");
+    let missingProvenance = await adminPool.query(
+      `SELECT unreferenced_since FROM ${quote("object_uploads")} WHERE object_path = $1`,
+      [missingUpload.objectPath],
+    );
+    assert.ok(missingProvenance.rows[0].unreferenced_since);
+    const missingAfterTtl = await cleanupUploadsAt(new Date(due.getTime() + 8 * 24 * 60 * 60 * 1000));
+    assert.equal(missingAfterTtl.missing, 1,
+      "only after grace (well beyond the upload URL TTL) may missing-object provenance be retired");
+    missingProvenance = await adminPool.query(
+      `SELECT count(*)::int AS count FROM ${quote("object_uploads")} WHERE object_path = $1`,
+      [missingUpload.objectPath],
+    );
+    assert.equal(missingProvenance.rows[0].count, 0);
+
+    await reset();
+    const retryOwner = await seedUser({ id: "private-cleanup-delete-retry" });
+    const retryUpload = await seedPrivateUpload(retryOwner, {
+      unreferencedSince: oldObservation,
+      failDelete: true,
+    });
+    const firstFailure = await cleanupUploadsAt(due);
+    assert.equal(firstFailure.failed, 1);
+    assert.ok(service.mockStorageObjects.has(privateUploadStorageKey(retryUpload.objectPath)));
+    let provenance = (await adminPool.query(
+      `SELECT last_cleanup_attempt_at FROM ${quote("object_uploads")} WHERE object_path = $1`,
+      [retryUpload.objectPath],
+    )).rows[0];
+    assert.equal(new Date(provenance.last_cleanup_attempt_at).toISOString(), due.toISOString());
+
+    retryUpload.object.failDelete = false;
+    retryUpload.object.beforeDelete = async () => {
+      retryUpload.object.metadata.generation = "2";
+      retryUpload.object.metadata.metageneration = "2";
+      retryUpload.object.beforeDelete = null;
+    };
+    const preconditionFailure = await cleanupUploadsAt(new Date(due.getTime() + 8 * 60 * 60 * 1000));
+    assert.equal(preconditionFailure.failed, 1,
+      "generation/metageneration changes reject the stale conditional delete");
+    assert.ok(service.mockStorageObjects.has(privateUploadStorageKey(retryUpload.objectPath)));
+
+    const retrySuccess = await cleanupUploadsAt(new Date(due.getTime() + 16 * 60 * 60 * 1000));
+    assert.equal(retrySuccess.deleted, 1);
+    assert.equal(service.mockStorageObjects.has(privateUploadStorageKey(retryUpload.objectPath)), false);
+    const remaining = await adminPool.query(
+      `SELECT count(*)::int AS count FROM ${quote("object_uploads")} WHERE object_path = $1`,
+      [retryUpload.objectPath],
+    );
+    assert.equal(remaining.rows[0].count, 0);
+  } finally {
+    if (originalPrivateObjectDir === undefined) delete process.env.PRIVATE_OBJECT_DIR;
+    else process.env.PRIVATE_OBJECT_DIR = originalPrivateObjectDir;
+    if (originalPublicSearchPaths === undefined) delete process.env.PUBLIC_OBJECT_SEARCH_PATHS;
+    else process.env.PUBLIC_OBJECT_SEARCH_PATHS = originalPublicSearchPaths;
+  }
+});
+
+test("private upload cleanup protects group covers and gives orphan generated images a full grace period", async () => {
+  await reset();
+  const originalPrivateObjectDir = process.env.PRIVATE_OBJECT_DIR;
+  const originalPublicSearchPaths = process.env.PUBLIC_OBJECT_SEARCH_PATHS;
+  process.env.PRIVATE_OBJECT_DIR = "/test-bucket/private";
+  process.env.PUBLIC_OBJECT_SEARCH_PATHS = "/test-bucket/public";
+  const due = new Date("2025-05-01T00:00:00.000Z");
+  const oldObservation = new Date(due.getTime() - 8 * 24 * 60 * 60 * 1000);
+  try {
+    const userId = await seedUser({ id: "private-cleanup-group-covers" });
+    const sourceCoverPath = privateUploadPath();
+    const generatedCoverPath = `/objects/memory-images/${randomUUID()}.webp`;
+    const orphanGeneratedPath = `/objects/memory-images/${randomUUID()}.webp`;
+    await seedPrivateUpload(userId, {
+      objectPath: sourceCoverPath,
+      unreferencedSince: oldObservation,
+    });
+    await seedPrivateUpload(userId, {
+      objectPath: generatedCoverPath,
+      unreferencedSince: oldObservation,
+      contentType: "image/webp",
+    });
+    await seedPrivateUpload(userId, {
+      objectPath: orphanGeneratedPath,
+      contentType: "image/webp",
+    });
+    await adminPool.query(
+      `INSERT INTO ${quote("groups")}
+         (name, invite_code, goal_description, start_date, created_by, cover_object_path)
+       VALUES
+         ('Source cover', 'COVER-SOURCE', 'Keep source images', $1, $2, $3),
+         ('Generated cover', 'COVER-GENERATED', 'Keep generated images', $1, $2, $4)`,
+      [dailyToday, userId, sourceCoverPath, generatedCoverPath],
+    );
+
+    const firstSweep = await cleanupUploadsAt(due);
+    assert.equal(firstSweep.scanned, 3,
+      "both referenced covers and the orphan generated image are processed");
+    assert.equal(firstSweep.referenced, 2);
+    assert.equal(firstSweep.observed, 1);
+    assert.equal(service.mockStorageObjects.has(privateUploadStorageKey(sourceCoverPath)), true,
+      "a group cover protects a canonical source upload");
+    assert.equal(service.mockStorageObjects.has(privateUploadStorageKey(generatedCoverPath)), true,
+      "a group cover also protects a canonical generated image");
+    assert.equal(service.mockStorageObjects.has(privateUploadStorageKey(orphanGeneratedPath)), true,
+      "first observation starts rather than skips the generated-image grace period");
+
+    const afterGrace = await cleanupUploadsAt(
+      new Date(due.getTime() + 8 * 24 * 60 * 60 * 1000),
+    );
+    assert.equal(afterGrace.deleted, 1);
+    assert.equal(service.mockStorageObjects.has(privateUploadStorageKey(orphanGeneratedPath)), false,
+      "an unreferenced generated image is deleted only after its full grace period");
+    assert.equal(service.mockStorageObjects.has(privateUploadStorageKey(sourceCoverPath)), true);
+    assert.equal(service.mockStorageObjects.has(privateUploadStorageKey(generatedCoverPath)), true);
+  } finally {
+    if (originalPrivateObjectDir === undefined) delete process.env.PRIVATE_OBJECT_DIR;
+    else process.env.PRIVATE_OBJECT_DIR = originalPrivateObjectDir;
+    if (originalPublicSearchPaths === undefined) delete process.env.PUBLIC_OBJECT_SEARCH_PATHS;
+    else process.env.PUBLIC_OBJECT_SEARCH_PATHS = originalPublicSearchPaths;
+  }
+});
+
+test("private upload cleanup serializes against adopting references using the owner row lock", async () => {
+  await reset();
+  const owner = await seedMemoryJourney("private-cleanup-race", "private-cleanup-race");
+  const userId = owner.userId;
+  const deletionMemoryDate = addDays(owner.startDate, 1);
+  await seedCheckin({
+    userId,
+    habitId: owner.habitId,
+    date: deletionMemoryDate,
+    value: 8,
+    difficulty: "normal",
+  });
+  const originalPrivateObjectDir = process.env.PRIVATE_OBJECT_DIR;
+  const originalPublicSearchPaths = process.env.PUBLIC_OBJECT_SEARCH_PATHS;
+  process.env.PRIVATE_OBJECT_DIR = "/test-bucket/private";
+  process.env.PUBLIC_OBJECT_SEARCH_PATHS = "/test-bucket/public";
+  const due = new Date("2025-04-01T00:00:00.000Z");
+  const oldObservation = new Date(due.getTime() - 8 * 24 * 60 * 60 * 1000);
+  const adoptionFirst = await seedPrivateUpload(userId, {
+    unreferencedSince: oldObservation,
+    contentType: "image/png",
+  });
+  const deletionFirst = await seedPrivateUpload(userId, {
+    unreferencedSince: oldObservation,
+    lastCleanupAttemptAt: due,
+    contentType: "image/png",
+  });
+  const api = await startJourneyApi(userId);
+  const pauseObjectOperation = () => {
+    let enter;
+    let release;
+    const entered = new Promise((resolve) => { enter = resolve; });
+    const paused = new Promise((resolve) => { release = resolve; });
+    return {
+      entered,
+      release,
+      pause: async () => {
+        enter();
+        await paused;
+      },
+    };
+  };
+  const expectPending = async (promise) => {
+    const outcome = await Promise.race([
+      promise.then(() => "settled"),
+      new Promise((resolve) => setTimeout(() => resolve("pending"), 50)),
+    ]);
+    assert.equal(outcome, "pending", "the competing writer waits for cleanup's owner lock");
+  };
+  try {
+    const adoptionGate = pauseObjectOperation();
+    adoptionFirst.object.beforeGetMetadata = adoptionGate.pause;
+    const adoptionRequest = api.request("/memories", "POST", {
+      habitId: owner.habitId,
+      note: "Adopt while cleanup is queued",
+      photoObjectPath: adoptionFirst.objectPath,
+      date: owner.startDate,
+    });
+    await adoptionGate.entered;
+    const waitingCleanup = cleanupUploadsAt(due);
+    await expectPending(waitingCleanup);
+    adoptionGate.release();
+    const adoptedMemoryResponse = await adoptionRequest;
+    assert.equal(adoptedMemoryResponse.status, 201, await adoptedMemoryResponse.clone().text());
+    const adoptedMemory = await adoptedMemoryResponse.json();
+    const adoptedPhotoPath = adoptedMemory.photoUrl.replace("/api/storage", "");
+    assert.notEqual(adoptedPhotoPath, adoptionFirst.objectPath,
+      "the adopted source remains distinct from the optimized saved memory photo");
+    const adoptionCleanupResult = await waitingCleanup;
+    assert.equal(adoptionCleanupResult.observed, 1,
+      "cleanup can only observe an unreferenced source while the memory references its derived output");
+    assert.ok(service.mockStorageObjects.has(privateUploadStorageKey(adoptionFirst.objectPath)));
+    assert.ok(service.mockStorageObjects.has(privateUploadStorageKey(adoptedPhotoPath)));
+
+    const deletionGate = pauseObjectOperation();
+    deletionFirst.object.beforeDelete = deletionGate.pause;
+    const deleting = cleanupUploadsAt(new Date(due.getTime() + 8 * 60 * 60 * 1000));
+    await deletionGate.entered;
+    const waitingMemory = api.request("/memories", "POST", {
+      habitId: owner.habitId,
+      note: "Cannot attach after cleanup owns the lock",
+      photoObjectPath: deletionFirst.objectPath,
+      date: deletionMemoryDate,
+    });
+    await expectPending(waitingMemory);
+    deletionGate.release();
+    assert.equal((await deleting).deleted, 1);
+    assert.equal((await waitingMemory).status, 404,
+      "a delayed adoption cannot create a reference after the object was deleted");
+    assert.equal(service.mockStorageObjects.has(privateUploadStorageKey(deletionFirst.objectPath)), false);
+    const lateReference = await adminPool.query(
+      `SELECT count(*)::int AS count FROM ${quote("memories")} WHERE photo_object_path = $1`,
+      [deletionFirst.objectPath],
+    );
+    assert.equal(lateReference.rows[0].count, 0);
+  } finally {
+    await api.close();
+    if (originalPrivateObjectDir === undefined) delete process.env.PRIVATE_OBJECT_DIR;
+    else process.env.PRIVATE_OBJECT_DIR = originalPrivateObjectDir;
+    if (originalPublicSearchPaths === undefined) delete process.env.PUBLIC_OBJECT_SEARCH_PATHS;
+    else process.env.PUBLIC_OBJECT_SEARCH_PATHS = originalPublicSearchPaths;
+  }
 });

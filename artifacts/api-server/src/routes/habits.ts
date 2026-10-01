@@ -98,15 +98,6 @@ router.post("/habits", async (req, res): Promise<void> => {
   }
   const input = parsed.data;
   const { journeyReward, ...habitInput } = input;
-  let rewardContent: Awaited<ReturnType<typeof prepareJourneyRewardInput>> | null = null;
-  if (journeyReward) {
-    try {
-      rewardContent = await prepareJourneyRewardInput(req.userId!, journeyReward);
-    } catch (error) {
-      res.status(400).json({ error: error instanceof Error ? error.message : "Invalid private reward image" });
-      return;
-    }
-  }
   const executionType = resolveExecutionType(input.unit, input.goalType, input.executionType);
   if ((input.goalType === "quit" && executionType !== "limit")
     || (input.goalType === "build" && executionType === "limit")) {
@@ -167,6 +158,16 @@ router.post("/habits", async (req, res): Promise<void> => {
         .for("update");
       if (!reward) return { error: "Reward not found for this user" } as const;
     }
+
+    let rewardContent: Awaited<ReturnType<typeof prepareJourneyRewardInput>> | null = null;
+    if (journeyReward) {
+      try {
+        rewardContent = await prepareJourneyRewardInput(tx, req.userId!, journeyReward);
+      } catch (error) {
+        return { error: error instanceof Error ? error.message : "Invalid private reward image" } as const;
+      }
+    }
+
     const [habit] = await tx.insert(habitsTable).values({
       userId: req.userId!,
       ...habitInput,
@@ -205,23 +206,28 @@ router.post("/habits", async (req, res): Promise<void> => {
       unit: habit.unit,
       executionType,
     });
-    await tx.insert(habitDaysTable).values(makeJourneyDays(habit.id, journeyStartDate, journeyLength, {
-      title: habit.title,
-      targetValue: habit.targetValue,
-      minimumValue: habit.minimumValue ?? habit.targetValue,
-      busyDayValue: habit.busyDayValue,
-      successLimitValue: habit.successLimitValue,
-      goalType: habit.goalType,
-      planRevision: 1,
-      cadence: habit.cadence,
-      customDays: habit.customDays,
-      unit: habit.unit,
-      executionType,
-      cueType: habit.cueType,
-      cueTime: habit.cueTime,
-      cue: habit.cue,
-      startAction: habit.startAction,
-    }));
+    await tx.insert(habitDaysTable).values(makeJourneyDays(
+      habit.id,
+      journeyStartDate,
+      journeyLength,
+      {
+        title: habit.title,
+        targetValue: habit.targetValue,
+        minimumValue: habit.minimumValue ?? habit.targetValue,
+        busyDayValue: habit.busyDayValue,
+        successLimitValue: habit.successLimitValue,
+        goalType: habit.goalType,
+        planRevision: 1,
+        cadence: habit.cadence,
+        customDays: habit.customDays,
+        unit: habit.unit,
+        executionType,
+        cueType: habit.cueType,
+        cueTime: habit.cueTime,
+        cue: habit.cue,
+        startAction: habit.startAction,
+      },
+    ));
     await tx.insert(habitPlanRevisionsTable).values({
       habitId: habit.id, revision: 1, effectiveFrom: journeyStartDate, plan,
     });
@@ -250,10 +256,7 @@ router.get("/habits/:habitId", async (req, res): Promise<void> => {
     res.status(400).json({ error: params.error.message });
     return;
   }
-
-  const [habit] = await db
-    .select()
-    .from(habitsTable)
+  const [habit] = await db.select().from(habitsTable)
     .where(and(eq(habitsTable.id, params.data.habitId), eq(habitsTable.userId, req.userId!)));
 
   if (!habit) {
@@ -536,16 +539,6 @@ router.post("/habits/:habitId/journey", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsedBody.error.message });
     return;
   }
-  let rewardContent: Awaited<ReturnType<typeof prepareJourneyRewardInput>> | null = null;
-  if (parsedBody.data.journeyReward) {
-    try {
-      rewardContent = await prepareJourneyRewardInput(req.userId!, parsedBody.data.journeyReward);
-    } catch (error) {
-      res.status(400).json({ error: error instanceof Error ? error.message : "Invalid private reward image" });
-      return;
-    }
-  }
-
   const result = await db.transaction(async (tx) => {
     const [user] = await tx.select().from(usersTable)
       .where(eq(usersTable.id, req.userId!)).for("update");
@@ -560,6 +553,21 @@ router.post("/habits/:habitId/journey", async (req, res): Promise<void> => {
         && habit.journeyLength === HABIT_JOURNEY_LENGTH
         ? { kind: "existing" } as const
         : { kind: "invalid" } as const;
+    }
+    let rewardContent: Awaited<ReturnType<typeof prepareJourneyRewardInput>> | null = null;
+    if (parsedBody.data.journeyReward) {
+      try {
+        rewardContent = await prepareJourneyRewardInput(
+          tx,
+          req.userId!,
+          parsedBody.data.journeyReward,
+        );
+      } catch (error) {
+        return {
+          kind: "invalid_image",
+          message: error instanceof Error ? error.message : "Invalid private reward image",
+        } as const;
+      }
     }
 
     const today = todayInTimezone(user.timezone);
@@ -645,6 +653,10 @@ router.post("/habits/:habitId/journey", async (req, res): Promise<void> => {
   }
   if (result.kind === "invalid") {
     res.status(400).json({ error: "The habit has an invalid or incomplete journey definition or cadence" });
+    return;
+  }
+  if (result.kind === "invalid_image") {
+    res.status(400).json({ error: result.message });
     return;
   }
   await getHabitJourneyHandler(req, res);

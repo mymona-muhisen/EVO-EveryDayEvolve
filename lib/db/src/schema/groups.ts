@@ -8,6 +8,7 @@ import {
   timestamp,
   unique,
   check,
+  index,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
@@ -36,6 +37,7 @@ export const groupsTable = pgTable("groups", {
     .defaultNow(),
 }, (table) => [
   check("groups_max_members_check", sql`${table.maxMembers} BETWEEN 2 AND 30`),
+  index("groups_cover_object_path_idx").on(table.coverObjectPath),
 ]);
 
 export const groupMembersTable = pgTable(

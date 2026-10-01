@@ -124,6 +124,7 @@ export function journeyRewardResponse(
 }
 
 export async function prepareJourneyRewardImage(
+  tx: JourneyRewardTransaction,
   userId: string,
   path: string | null | undefined,
 ): Promise<string | null> {
@@ -139,34 +140,54 @@ export async function prepareJourneyRewardImage(
   } catch {
     throw new Error("Reward image object is not available");
   }
+  const [provenance] = await tx.select().from(objectUploadsTable).where(eq(
+    objectUploadsTable.objectPath,
+    path,
+  )).limit(1);
+  if (provenance && provenance.userId !== userId) {
+    throw new Error("Reward image upload was issued to another user");
+  }
+
   const acl = await getObjectAclPolicy(objectFile);
   if (acl) {
     if (acl.owner !== userId || acl.visibility !== "private") {
       throw new Error("Reward image must be a private object owned by this user");
     }
+    if (provenance) await markUploadAdopted(tx, path, userId);
     return path;
   }
 
-  const [provenance] = await db.select({ objectPath: objectUploadsTable.objectPath })
-    .from(objectUploadsTable).where(and(
-      eq(objectUploadsTable.objectPath, path),
-      eq(objectUploadsTable.userId, userId),
-    )).limit(1);
   if (!provenance) {
     throw new Error("Reward image upload was not issued to this user");
   }
 
   await setObjectAclPolicy(objectFile, { owner: userId, visibility: "private" });
+  await markUploadAdopted(tx, path, userId);
   return path;
 }
 
+async function markUploadAdopted(
+  tx: JourneyRewardTransaction,
+  objectPath: string,
+  userId: string,
+): Promise<void> {
+  await tx.update(objectUploadsTable).set({
+    unreferencedSince: null,
+    lastCleanupAttemptAt: null,
+  }).where(and(
+    eq(objectUploadsTable.objectPath, objectPath),
+    eq(objectUploadsTable.userId, userId),
+  ));
+}
+
 export async function prepareJourneyRewardInput(
+  tx: JourneyRewardTransaction,
   userId: string,
   input: JourneyRewardInput,
 ) {
   const title = input.title.trim();
   if (!title) throw new Error("Reward title cannot be blank");
-  const imageUrl = await prepareJourneyRewardImage(userId, input.imageObjectPath);
+  const imageUrl = await prepareJourneyRewardImage(tx, userId, input.imageObjectPath);
   return {
     title,
     type: input.type,

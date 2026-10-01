@@ -4,8 +4,6 @@ import { File, Storage } from '@google-cloud/storage';
 import { and, eq } from 'drizzle-orm';
 import {
   db,
-  journeyRewardsTable,
-  memoriesTable,
   objectUploadsTable,
 } from '@workspace/db';
 
@@ -14,6 +12,7 @@ import {
   getObjectAclPolicy,
   ObjectAclPolicy,
   ObjectPermission,
+  objectAclPolicyFromMetadata,
   setObjectAclPolicy,
 } from './objectAcl';
 
@@ -199,6 +198,7 @@ export class ObjectStorageService {
     rawPath: string,
     aclPolicy: ObjectAclPolicy,
     authenticatedUserId: string,
+    tx: ObjectStorageTransaction,
   ): Promise<string> {
     const normalizedPath = this.normalizeObjectEntityPath(rawPath);
     if (!normalizedPath.startsWith('/objects/')
@@ -212,6 +212,12 @@ export class ObjectStorageService {
       throw new ObjectAclOwnershipError();
     }
 
+    const [provenance] = await tx.select().from(objectUploadsTable)
+      .where(eq(objectUploadsTable.objectPath, normalizedPath)).limit(1);
+    if (provenance && provenance.userId !== authenticatedUserId) {
+      throw new ObjectAclOwnershipError();
+    }
+
     const objectFile = await this.getObjectEntityFile(normalizedPath);
     const existingPolicy = await getObjectAclPolicy(objectFile);
     if (existingPolicy) {
@@ -220,17 +226,14 @@ export class ObjectStorageService {
       }
       // A same-owner private object is already adopted. Do not rewrite its
       // ACL metadata (which could also erase any valid ACL rules).
+      if (provenance) await markUploadAdopted(tx, normalizedPath, authenticatedUserId);
       return normalizedPath;
     }
 
-    const [upload] = await db.select({ objectPath: objectUploadsTable.objectPath })
-      .from(objectUploadsTable).where(and(
-        eq(objectUploadsTable.objectPath, normalizedPath),
-        eq(objectUploadsTable.userId, authenticatedUserId),
-      )).limit(1);
-    if (!upload) throw new ObjectAclOwnershipError();
+    if (!provenance) throw new ObjectAclOwnershipError();
 
     await setObjectAclPolicy(objectFile, aclPolicy);
+    await markUploadAdopted(tx, normalizedPath, authenticatedUserId);
     return normalizedPath;
   }
 
@@ -305,43 +308,6 @@ export class ObjectStorageService {
     }
   }
 
-  async deleteDerivedObjectIfUnreferenced(
-    objectPath: string,
-    authenticatedUserId: string,
-  ): Promise<boolean> {
-    if (!objectPath.startsWith('/objects/memory-images/')
-      || objectPath.includes('?')
-      || objectPath.includes('#')
-      || objectPath.includes('\\')
-      || objectPath.split('/').some((part) => part === '.' || part === '..')) {
-      return false;
-    }
-
-    const [memory, reward, provenance] = await Promise.all([
-      db.select({ id: memoriesTable.id }).from(memoriesTable)
-        .where(eq(memoriesTable.photoObjectPath, objectPath)).limit(1),
-      db.select({ id: journeyRewardsTable.id }).from(journeyRewardsTable)
-        .where(eq(journeyRewardsTable.imageUrl, objectPath)).limit(1),
-      db.select({ objectPath: objectUploadsTable.objectPath }).from(objectUploadsTable)
-        .where(and(
-          eq(objectUploadsTable.objectPath, objectPath),
-          eq(objectUploadsTable.userId, authenticatedUserId),
-        )).limit(1),
-    ]);
-    if (memory.length || reward.length || !provenance.length) return false;
-
-    const objectFile = await this.getObjectEntityFile(objectPath);
-    const policy = await getObjectAclPolicy(objectFile);
-    if (policy?.owner !== authenticatedUserId || policy.visibility !== 'private') return false;
-
-    await objectFile.delete({ ignoreNotFound: true });
-    await db.delete(objectUploadsTable).where(and(
-      eq(objectUploadsTable.objectPath, objectPath),
-      eq(objectUploadsTable.userId, authenticatedUserId),
-    ));
-    return true;
-  }
-
   private async getObjectEntityFileForWrite(objectPath: string): Promise<File> {
     if (!objectPath.startsWith('/objects/memory-images/')) {
       throw new ObjectAclOwnershipError('Derived photo path is invalid');
@@ -368,8 +334,105 @@ export class ObjectStorageService {
       requestedPermission: requestedPermission ?? ObjectPermission.READ,
     });
   }
+
+  /**
+   * Deletes only canonical private-upload or generated memory-image paths after
+   * rechecking location, ownership metadata, and GCS preconditions. The caller is responsible for holding the object's owner's
+   * database lock and checking all database references in the same transaction.
+   */
+  async deletePrivateUploadIfSafe(
+    objectPath: string,
+    ownerId: string,
+  ): Promise<'deleted' | 'missing' | 'protected'> {
+    const uploadMatch = /^\/objects\/uploads\/([0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/.exec(objectPath);
+    const derivedMatch = /^\/objects\/memory-images\/([0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.webp)$/.exec(objectPath);
+    if (!uploadMatch && !derivedMatch) return 'protected';
+
+    const privateObjectDir = this.getPrivateObjectDir();
+    const normalizedPrivateDir = privateObjectDir.startsWith('/')
+      || privateObjectDir.startsWith('gs://')
+      || /^https?:\/\//i.test(privateObjectDir)
+      ? privateObjectDir
+      : `/${privateObjectDir}`;
+    const privatePath = parseConfiguredStoragePath(normalizedPrivateDir);
+    if (!privatePath) throw new Error('PRIVATE_OBJECT_DIR is not a safe object path');
+    const pathAfterObjectsPrefix = objectPath.slice('/objects/'.length);
+    const target = {
+      bucketName: privatePath.bucketName,
+      objectName: [privatePath.objectName, pathAfterObjectsPrefix].filter(Boolean).join('/'),
+    };
+    if (this.overlapsPublicSearchPath(target.bucketName, target.objectName)) {
+      return 'protected';
+    }
+
+    const file = objectStorageClient.bucket(target.bucketName).file(target.objectName);
+    const [exists] = await file.exists();
+    if (!exists) return 'missing';
+
+    const [metadata] = await file.getMetadata();
+    const generation = metadata.generation;
+    const metageneration = metadata.metageneration;
+    if (generation == null || metageneration == null) {
+      throw new Error('Private upload metadata is missing GCS delete preconditions');
+    }
+
+    const acl = objectAclPolicyFromMetadata(metadata);
+    if (derivedMatch && (
+      !acl
+      || acl.owner !== ownerId
+      || acl.visibility !== 'private'
+      || (acl.aclRules != null && (
+        !Array.isArray(acl.aclRules)
+        || acl.aclRules.length > 0
+      ))
+    )) {
+      return 'protected';
+    }
+    if (acl && (
+      acl.owner !== ownerId
+      || acl.visibility !== 'private'
+      || (acl.aclRules != null && (
+        !Array.isArray(acl.aclRules)
+        || acl.aclRules.length > 0
+      ))
+    )) {
+      return 'protected';
+    }
+
+    // GCS ACLs are distinct from the app's custom ACL policy. Never delete
+    // objects explicitly made public through a legacy GCS ACL.
+    const gcsAcl = (metadata as { acl?: Array<{ entity?: string }> }).acl;
+    if (gcsAcl?.some(({ entity }) => entity === 'allUsers' || entity === 'allAuthenticatedUsers')) {
+      return 'protected';
+    }
+
+    await file.delete({
+      ignoreNotFound: true,
+      ifGenerationMatch: generation,
+      ifMetagenerationMatch: metageneration,
+    });
+    return 'deleted';
+  }
+
+  private overlapsPublicSearchPath(bucketName: string, objectName: string): boolean {
+    const paths = this.getPublicObjectSearchPaths();
+    for (const rawPath of paths) {
+      const publicPath = parseConfiguredStoragePath(rawPath);
+      if (!publicPath) return true;
+      if (publicPath.bucketName !== bucketName) continue;
+      if (
+        publicPath.objectName === ''
+        || objectName === publicPath.objectName
+        || objectName.startsWith(`${publicPath.objectName.replace(/\/+$/, '')}/`)
+      ) {
+        return true;
+      }
+    }
+    return false;
+  }
 }
 
+type ObjectStorageTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 function parseObjectPath(path: string): {
   bucketName: string;
   objectName: string;
@@ -430,4 +493,55 @@ async function signObjectURL({
     signed_url: string;
   };
   return signedURL;
+}
+
+async function markUploadAdopted(
+  tx: ObjectStorageTransaction,
+  objectPath: string,
+  userId: string,
+): Promise<void> {
+  await tx.update(objectUploadsTable).set({
+    unreferencedSince: null,
+    lastCleanupAttemptAt: null,
+  }).where(and(
+    eq(objectUploadsTable.objectPath, objectPath),
+    eq(objectUploadsTable.userId, userId),
+  ));
+}
+
+function parseConfiguredStoragePath(rawPath: string): {
+  bucketName: string;
+  objectName: string;
+} | null {
+  try {
+    let path = rawPath;
+    if (path.startsWith('gs://')) {
+      const url = new URL(path);
+      if (url.search || url.hash) return null;
+      path = `/${url.host}${url.pathname}`;
+    } else if (/^https?:\/\//i.test(path)) {
+      const url = new URL(path);
+      if (url.hostname !== 'storage.googleapis.com' || url.search || url.hash) return null;
+      path = url.pathname;
+    }
+    if (
+      !path.startsWith('/')
+      || path.includes('?')
+      || path.includes('#')
+      || path.includes('\\')
+      || path.includes('%')
+      || path.split('/').some((part) => part === '.' || part === '..')
+    ) {
+      return null;
+    }
+    const normalizedPath = path.replace(/\/+$/, '');
+    const parts = normalizedPath.slice(1).split('/');
+    if (!parts[0]) return null;
+    return {
+      bucketName: parts[0],
+      objectName: parts.slice(1).join('/'),
+    };
+  } catch {
+    return null;
+  }
 }

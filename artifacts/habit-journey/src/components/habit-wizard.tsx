@@ -189,7 +189,7 @@ export function HabitWizard({ seed, onSaved }: { seed?: { title: string; minutes
 
     {step === 4 && <div className="space-y-4">
       <div><div className="text-sm font-bold mb-2">رحلة من 22 يومًا. متى تبدأ؟</div><div className="grid grid-cols-2 gap-2">{([['today', 'اليوم'], ['tomorrow', 'غدًا']] as const).map(([v, t]) => <button type="button" key={v} onClick={() => setStartWhen(v)} className={`rounded-xl p-3 border ${startChoice === v ? 'bg-[#dfebdd] border-[#3b765c]' : 'border-[#e3d9c9]'}`}>{t}</button>)}</div>{!serverDate && <p className="text-xs muted mt-2">نجهّز تاريخ اليوم…</p>}</div>
-      <div className="rounded-2xl border border-[#e3d9c9] p-4"><div className="font-bold text-sm mb-3">مكافأة حقيقية تنتظرك في نهاية الرحلة</div><RewardEditor draft={rd} onChange={setRd} /></div>
+      <div className="rounded-2xl border border-[#e3d9c9] p-4"><div className="font-bold text-sm mb-3">مكافأة حقيقية تنتظرك في نهاية الرحلة</div><RewardEditor draft={rd} onChange={setRd} disabled={saving || create.isPending} /></div>
       <Field label="مكافأة من متجر العملات (اختياري)"><select data-testid="select-reward" className="field" value={rewardId ?? ''} onChange={e => setRewardId(e.target.value ? Number(e.target.value) : null)}><option value="">بدون مكافأة مرتبطة</option>{owned.map(r => <option key={r.id} value={r.id}>{r.title}</option>)}</select></Field>
       {rewards.isError && <p className="text-xs muted">تعذّر تحميل مكافآتك، يمكنك المتابعة بدونها.</p>}
       {!rewards.isLoading && !owned.length && <p className="text-xs muted">لا مكافآت متاحة للربط الآن. يمكنك إضافتها من صفحة المكافآت لاحقًا.</p>}

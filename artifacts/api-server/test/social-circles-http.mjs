@@ -206,7 +206,9 @@ if (!databaseUrl) {
     `CREATE TABLE ${quote("object_uploads")} (
       object_path text PRIMARY KEY,
       user_id text NOT NULL REFERENCES ${quote("users")}(id) ON DELETE CASCADE,
-      created_at timestamptz NOT NULL DEFAULT now()
+      created_at timestamptz NOT NULL DEFAULT now(),
+      unreferenced_since timestamptz,
+      last_cleanup_attempt_at timestamptz
     )`,
     `CREATE TABLE ${quote("character_items")} (
       id serial PRIMARY KEY,
