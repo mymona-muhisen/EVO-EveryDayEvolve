@@ -2,8 +2,11 @@ import { useEffect, useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
-export function FullscreenOverlay({ onClose, children }: { onClose: () => void; children: ReactNode }) {
+let nativeOwner: symbol | null = null;
+
+export function FullscreenOverlay({ onClose, onAfterClose, returnSignal, children }: { onClose: () => void; onAfterClose?: () => void; returnSignal?: AbortSignal; children: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null), closeRef = useRef(onClose); closeRef.current = onClose;
+  const afterCloseRef = useRef(onAfterClose); afterCloseRef.current = onAfterClose;
   useEffect(() => {
     const prev = document.activeElement as HTMLElement | null, overflow = document.body.style.overflow;
     const appRoot = document.getElementById('root');
@@ -11,13 +14,15 @@ export function FullscreenOverlay({ onClose, children }: { onClose: () => void; 
     const previousHidden = appRoot?.getAttribute('aria-hidden');
     if (appRoot) { appRoot.inert = true; appRoot.setAttribute('aria-hidden', 'true'); }
     document.body.style.overflow = 'hidden';
+    const nativeSession = Symbol('journey-fullscreen');
+    const historyKey = crypto.randomUUID();
+    nativeOwner = nativeSession;
     let pushed = false, done = false;
     const finish = () => { if (!done) { done = true; closeRef.current(); } };
-    try { history.pushState({ ...history.state, jfs: 1 }, ''); pushed = true; } catch { /* ignore */ }
+    try { history.pushState({ ...history.state, jfs: historyKey }, ''); pushed = true; } catch { /* ignore */ }
     let native = false;
-    document.documentElement.requestFullscreen?.().then(() => {
+    const nativeEntry = document.documentElement.requestFullscreen?.().then(() => {
       native = true;
-      if (done && document.fullscreenElement) document.exitFullscreen().catch(() => undefined);
     }).catch(() => undefined);
     ref.current?.focus();
     const key = (e: KeyboardEvent) => {
@@ -41,9 +46,29 @@ export function FullscreenOverlay({ onClose, children }: { onClose: () => void; 
         if (previousHidden == null) appRoot.removeAttribute('aria-hidden');
         else appRoot.setAttribute('aria-hidden', previousHidden);
       }
-      if (document.fullscreenElement) document.exitFullscreen().catch(() => undefined);
-      if (pushed && history.state?.jfs) history.back();
-      prev?.focus?.();
+      // Restore only after both native exit and the temporary history entry
+      // settle. A newly mounted page must not race their scroll restoration.
+      const nativeExit = Promise.resolve(nativeEntry).then(async () => {
+        if (nativeOwner !== nativeSession) return;
+        if (document.fullscreenElement === document.documentElement) await document.exitFullscreen().catch(() => undefined);
+        if (nativeOwner === nativeSession) nativeOwner = null;
+      });
+      const historyExit = pushed && history.state?.jfs === historyKey && !returnSignal?.aborted ? new Promise<void>(resolve => {
+        const returned = () => {
+          window.removeEventListener('popstate', returned);
+          returnSignal?.removeEventListener('abort', returned);
+          resolve();
+        };
+        window.addEventListener('popstate', returned, { once: true });
+        returnSignal?.addEventListener('abort', returned, { once: true });
+        try { history.back(); } catch {
+          returned();
+        }
+      }) : Promise.resolve();
+      Promise.all([nativeExit, historyExit]).then(() => requestAnimationFrame(() => {
+        if (afterCloseRef.current) afterCloseRef.current();
+        else if (prev?.isConnected) prev.focus({ preventScroll: true });
+      }));
     };
   }, []);
   return createPortal(<div ref={ref} role="dialog" aria-modal="true" aria-label="الخريطة بملء الشاشة" tabIndex={-1} onClick={event => event.stopPropagation()} onPointerDown={event => event.stopPropagation()} className="fixed inset-0 z-[100] bg-[#f2ecdc] overflow-y-auto overflow-x-hidden outline-none" style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }} data-testid="journey-fullscreen">

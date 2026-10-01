@@ -26,3 +26,9 @@ Measure transient feedback after its entrance animation settles, not at its firs
 **Why:** A real earned-level notification was captured above the viewport during its normal entrance, producing a false clipping finding. The settled notification was fully visible.
 
 **How to apply:** Preserve actual earned-event and deduplication evidence, but wait for mounting and transition completion before judging screen bounds. If the original notification expires, label a rendering-only check explicitly; it is not evidence of another earned reward.
+
+Keep a single live journey/form tree during fullscreen, with one owner for return positioning.
+
+**Why:** Repeated map-refit attempts could not reliably recover scroll already clamped by removing the in-flow page, and competed with native fullscreen/history restoration. Duplicating the live page instead would introduce conflicting day IDs and execution controls.
+
+**How to apply:** Preserve the original layout footprint without duplicating interactive content. Verify settled restoration and focus after native/history cleanup, including Escape, Back, rapid reopen, native rejection, and habit navigation during closing. Old-session callbacks must not reposition a new route or close a new session.

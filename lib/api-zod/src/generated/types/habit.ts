@@ -68,6 +68,11 @@ export interface Habit {
      */
   journeyLength: number | null;
   /**
+     * Server-recorded journey completion instant; optional for compatibility with older servers.
+     * @nullable
+     */
+  journeyCompletedAt?: Date | null;
+  /**
      * @minimum 1
      * @nullable
      */

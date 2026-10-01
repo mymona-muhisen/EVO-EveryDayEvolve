@@ -2,7 +2,7 @@ import { Router, type IRouter, type Request, type Response } from "express";
 import { eq, and, asc, desc } from "drizzle-orm";
 import {
   db, habitsTable, checkinsTable, habitDaysTable, habitPlanRevisionsTable,
-  habitDailyExecutionsTable, rewardsTable, usersTable,
+  habitDailyExecutionsTable, rewardsTable, usersTable, journeyRewardsTable,
 } from "@workspace/db";
 import {
   ListHabitsQueryParams,
@@ -18,6 +18,7 @@ import {
   GetHabitJourneyParams,
   GetHabitJourneyResponse,
   StartHabitJourneyParams,
+  StartHabitJourneyBody,
   StartHabitJourneyResponse,
 } from "@workspace/api-zod";
 import { requireAuth } from "../middlewares/requireAuth";
@@ -37,9 +38,28 @@ import { evaluateJourneyLifecycle } from "../lib/journeyLifecycle";
 import {
   journeysAssociatedWithReward, markJourneyRewardRequired, preserveJourneyRewardGate,
 } from "../lib/journeyRewardGate";
+import {
+  journeyRewardResponse,
+  prepareJourneyRewardInput,
+  synchronizeJourneyCompletion,
+} from "../lib/journeyRewardService";
 
 const router: IRouter = Router();
 router.use(requireAuth);
+const journeyRewardInputKeys = new Set([
+  "title", "type", "description", "imageObjectPath", "estimatedValue",
+]);
+const habitInputKeys = new Set([
+  "title", "emoji", "category", "cadence", "customDays", "unit", "executionType",
+  "targetValue", "minimumValue", "busyDayValue", "baselineValue", "successLimitValue",
+  "cueType", "cueTime", "cue", "startAction", "friction", "minimumFloor",
+  "journeyStartDate", "journeyLength", "rewardId", "journeyReward", "difficulty",
+  "goalType", "milestones",
+]);
+function onlyKnownKeys(value: unknown, keys: Set<string>): boolean {
+  return value != null && typeof value === "object" && !Array.isArray(value)
+    && Object.keys(value).every((key) => keys.has(key));
+}
 
 router.get("/habits", async (req, res): Promise<void> => {
   await ensureUser(req.userId!);
@@ -65,12 +85,28 @@ router.get("/habits", async (req, res): Promise<void> => {
 
 router.post("/habits", async (req, res): Promise<void> => {
   const user = await ensureUser(req.userId!);
+  if (!onlyKnownKeys(req.body, habitInputKeys)
+    || (req.body?.journeyReward != null
+      && !onlyKnownKeys(req.body.journeyReward, journeyRewardInputKeys))) {
+    res.status(400).json({ error: "Unsupported habit or journey reward fields" });
+    return;
+  }
   const parsed = CreateHabitBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
   const input = parsed.data;
+  const { journeyReward, ...habitInput } = input;
+  let rewardContent: Awaited<ReturnType<typeof prepareJourneyRewardInput>> | null = null;
+  if (journeyReward) {
+    try {
+      rewardContent = await prepareJourneyRewardInput(req.userId!, journeyReward);
+    } catch (error) {
+      res.status(400).json({ error: error instanceof Error ? error.message : "Invalid private reward image" });
+      return;
+    }
+  }
   const executionType = resolveExecutionType(input.unit, input.goalType, input.executionType);
   if ((input.goalType === "quit" && executionType !== "limit")
     || (input.goalType === "build" && executionType === "limit")) {
@@ -122,6 +158,9 @@ router.post("/habits", async (req, res): Promise<void> => {
   }
 
   const result = await db.transaction(async (tx) => {
+    const [owner] = await tx.select({ id: usersTable.id }).from(usersTable)
+      .where(eq(usersTable.id, req.userId!)).for("update");
+    if (!owner) return { error: "User not found" } as const;
     if (input.rewardId != null) {
       const [reward] = await tx.select({ id: rewardsTable.id }).from(rewardsTable)
         .where(and(eq(rewardsTable.id, input.rewardId), eq(rewardsTable.userId, req.userId!)))
@@ -130,7 +169,7 @@ router.post("/habits", async (req, res): Promise<void> => {
     }
     const [habit] = await tx.insert(habitsTable).values({
       userId: req.userId!,
-      ...input,
+      ...habitInput,
       executionType,
       minimumValue,
       minimumFloor,
@@ -187,11 +226,18 @@ router.post("/habits", async (req, res): Promise<void> => {
       habitId: habit.id, revision: 1, effectiveFrom: journeyStartDate, plan,
     });
     await preserveJourneyRewardGate(tx, req.userId!, habit, today);
+    if (rewardContent) {
+      await tx.insert(journeyRewardsTable).values({
+        userId: req.userId!,
+        habitId: habit.id,
+        ...rewardContent,
+      });
+    }
     return { habit } as const;
   });
 
   if ("error" in result) {
-    res.status(400).json({ error: result.error });
+    res.status(result.error === "User not found" ? 404 : 400).json({ error: result.error });
     return;
   }
   res.status(201).json(CreateHabitResponse.parse(result.habit));
@@ -286,12 +332,10 @@ const getHabitJourneyHandler = async (req: Request, res: Response): Promise<void
       successfulDates: new Set(checkins.filter((checkin) => checkin.completed).map((checkin) => checkin.date)),
       completedAt: habit.journeyCompletedAt,
     });
-    let completedAt = habit.journeyCompletedAt;
-    if (lifecycle.shouldCommitCompletion) {
-      completedAt = new Date();
-      await tx.update(habitsTable).set({ journeyCompletedAt: completedAt })
-        .where(and(eq(habitsTable.id, habit.id), eq(habitsTable.userId, req.userId!)));
-    }
+    const realRewardState = await synchronizeJourneyCompletion(
+      tx, req.userId!, habit, today, new Date(), lifecycle,
+    );
+    const completedAt = realRewardState.completedAt;
     const currentDay = days.length === 0 || lifecycle.calendarDay < 1
       ? 0
       : Math.min(days.length, lifecycle.calendarDay);
@@ -341,12 +385,9 @@ const getHabitJourneyHandler = async (req: Request, res: Response): Promise<void
             .map((checkin) => checkin.date)),
           completedAt: linked.journeyCompletedAt,
         });
-        if (linkedLifecycle.shouldCommitCompletion) {
-          await tx.update(habitsTable).set({ journeyCompletedAt: new Date() }).where(and(
-            eq(habitsTable.id, linked.id),
-            eq(habitsTable.userId, req.userId!),
-          ));
-        }
+        await synchronizeJourneyCompletion(
+          tx, req.userId!, linked, today, new Date(), linkedLifecycle,
+        );
         await markJourneyRewardRequired(
           tx, req.userId!, selectedReward.id, linkedLifecycle.status === "completed",
         );
@@ -375,6 +416,9 @@ const getHabitJourneyHandler = async (req: Request, res: Response): Promise<void
         consistency: { successfulDays, eligibleDays },
         missedDays,
         restDays: days.filter((day) => !day.scheduled).length,
+        realReward: realRewardState.reward == null
+          ? null
+          : journeyRewardResponse(realRewardState.reward, lifecycle.calendarDay),
         selectedReward: selectedReward == null ? null : {
           id: selectedReward.id,
           title: selectedReward.title,
@@ -458,10 +502,30 @@ router.get("/habits/:habitId/journey", getHabitJourneyHandler);
 
 router.post("/habits/:habitId/journey", async (req, res): Promise<void> => {
   await ensureUser(req.userId!);
+  if (!onlyKnownKeys(req.body ?? {}, new Set(["journeyReward"]))
+    || (req.body?.journeyReward != null
+      && !onlyKnownKeys(req.body.journeyReward, journeyRewardInputKeys))) {
+    res.status(400).json({ error: "Unsupported journey start or reward fields" });
+    return;
+  }
   const params = StartHabitJourneyParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
     return;
+  }
+  const parsedBody = StartHabitJourneyBody.safeParse(req.body ?? {});
+  if (!parsedBody.success) {
+    res.status(400).json({ error: parsedBody.error.message });
+    return;
+  }
+  let rewardContent: Awaited<ReturnType<typeof prepareJourneyRewardInput>> | null = null;
+  if (parsedBody.data.journeyReward) {
+    try {
+      rewardContent = await prepareJourneyRewardInput(req.userId!, parsedBody.data.journeyReward);
+    } catch (error) {
+      res.status(400).json({ error: error instanceof Error ? error.message : "Invalid private reward image" });
+      return;
+    }
   }
 
   const result = await db.transaction(async (tx) => {
@@ -546,6 +610,14 @@ router.post("/habits/:habitId/journey", async (req, res): Promise<void> => {
       eq(habitsTable.userId, req.userId!),
     )).returning();
     await preserveJourneyRewardGate(tx, req.userId!, startedHabit, today);
+    if (rewardContent) {
+      const [reward] = await tx.insert(journeyRewardsTable).values({
+        userId: req.userId!,
+        habitId: startedHabit.id,
+        ...rewardContent,
+      }).returning();
+      if (reward) await synchronizeJourneyCompletion(tx, req.userId!, startedHabit, today);
+    }
     return { kind: "started" } as const;
   });
 
@@ -713,6 +785,10 @@ router.patch("/habits/:habitId", async (req, res): Promise<void> => {
     res.status(400).json({ error: params.error.message });
     return;
   }
+  if (!onlyKnownKeys(req.body, new Set(Object.keys(UpdateHabitBody.shape)))) {
+    res.status(400).json({ error: "Unsupported habit fields" });
+    return;
+  }
   const parsed = UpdateHabitBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -724,6 +800,9 @@ router.patch("/habits/:habitId", async (req, res): Promise<void> => {
   } = parsed.data;
   const today = todayInTimezone(user.timezone);
   const outcome = await db.transaction(async (tx) => {
+    const [owner] = await tx.select({ id: usersTable.id }).from(usersTable)
+      .where(eq(usersTable.id, req.userId!)).for("update");
+    if (!owner) return { kind: "not_found" } as const;
     const [before] = await tx.select().from(habitsTable).where(and(
       eq(habitsTable.id, params.data.habitId),
       eq(habitsTable.userId, req.userId!),
@@ -996,12 +1075,17 @@ router.delete("/habits/:habitId", async (req, res): Promise<void> => {
   }
 
   const deleted = await db.transaction(async (tx) => {
+    const [owner] = await tx.select({ id: usersTable.id }).from(usersTable)
+      .where(eq(usersTable.id, req.userId!)).for("update");
+    if (!owner) return null;
     const [before] = await tx.select().from(habitsTable).where(and(
       eq(habitsTable.id, params.data.habitId),
       eq(habitsTable.userId, req.userId!),
     )).for("update");
     if (!before) return null;
-    await preserveJourneyRewardGate(tx, req.userId!, before, todayInTimezone(user.timezone));
+    const today = todayInTimezone(user.timezone);
+    await synchronizeJourneyCompletion(tx, req.userId!, before, today);
+    await preserveJourneyRewardGate(tx, req.userId!, before, today);
     const [habit] = await tx.delete(habitsTable).where(and(
       eq(habitsTable.id, params.data.habitId),
       eq(habitsTable.userId, req.userId!),

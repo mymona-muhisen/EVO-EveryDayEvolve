@@ -107,6 +107,7 @@ export const ListHabitsResponseItem = zod.object({
   "minimumFloor": zod.number().min(listHabitsResponseMinimumFloorMin).nullable(),
   "journeyStartDate": zod.coerce.date().nullable(),
   "journeyLength": zod.number().int().min(1).max(listHabitsResponseJourneyLengthMax).nullable(),
+  "journeyCompletedAt": zod.coerce.date().nullish().describe('Server-recorded journey completion instant; optional for compatibility with older servers.'),
   "rewardId": zod.number().int().min(1).nullable(),
   "difficulty": zod.enum(['easy', 'medium', 'hard']),
   "goalType": zod.enum(['build', 'quit']),
@@ -149,6 +150,12 @@ export const createHabitBodyJourneyLengthMax = 22;
 
 
 
+export const createHabitBodyJourneyRewardDescriptionMax = 2000;
+
+
+export const createHabitBodyJourneyRewardEstimatedValueMin = 0;
+
+
 
 export const CreateHabitBody = zod.object({
   "title": zod.string().min(1),
@@ -172,6 +179,13 @@ export const CreateHabitBody = zod.object({
   "journeyStartDate": zod.coerce.date().optional(),
   "journeyLength": zod.number().int().min(1).max(createHabitBodyJourneyLengthMax).optional(),
   "rewardId": zod.number().int().min(1).optional(),
+  "journeyReward": zod.object({
+  "title": zod.string().min(1),
+  "type": zod.enum(['physical', 'experience']),
+  "description": zod.string().max(createHabitBodyJourneyRewardDescriptionMax).optional(),
+  "imageObjectPath": zod.string().min(1).optional().describe('Private normalized object path returned by the existing photo upload flow; never a public URL or file bytes.'),
+  "estimatedValue": zod.number().min(createHabitBodyJourneyRewardEstimatedValueMin).optional()
+}).optional().describe('User-selected personal goal only. It has no price in coins and does not initiate a purchase.'),
   "difficulty": zod.enum(['easy', 'medium', 'hard']),
   "goalType": zod.enum(['build', 'quit']),
   "milestones": zod.array(zod.object({
@@ -215,6 +229,7 @@ export const CreateHabitResponse = zod.object({
   "minimumFloor": zod.number().min(createHabitResponseMinimumFloorMin).nullable(),
   "journeyStartDate": zod.coerce.date().nullable(),
   "journeyLength": zod.number().int().min(1).max(createHabitResponseJourneyLengthMax).nullable(),
+  "journeyCompletedAt": zod.coerce.date().nullish().describe('Server-recorded journey completion instant; optional for compatibility with older servers.'),
   "rewardId": zod.number().int().min(1).nullable(),
   "difficulty": zod.enum(['easy', 'medium', 'hard']),
   "goalType": zod.enum(['build', 'quit']),
@@ -272,6 +287,7 @@ export const GetHabitResponse = zod.object({
   "minimumFloor": zod.number().min(getHabitResponseMinimumFloorMin).nullable(),
   "journeyStartDate": zod.coerce.date().nullable(),
   "journeyLength": zod.number().int().min(1).max(getHabitResponseJourneyLengthMax).nullable(),
+  "journeyCompletedAt": zod.coerce.date().nullish().describe('Server-recorded journey completion instant; optional for compatibility with older servers.'),
   "rewardId": zod.number().int().min(1).nullable(),
   "difficulty": zod.enum(['easy', 'medium', 'hard']),
   "goalType": zod.enum(['build', 'quit']),
@@ -387,6 +403,7 @@ export const UpdateHabitResponse = zod.object({
   "minimumFloor": zod.number().min(updateHabitResponseMinimumFloorMin).nullable(),
   "journeyStartDate": zod.coerce.date().nullable(),
   "journeyLength": zod.number().int().min(1).max(updateHabitResponseJourneyLengthMax).nullable(),
+  "journeyCompletedAt": zod.coerce.date().nullish().describe('Server-recorded journey completion instant; optional for compatibility with older servers.'),
   "rewardId": zod.number().int().min(1).nullable(),
   "difficulty": zod.enum(['easy', 'medium', 'hard']),
   "goalType": zod.enum(['build', 'quit']),
@@ -421,6 +438,16 @@ export const GetHabitJourneyParams = zod.object({
   "habitId": zod.coerce.number().int()
 })
 
+export const getHabitJourneyResponseRealRewardOneEstimatedValueMin = 0;
+
+export const getHabitJourneyResponseRealRewardOneCurrentDayMin = 0;
+export const getHabitJourneyResponseRealRewardOneCurrentDayMax = 22;
+
+export const getHabitJourneyResponseRealRewardOneDaysRemainingMin = 0;
+export const getHabitJourneyResponseRealRewardOneDaysRemainingMax = 22;
+
+
+
 export const GetHabitJourneyResponse = zod.object({
   "habitId": zod.number().int(),
   "startDate": zod.coerce.date().nullable(),
@@ -439,6 +466,22 @@ export const GetHabitJourneyResponse = zod.object({
 }),
   "missedDays": zod.number().int().describe('Elapsed scheduled dates without a successful check-in'),
   "restDays": zod.number().int().describe('Rest dates in the fixed calendar snapshot'),
+  "realReward": zod.union([zod.object({
+  "id": zod.number().int(),
+  "habitId": zod.number().int().nullable(),
+  "title": zod.string(),
+  "type": zod.enum(['physical', 'experience']),
+  "description": zod.string().nullable(),
+  "imageUrl": zod.string().nullable().describe('Normalized private object path; clients serve it through the authenticated object route.'),
+  "estimatedValue": zod.number().min(getHabitJourneyResponseRealRewardOneEstimatedValueMin).nullable(),
+  "status": zod.enum(['pending', 'unlocked', 'claimed']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "unlockedAt": zod.coerce.date().nullable(),
+  "claimedAt": zod.coerce.date().nullable(),
+  "currentDay": zod.number().int().min(getHabitJourneyResponseRealRewardOneCurrentDayMin).max(getHabitJourneyResponseRealRewardOneCurrentDayMax).nullable().describe('Current server-computed calendar day of the attached journey; null when unattached.'),
+  "daysRemaining": zod.number().int().min(getHabitJourneyResponseRealRewardOneDaysRemainingMin).max(getHabitJourneyResponseRealRewardOneDaysRemainingMax).nullable().describe('Remaining calendar days in the attached 22-day journey; null when unattached.')
+}).describe('Owner-private personal reward and its server-computed 22-calendar-day progress. Image URL is a normalized private object path.'),zod.null()]).optional().describe('Optional private personal reward attached to this journey; absent on older servers.'),
   "selectedReward": zod.union([zod.object({
   "id": zod.number().int(),
   "title": zod.string(),
@@ -518,6 +561,34 @@ export const StartHabitJourneyParams = zod.object({
   "habitId": zod.coerce.number().int()
 })
 
+
+export const startHabitJourneyBodyJourneyRewardDescriptionMax = 2000;
+
+
+export const startHabitJourneyBodyJourneyRewardEstimatedValueMin = 0;
+
+
+
+export const StartHabitJourneyBody = zod.object({
+  "journeyReward": zod.object({
+  "title": zod.string().min(1),
+  "type": zod.enum(['physical', 'experience']),
+  "description": zod.string().max(startHabitJourneyBodyJourneyRewardDescriptionMax).optional(),
+  "imageObjectPath": zod.string().min(1).optional().describe('Private normalized object path returned by the existing photo upload flow; never a public URL or file bytes.'),
+  "estimatedValue": zod.number().min(startHabitJourneyBodyJourneyRewardEstimatedValueMin).optional()
+}).optional().describe('User-selected personal goal only. It has no price in coins and does not initiate a purchase.')
+}).describe('Optional real-world personal reward to attach while starting a legacy habit\'s journey.')
+
+export const startHabitJourneyResponseRealRewardOneEstimatedValueMin = 0;
+
+export const startHabitJourneyResponseRealRewardOneCurrentDayMin = 0;
+export const startHabitJourneyResponseRealRewardOneCurrentDayMax = 22;
+
+export const startHabitJourneyResponseRealRewardOneDaysRemainingMin = 0;
+export const startHabitJourneyResponseRealRewardOneDaysRemainingMax = 22;
+
+
+
 export const StartHabitJourneyResponse = zod.object({
   "habitId": zod.number().int(),
   "startDate": zod.coerce.date().nullable(),
@@ -536,6 +607,22 @@ export const StartHabitJourneyResponse = zod.object({
 }),
   "missedDays": zod.number().int().describe('Elapsed scheduled dates without a successful check-in'),
   "restDays": zod.number().int().describe('Rest dates in the fixed calendar snapshot'),
+  "realReward": zod.union([zod.object({
+  "id": zod.number().int(),
+  "habitId": zod.number().int().nullable(),
+  "title": zod.string(),
+  "type": zod.enum(['physical', 'experience']),
+  "description": zod.string().nullable(),
+  "imageUrl": zod.string().nullable().describe('Normalized private object path; clients serve it through the authenticated object route.'),
+  "estimatedValue": zod.number().min(startHabitJourneyResponseRealRewardOneEstimatedValueMin).nullable(),
+  "status": zod.enum(['pending', 'unlocked', 'claimed']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "unlockedAt": zod.coerce.date().nullable(),
+  "claimedAt": zod.coerce.date().nullable(),
+  "currentDay": zod.number().int().min(startHabitJourneyResponseRealRewardOneCurrentDayMin).max(startHabitJourneyResponseRealRewardOneCurrentDayMax).nullable().describe('Current server-computed calendar day of the attached journey; null when unattached.'),
+  "daysRemaining": zod.number().int().min(startHabitJourneyResponseRealRewardOneDaysRemainingMin).max(startHabitJourneyResponseRealRewardOneDaysRemainingMax).nullable().describe('Remaining calendar days in the attached 22-day journey; null when unattached.')
+}).describe('Owner-private personal reward and its server-computed 22-calendar-day progress. Image URL is a normalized private object path.'),zod.null()]).optional().describe('Optional private personal reward attached to this journey; absent on older servers.'),
   "selectedReward": zod.union([zod.object({
   "id": zod.number().int(),
   "title": zod.string(),
@@ -1195,6 +1282,7 @@ export const CreateCheckinResponse = zod.object({
   "minimumFloor": zod.number().min(createCheckinResponseTwoHabitMinimumFloorMin).nullable(),
   "journeyStartDate": zod.coerce.date().nullable(),
   "journeyLength": zod.number().int().min(1).max(createCheckinResponseTwoHabitJourneyLengthMax).nullable(),
+  "journeyCompletedAt": zod.coerce.date().nullish().describe('Server-recorded journey completion instant; optional for compatibility with older servers.'),
   "rewardId": zod.number().int().min(1).nullable(),
   "difficulty": zod.enum(['easy', 'medium', 'hard']),
   "goalType": zod.enum(['build', 'quit']),
@@ -1333,6 +1421,7 @@ export const RecoverStreakResponse = zod.object({
   "minimumFloor": zod.number().min(recoverStreakResponseHabitMinimumFloorMin).nullable(),
   "journeyStartDate": zod.coerce.date().nullable(),
   "journeyLength": zod.number().int().min(1).max(recoverStreakResponseHabitJourneyLengthMax).nullable(),
+  "journeyCompletedAt": zod.coerce.date().nullish().describe('Server-recorded journey completion instant; optional for compatibility with older servers.'),
   "rewardId": zod.number().int().min(1).nullable(),
   "difficulty": zod.enum(['easy', 'medium', 'hard']),
   "goalType": zod.enum(['build', 'quit']),
@@ -1755,6 +1844,211 @@ export const RedeemRewardResponse = zod.object({
 
 
 /**
+ * @summary List the current owner's private real-world journey rewards and history
+ */
+export const listJourneyRewardsResponseEstimatedValueMin = 0;
+
+export const listJourneyRewardsResponseCurrentDayMin = 0;
+export const listJourneyRewardsResponseCurrentDayMax = 22;
+
+export const listJourneyRewardsResponseDaysRemainingMin = 0;
+export const listJourneyRewardsResponseDaysRemainingMax = 22;
+
+
+
+export const ListJourneyRewardsResponseItem = zod.object({
+  "id": zod.number().int(),
+  "habitId": zod.number().int().nullable(),
+  "title": zod.string(),
+  "type": zod.enum(['physical', 'experience']),
+  "description": zod.string().nullable(),
+  "imageUrl": zod.string().nullable().describe('Normalized private object path; clients serve it through the authenticated object route.'),
+  "estimatedValue": zod.number().min(listJourneyRewardsResponseEstimatedValueMin).nullable(),
+  "status": zod.enum(['pending', 'unlocked', 'claimed']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "unlockedAt": zod.coerce.date().nullable(),
+  "claimedAt": zod.coerce.date().nullable(),
+  "currentDay": zod.number().int().min(listJourneyRewardsResponseCurrentDayMin).max(listJourneyRewardsResponseCurrentDayMax).nullable().describe('Current server-computed calendar day of the attached journey; null when unattached.'),
+  "daysRemaining": zod.number().int().min(listJourneyRewardsResponseDaysRemainingMin).max(listJourneyRewardsResponseDaysRemainingMax).nullable().describe('Remaining calendar days in the attached 22-day journey; null when unattached.')
+}).describe('Owner-private personal reward and its server-computed 22-calendar-day progress. Image URL is a normalized private object path.')
+export const ListJourneyRewardsResponse = zod.array(ListJourneyRewardsResponseItem)
+
+
+/**
+ * @summary Create a private physical or experience reward, optionally attaching it to an existing journey
+ */
+
+
+export const createJourneyRewardBodyDescriptionMax = 2000;
+
+
+export const createJourneyRewardBodyEstimatedValueMin = 0;
+
+
+
+export const CreateJourneyRewardBody = zod.object({
+  "habitId": zod.number().int().min(1).nullish(),
+  "title": zod.string().min(1),
+  "type": zod.enum(['physical', 'experience']),
+  "description": zod.string().max(createJourneyRewardBodyDescriptionMax).optional(),
+  "imageObjectPath": zod.string().min(1).optional().describe('Private normalized object path returned by the existing photo upload flow; never a public URL or file bytes.'),
+  "estimatedValue": zod.number().min(createJourneyRewardBodyEstimatedValueMin).optional()
+}).describe('Create an owner-private real-world reward, optionally attached to an existing journey. Omit habitId to leave it unattached.')
+
+export const createJourneyRewardResponseEstimatedValueMin = 0;
+
+export const createJourneyRewardResponseCurrentDayMin = 0;
+export const createJourneyRewardResponseCurrentDayMax = 22;
+
+export const createJourneyRewardResponseDaysRemainingMin = 0;
+export const createJourneyRewardResponseDaysRemainingMax = 22;
+
+
+
+export const CreateJourneyRewardResponse = zod.object({
+  "id": zod.number().int(),
+  "habitId": zod.number().int().nullable(),
+  "title": zod.string(),
+  "type": zod.enum(['physical', 'experience']),
+  "description": zod.string().nullable(),
+  "imageUrl": zod.string().nullable().describe('Normalized private object path; clients serve it through the authenticated object route.'),
+  "estimatedValue": zod.number().min(createJourneyRewardResponseEstimatedValueMin).nullable(),
+  "status": zod.enum(['pending', 'unlocked', 'claimed']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "unlockedAt": zod.coerce.date().nullable(),
+  "claimedAt": zod.coerce.date().nullable(),
+  "currentDay": zod.number().int().min(createJourneyRewardResponseCurrentDayMin).max(createJourneyRewardResponseCurrentDayMax).nullable().describe('Current server-computed calendar day of the attached journey; null when unattached.'),
+  "daysRemaining": zod.number().int().min(createJourneyRewardResponseDaysRemainingMin).max(createJourneyRewardResponseDaysRemainingMax).nullable().describe('Remaining calendar days in the attached 22-day journey; null when unattached.')
+}).describe('Owner-private personal reward and its server-computed 22-calendar-day progress. Image URL is a normalized private object path.')
+
+
+/**
+ * @summary Read one of the current owner's private real-world journey rewards
+ */
+export const GetJourneyRewardParams = zod.object({
+  "journeyRewardId": zod.coerce.number().int()
+})
+
+export const getJourneyRewardResponseEstimatedValueMin = 0;
+
+export const getJourneyRewardResponseCurrentDayMin = 0;
+export const getJourneyRewardResponseCurrentDayMax = 22;
+
+export const getJourneyRewardResponseDaysRemainingMin = 0;
+export const getJourneyRewardResponseDaysRemainingMax = 22;
+
+
+
+export const GetJourneyRewardResponse = zod.object({
+  "id": zod.number().int(),
+  "habitId": zod.number().int().nullable(),
+  "title": zod.string(),
+  "type": zod.enum(['physical', 'experience']),
+  "description": zod.string().nullable(),
+  "imageUrl": zod.string().nullable().describe('Normalized private object path; clients serve it through the authenticated object route.'),
+  "estimatedValue": zod.number().min(getJourneyRewardResponseEstimatedValueMin).nullable(),
+  "status": zod.enum(['pending', 'unlocked', 'claimed']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "unlockedAt": zod.coerce.date().nullable(),
+  "claimedAt": zod.coerce.date().nullable(),
+  "currentDay": zod.number().int().min(getJourneyRewardResponseCurrentDayMin).max(getJourneyRewardResponseCurrentDayMax).nullable().describe('Current server-computed calendar day of the attached journey; null when unattached.'),
+  "daysRemaining": zod.number().int().min(getJourneyRewardResponseDaysRemainingMin).max(getJourneyRewardResponseDaysRemainingMax).nullable().describe('Remaining calendar days in the attached 22-day journey; null when unattached.')
+}).describe('Owner-private personal reward and its server-computed 22-calendar-day progress. Image URL is a normalized private object path.')
+
+
+/**
+ * @summary Update a pending journey reward after explicit user confirmation
+ */
+export const UpdateJourneyRewardParams = zod.object({
+  "journeyRewardId": zod.coerce.number().int()
+})
+
+
+
+export const updateJourneyRewardBodyDescriptionMax = 2000;
+
+
+export const updateJourneyRewardBodyEstimatedValueMin = 0;
+
+
+
+export const UpdateJourneyRewardBody = zod.object({
+  "confirm": zod.literal(true),
+  "habitId": zod.number().int().min(1).nullish().describe('Attach to an existing owner journey or explicitly detach with null.'),
+  "title": zod.string().min(1).optional(),
+  "type": zod.enum(['physical', 'experience']).optional(),
+  "description": zod.string().max(updateJourneyRewardBodyDescriptionMax).nullish(),
+  "imageObjectPath": zod.string().min(1).nullish().describe('Private normalized object path returned by the existing photo upload flow; null removes the image.'),
+  "estimatedValue": zod.number().min(updateJourneyRewardBodyEstimatedValueMin).nullish()
+}).describe('Updates are accepted only while status is pending and only with explicit confirmation=true.')
+
+export const updateJourneyRewardResponseEstimatedValueMin = 0;
+
+export const updateJourneyRewardResponseCurrentDayMin = 0;
+export const updateJourneyRewardResponseCurrentDayMax = 22;
+
+export const updateJourneyRewardResponseDaysRemainingMin = 0;
+export const updateJourneyRewardResponseDaysRemainingMax = 22;
+
+
+
+export const UpdateJourneyRewardResponse = zod.object({
+  "id": zod.number().int(),
+  "habitId": zod.number().int().nullable(),
+  "title": zod.string(),
+  "type": zod.enum(['physical', 'experience']),
+  "description": zod.string().nullable(),
+  "imageUrl": zod.string().nullable().describe('Normalized private object path; clients serve it through the authenticated object route.'),
+  "estimatedValue": zod.number().min(updateJourneyRewardResponseEstimatedValueMin).nullable(),
+  "status": zod.enum(['pending', 'unlocked', 'claimed']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "unlockedAt": zod.coerce.date().nullable(),
+  "claimedAt": zod.coerce.date().nullable(),
+  "currentDay": zod.number().int().min(updateJourneyRewardResponseCurrentDayMin).max(updateJourneyRewardResponseCurrentDayMax).nullable().describe('Current server-computed calendar day of the attached journey; null when unattached.'),
+  "daysRemaining": zod.number().int().min(updateJourneyRewardResponseDaysRemainingMin).max(updateJourneyRewardResponseDaysRemainingMax).nullable().describe('Remaining calendar days in the attached 22-day journey; null when unattached.')
+}).describe('Owner-private personal reward and its server-computed 22-calendar-day progress. Image URL is a normalized private object path.')
+
+
+/**
+ * @summary Record the owner's claim of an unlocked personal reward without payment or coin spending
+ */
+export const ClaimJourneyRewardParams = zod.object({
+  "journeyRewardId": zod.coerce.number().int()
+})
+
+export const claimJourneyRewardResponseEstimatedValueMin = 0;
+
+export const claimJourneyRewardResponseCurrentDayMin = 0;
+export const claimJourneyRewardResponseCurrentDayMax = 22;
+
+export const claimJourneyRewardResponseDaysRemainingMin = 0;
+export const claimJourneyRewardResponseDaysRemainingMax = 22;
+
+
+
+export const ClaimJourneyRewardResponse = zod.object({
+  "id": zod.number().int(),
+  "habitId": zod.number().int().nullable(),
+  "title": zod.string(),
+  "type": zod.enum(['physical', 'experience']),
+  "description": zod.string().nullable(),
+  "imageUrl": zod.string().nullable().describe('Normalized private object path; clients serve it through the authenticated object route.'),
+  "estimatedValue": zod.number().min(claimJourneyRewardResponseEstimatedValueMin).nullable(),
+  "status": zod.enum(['pending', 'unlocked', 'claimed']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "unlockedAt": zod.coerce.date().nullable(),
+  "claimedAt": zod.coerce.date().nullable(),
+  "currentDay": zod.number().int().min(claimJourneyRewardResponseCurrentDayMin).max(claimJourneyRewardResponseCurrentDayMax).nullable().describe('Current server-computed calendar day of the attached journey; null when unattached.'),
+  "daysRemaining": zod.number().int().min(claimJourneyRewardResponseDaysRemainingMin).max(claimJourneyRewardResponseDaysRemainingMax).nullable().describe('Remaining calendar days in the attached 22-day journey; null when unattached.')
+}).describe('Owner-private personal reward and its server-computed 22-calendar-day progress. Image URL is a normalized private object path.')
+
+
+/**
  * @summary Get coin balance and weekly earn/spend totals
  */
 export const GetWalletResponse = zod.object({
@@ -2061,6 +2355,17 @@ export const GetJourneyProgressResponse = zod.object({
 /**
  * @summary Aggregate home-screen summary for today
  */
+export const getDashboardTodayResponseRealRewardsItemCurrentDayMin = 0;
+export const getDashboardTodayResponseRealRewardsItemCurrentDayMax = 22;
+
+export const getDashboardTodayResponseRealRewardsItemDaysRemainingMin = 0;
+export const getDashboardTodayResponseRealRewardsItemDaysRemainingMax = 22;
+
+export const getDashboardTodayResponseRealRewardsItemProgressPercentMin = 0;
+export const getDashboardTodayResponseRealRewardsItemProgressPercentMax = 100;
+
+
+
 export const GetDashboardTodayResponse = zod.object({
   "date": zod.coerce.date().describe('Today\'s calendar date in the user\'s saved timezone'),
   "suggestedJourneyStartDate": zod.coerce.date().describe('Today in the user\'s saved timezone unless local hour is 21:00 or later'),
@@ -2086,7 +2391,18 @@ export const GetDashboardTodayResponse = zod.object({
   "valueToday": zod.number().nullable(),
   "currentStreak": zod.number().int(),
   "scheduledToday": zod.boolean()
-}))
+})),
+  "realRewards": zod.array(zod.object({
+  "habitId": zod.number().int(),
+  "habitTitle": zod.string(),
+  "title": zod.string(),
+  "type": zod.enum(['physical', 'experience']),
+  "status": zod.enum(['pending', 'unlocked', 'claimed']),
+  "currentDay": zod.number().int().min(getDashboardTodayResponseRealRewardsItemCurrentDayMin).max(getDashboardTodayResponseRealRewardsItemCurrentDayMax),
+  "daysRemaining": zod.number().int().min(getDashboardTodayResponseRealRewardsItemDaysRemainingMin).max(getDashboardTodayResponseRealRewardsItemDaysRemainingMax),
+  "progressPercent": zod.number().int().min(getDashboardTodayResponseRealRewardsItemProgressPercentMin).max(getDashboardTodayResponseRealRewardsItemProgressPercentMax).describe('Calendar progress'),
+  "imageUrl": zod.string().nullable().describe('Normalized private object path served through the authenticated object route.')
+})).optional().describe('Optional private real-world journey reward cards; absent on older servers.')
 })
 
 

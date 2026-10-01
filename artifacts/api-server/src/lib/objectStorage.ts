@@ -1,6 +1,8 @@
 import { randomUUID } from 'crypto';
 import { Readable } from 'stream';
 import { File, Storage } from '@google-cloud/storage';
+import { and, eq } from 'drizzle-orm';
+import { db, objectUploadsTable } from '@workspace/db';
 
 import {
   canAccessObject,
@@ -35,6 +37,14 @@ export class ObjectNotFoundError extends Error {
     super('Object not found');
     this.name = 'ObjectNotFoundError';
     Object.setPrototypeOf(this, ObjectNotFoundError.prototype);
+  }
+}
+
+export class ObjectAclOwnershipError extends Error {
+  constructor(message = 'Private object is not owned by this user') {
+    super(message);
+    this.name = 'ObjectAclOwnershipError';
+    Object.setPrototypeOf(this, ObjectAclOwnershipError.prototype);
   }
 }
 
@@ -183,13 +193,38 @@ export class ObjectStorageService {
   async trySetObjectEntityAclPolicy(
     rawPath: string,
     aclPolicy: ObjectAclPolicy,
+    authenticatedUserId: string,
   ): Promise<string> {
     const normalizedPath = this.normalizeObjectEntityPath(rawPath);
-    if (!normalizedPath.startsWith('/')) {
-      return normalizedPath;
+    if (!normalizedPath.startsWith('/objects/')
+      || normalizedPath.includes('?')
+      || normalizedPath.includes('#')
+      || normalizedPath.includes('\\')
+      || normalizedPath.split('/').some((part) => part === '.' || part === '..')) {
+      throw new ObjectAclOwnershipError('Photo must be a normalized private object path');
+    }
+    if (aclPolicy.owner !== authenticatedUserId || aclPolicy.visibility !== 'private') {
+      throw new ObjectAclOwnershipError();
     }
 
     const objectFile = await this.getObjectEntityFile(normalizedPath);
+    const existingPolicy = await getObjectAclPolicy(objectFile);
+    if (existingPolicy) {
+      if (existingPolicy.owner !== authenticatedUserId || existingPolicy.visibility !== 'private') {
+        throw new ObjectAclOwnershipError();
+      }
+      // A same-owner private object is already adopted. Do not rewrite its
+      // ACL metadata (which could also erase any valid ACL rules).
+      return normalizedPath;
+    }
+
+    const [upload] = await db.select({ objectPath: objectUploadsTable.objectPath })
+      .from(objectUploadsTable).where(and(
+        eq(objectUploadsTable.objectPath, normalizedPath),
+        eq(objectUploadsTable.userId, authenticatedUserId),
+      )).limit(1);
+    if (!upload) throw new ObjectAclOwnershipError();
+
     await setObjectAclPolicy(objectFile, aclPolicy);
     return normalizedPath;
   }

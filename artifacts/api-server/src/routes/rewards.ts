@@ -22,6 +22,7 @@ import { evaluateJourneyLifecycle } from "../lib/journeyLifecycle";
 import {
   journeysAssociatedWithReward, markJourneyRewardRequired, preserveJourneyRewardGate,
 } from "../lib/journeyRewardGate";
+import { synchronizeJourneyCompletion } from "../lib/journeyRewardService";
 
 const router: IRouter = Router();
 router.use(requireAuth);
@@ -46,6 +47,9 @@ router.post("/rewards", async (req, res): Promise<void> => {
   }
 
   const result = await db.transaction(async (tx) => {
+    const [owner] = await tx.select({ id: usersTable.id }).from(usersTable)
+      .where(eq(usersTable.id, req.userId!)).for("update");
+    if (!owner) return { kind: "habit_not_found" } as const;
     const [habit] = parsed.data.habitId == null
       ? []
       : await tx.select().from(habitsTable).where(and(
@@ -164,10 +168,9 @@ router.post("/rewards/:rewardId/redeem", async (req, res): Promise<void> => {
         successfulDates: new Set(checkins.filter((checkin) => checkin.completed).map((checkin) => checkin.date)),
         completedAt: habit.journeyCompletedAt,
       });
-      if (lifecycle.shouldCommitCompletion) {
-        await tx.update(habitsTable).set({ journeyCompletedAt: new Date() })
-          .where(and(eq(habitsTable.id, habit.id), eq(habitsTable.userId, req.userId!)));
-      }
+      await synchronizeJourneyCompletion(
+        tx, req.userId!, habit, today, new Date(), lifecycle,
+      );
       await markJourneyRewardRequired(
         tx, req.userId!, reward.id, lifecycle.status === "completed",
       );

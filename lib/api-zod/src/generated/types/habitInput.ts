@@ -13,6 +13,7 @@ import type { HabitInputExecutionType } from './habitInputExecutionType';
 import type { HabitInputGoalType } from './habitInputGoalType';
 import type { HabitInputUnit } from './habitInputUnit';
 import type { HabitMilestone } from './habitMilestone';
+import type { JourneyRewardInput } from './journeyRewardInput';
 
 export interface HabitInput {
   /** @minLength 1 */
@@ -60,6 +61,7 @@ export interface HabitInput {
   journeyLength?: number;
   /** @minimum 1 */
   rewardId?: number;
+  journeyReward?: JourneyRewardInput;
   difficulty: HabitInputDifficulty;
   goalType: HabitInputGoalType;
   milestones?: HabitMilestone[];

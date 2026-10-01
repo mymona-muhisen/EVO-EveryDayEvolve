@@ -1,4 +1,5 @@
 import { ConsistencyOverview } from '@/components/daily/consistency-overview';
+import { JourneyHistory } from '@/components/reward/real-reward';
 import { CharacterSummary } from '@/components/character/character-summary';
 import { useState } from 'react';
 import { useLocation } from 'wouter';
@@ -27,4 +28,4 @@ export function ProfileForm({user,onboarding=false}: {user:User,onboarding?:bool
   </form>;
 }
 export function Onboarding({user}: {user:User}) { return <div className="min-h-[100dvh] bg-[#f4ecdb] p-5 md:p-12"><div className="max-w-[760px] mx-auto"><div className="flex items-center gap-3 mb-10"><img src={`${import.meta.env.BASE_URL}logo.svg`} className="w-9 h-9" alt="شعار رحلة العادة"/><strong className="text-xl" style={{fontFamily:'Cairo'}}>رحلة العادة</strong></div><PageHead overline="خطوتك الأولى" title="لنبدأ بالتعارف." desc="هذه مساحتك. اختر ما يجعل الرحلة أقرب إليك، ويمكنك تغيير كل شيء لاحقًا."/><ProfileForm user={user} onboarding/></div></div>; }
-export function SettingsPage({user}: {user:User}) { return <><PageHead overline="مساحتك الخاصة" title="الإعدادات" desc={`مدرّبك الآن: ${styles[user.motivationStyle]}. يمكنك تغيير صوت الرحلة متى أردت.`}/><div className="max-w-[760px] mb-8"><CharacterSummary profile /></div><ProfileForm user={user}/><div className="mt-8"><ConsistencyOverview settings/></div></>; }
+export function SettingsPage({user}: {user:User}) { return <><PageHead overline="مساحتك الخاصة" title="الإعدادات" desc={`مدرّبك الآن: ${styles[user.motivationStyle]}. يمكنك تغيير صوت الرحلة متى أردت.`}/><div className="max-w-[760px] mb-8"><CharacterSummary profile /></div><ProfileForm user={user}/><div className="mt-8"><ConsistencyOverview settings/></div><div className="mt-8"><JourneyHistory/></div></>; }

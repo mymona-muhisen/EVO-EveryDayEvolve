@@ -26,3 +26,9 @@ Journey earnings are persisted event-attributed amounts, not current wallet bala
 **Why:** Mutable difficulty and old payout markers cannot reconstruct exact historical awards. Pretending otherwise invents financial history.
 
 **How to apply:** Display known subtotals with a partial-history notice. Never backfill unknown earnings by paying or estimating.
+
+Personal real-world reward claims and currency-priced reward redemptions are separate product actions. A personal claim records the user's commitment being fulfilled; it never buys anything or spends currency.
+
+**Why:** The personal-reward requirements explicitly prohibit purchases while also requiring preservation of the existing priced rewards and their financial history. Similar labels are not a reason to merge their payment semantics.
+
+**How to apply:** Keep personal claim eligibility and persistence independent of priced redemption, and do not convert old prices or paid history into free claims.

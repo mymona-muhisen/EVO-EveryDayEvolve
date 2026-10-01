@@ -11,6 +11,7 @@ import type { HabitJourneyEarnings } from './habitJourneyEarnings';
 import type { HabitJourneyFinalEligibility } from './habitJourneyFinalEligibility';
 import type { HabitJourneyReward } from './habitJourneyReward';
 import type { HabitJourneyStatus } from './habitJourneyStatus';
+import type { JourneyReward } from './journeyReward';
 
 export interface HabitJourney {
   habitId: number;
@@ -36,6 +37,8 @@ export interface HabitJourney {
   missedDays: number;
   /** Rest dates in the fixed calendar snapshot */
   restDays: number;
+  /** Optional private personal reward attached to this journey; absent on older servers. */
+  realReward?: JourneyReward | null;
   selectedReward: HabitJourneyReward | null;
   /** Server-computed unlock state; selected rewards require a valid completed 22-day journey */
   rewardUnlocked: boolean;

@@ -10,7 +10,11 @@ import {
 } from "@workspace/api-zod";
 import { requireAuth } from "../middlewares/requireAuth";
 import { ensureUser } from "../lib/userService";
-import { ObjectStorageService } from "../lib/objectStorage";
+import {
+  ObjectAclOwnershipError,
+  ObjectNotFoundError,
+  ObjectStorageService,
+} from "../lib/objectStorage";
 import { toDateOnly } from "../lib/dates";
 
 const router: IRouter = Router();
@@ -54,10 +58,23 @@ router.post("/memories", async (req, res): Promise<void> => {
 
   let photoObjectPath: string | null = null;
   if (parsed.data.photoObjectPath) {
-    photoObjectPath = await objectStorageService.trySetObjectEntityAclPolicy(
-      parsed.data.photoObjectPath,
-      { owner: req.userId!, visibility: "private" },
-    );
+    try {
+      photoObjectPath = await objectStorageService.trySetObjectEntityAclPolicy(
+        parsed.data.photoObjectPath,
+        { owner: req.userId!, visibility: "private" },
+        req.userId!,
+      );
+    } catch (error) {
+      if (error instanceof ObjectAclOwnershipError) {
+        res.status(403).json({ error: error.message });
+        return;
+      }
+      if (error instanceof ObjectNotFoundError) {
+        res.status(400).json({ error: "Photo object was not found" });
+        return;
+      }
+      throw error;
+    }
   }
 
   const [memory] = await db

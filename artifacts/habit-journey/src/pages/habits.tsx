@@ -17,7 +17,7 @@ const status=(h:Habit,value:number,targetCompleted:boolean,minOv?:number|null,li
 
 export function HabitsPage(){
   const ov=useDailyOverview(),q=useListHabits(),update=useUpdateHabit(),remove=useDeleteHabit(),qc=useQueryClient();
-  const [form,setForm]=useState<Habit|true|null>(null),[filter,setFilter]=useState<'all'|'active'|'inactive'>('all');
+  const [form,setForm]=useState<Habit|true|null>(()=>typeof window!=='undefined'&&new URLSearchParams(window.location.search).get('new')==='1'?true:null),[filter,setFilter]=useState<'all'|'active'|'inactive'>('all');
   const refresh=()=>{qc.invalidateQueries({queryKey:getListHabitsQueryKey()});qc.invalidateQueries({queryKey:getGetDashboardTodayQueryKey()})};
   const shown=q.data?.filter(h=>filter==='all'||h.isActive===(filter==='active'))||[];
   return <><PageHead overline="خطوات على الطريق" title="عاداتي" desc="ليست سباقًا مع أحد. كل عادة هنا وعد صغير لنفسك." action={<AddButton onClick={()=>setForm(true)} label="عادة جديدة"/>}/>

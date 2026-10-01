@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { DashboardHabitToday } from './dashboardHabitToday';
+import type { DashboardJourneyRewardCard } from './dashboardJourneyRewardCard';
 
 export interface DashboardToday {
   /** Today's calendar date in the user's saved timezone */
@@ -21,4 +22,6 @@ export interface DashboardToday {
   xp: number;
   xpToNextLevel: number;
   habitsToday: DashboardHabitToday[];
+  /** Optional private real-world journey reward cards; absent on older servers. */
+  realRewards?: DashboardJourneyRewardCard[];
 }

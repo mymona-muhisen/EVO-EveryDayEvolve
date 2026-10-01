@@ -226,6 +226,11 @@ export interface Habit {
      */
   journeyLength: number | null;
   /**
+     * Server-recorded journey completion instant; optional for compatibility with older servers.
+     * @nullable
+     */
+  journeyCompletedAt?: string | null;
+  /**
      * @minimum 1
      * @nullable
      */
@@ -314,6 +319,32 @@ export const HabitInputGoalType = {
   quit: 'quit',
 } as const;
 
+export type JourneyRewardInputType = typeof JourneyRewardInputType[keyof typeof JourneyRewardInputType];
+
+
+export const JourneyRewardInputType = {
+  physical: 'physical',
+  experience: 'experience',
+} as const;
+
+/**
+ * User-selected personal goal only. It has no price in coins and does not initiate a purchase.
+ */
+export interface JourneyRewardInput {
+  /** @minLength 1 */
+  title: string;
+  type: JourneyRewardInputType;
+  /** @maxLength 2000 */
+  description?: string;
+  /**
+     * Private normalized object path returned by the existing photo upload flow; never a public URL or file bytes.
+     * @minLength 1
+     */
+  imageObjectPath?: string;
+  /** @minimum 0 */
+  estimatedValue?: number;
+}
+
 export interface HabitInput {
   /** @minLength 1 */
   title: string;
@@ -360,9 +391,17 @@ export interface HabitInput {
   journeyLength?: number;
   /** @minimum 1 */
   rewardId?: number;
+  journeyReward?: JourneyRewardInput;
   difficulty: HabitInputDifficulty;
   goalType: HabitInputGoalType;
   milestones?: HabitMilestone[];
+}
+
+/**
+ * Optional real-world personal reward to attach while starting a legacy habit's journey.
+ */
+export interface StartHabitJourneyInput {
+  journeyReward?: JourneyRewardInput;
 }
 
 export type HabitUpdateCategory = typeof HabitUpdateCategory[keyof typeof HabitUpdateCategory];
@@ -948,6 +987,67 @@ export type HabitJourneyEarnings = {
   coinHistoryMayBeIncomplete: boolean;
 };
 
+export type JourneyRewardType = typeof JourneyRewardType[keyof typeof JourneyRewardType];
+
+
+export const JourneyRewardType = {
+  physical: 'physical',
+  experience: 'experience',
+} as const;
+
+export type JourneyRewardStatus = typeof JourneyRewardStatus[keyof typeof JourneyRewardStatus];
+
+
+export const JourneyRewardStatus = {
+  pending: 'pending',
+  unlocked: 'unlocked',
+  claimed: 'claimed',
+} as const;
+
+/**
+ * Owner-private personal reward and its server-computed 22-calendar-day progress. Image URL is a normalized private object path.
+ */
+export interface JourneyReward {
+  id: number;
+  /** @nullable */
+  habitId: number | null;
+  title: string;
+  type: JourneyRewardType;
+  /** @nullable */
+  description: string | null;
+  /**
+     * Normalized private object path; clients serve it through the authenticated object route.
+     * @nullable
+     */
+  imageUrl: string | null;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  estimatedValue: number | null;
+  status: JourneyRewardStatus;
+  createdAt: string;
+  updatedAt: string;
+  /** @nullable */
+  unlockedAt: string | null;
+  /** @nullable */
+  claimedAt: string | null;
+  /**
+     * Current server-computed calendar day of the attached journey; null when unattached.
+     * @minimum 0
+     * @maximum 22
+     * @nullable
+     */
+  currentDay: number | null;
+  /**
+     * Remaining calendar days in the attached 22-day journey; null when unattached.
+     * @minimum 0
+     * @maximum 22
+     * @nullable
+     */
+  daysRemaining: number | null;
+}
+
 export interface HabitJourneyReward {
   id: number;
   title: string;
@@ -1136,6 +1236,8 @@ export interface HabitJourney {
   missedDays: number;
   /** Rest dates in the fixed calendar snapshot */
   restDays: number;
+  /** Optional private personal reward attached to this journey; absent on older servers. */
+  realReward?: JourneyReward | null;
   selectedReward: HabitJourneyReward | null;
   /** Server-computed unlock state; selected rewards require a valid completed 22-day journey */
   rewardUnlocked: boolean;
@@ -1678,6 +1780,77 @@ export interface RewardUpdate {
   coinCost?: number;
 }
 
+export type JourneyRewardCreateInputType = typeof JourneyRewardCreateInputType[keyof typeof JourneyRewardCreateInputType];
+
+
+export const JourneyRewardCreateInputType = {
+  physical: 'physical',
+  experience: 'experience',
+} as const;
+
+/**
+ * Create an owner-private real-world reward, optionally attached to an existing journey. Omit habitId to leave it unattached.
+ */
+export interface JourneyRewardCreateInput {
+  /**
+     * @minimum 1
+     * @nullable
+     */
+  habitId?: number | null;
+  /** @minLength 1 */
+  title: string;
+  type: JourneyRewardCreateInputType;
+  /** @maxLength 2000 */
+  description?: string;
+  /**
+     * Private normalized object path returned by the existing photo upload flow; never a public URL or file bytes.
+     * @minLength 1
+     */
+  imageObjectPath?: string;
+  /** @minimum 0 */
+  estimatedValue?: number;
+}
+
+export type JourneyRewardUpdateInputType = typeof JourneyRewardUpdateInputType[keyof typeof JourneyRewardUpdateInputType];
+
+
+export const JourneyRewardUpdateInputType = {
+  physical: 'physical',
+  experience: 'experience',
+} as const;
+
+/**
+ * Updates are accepted only while status is pending and only with explicit confirmation=true.
+ */
+export interface JourneyRewardUpdateInput {
+  confirm: true;
+  /**
+     * Attach to an existing owner journey or explicitly detach with null.
+     * @minimum 1
+     * @nullable
+     */
+  habitId?: number | null;
+  /** @minLength 1 */
+  title?: string;
+  type?: JourneyRewardUpdateInputType;
+  /**
+     * @maxLength 2000
+     * @nullable
+     */
+  description?: string | null;
+  /**
+     * Private normalized object path returned by the existing photo upload flow; null removes the image.
+     * @minLength 1
+     * @nullable
+     */
+  imageObjectPath?: string | null;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  estimatedValue?: number | null;
+}
+
 export interface RedeemRewardResult {
   reward: Reward;
   coinsRemaining: number;
@@ -1870,6 +2043,52 @@ export interface DashboardHabitToday {
   scheduledToday: boolean;
 }
 
+export type DashboardJourneyRewardCardType = typeof DashboardJourneyRewardCardType[keyof typeof DashboardJourneyRewardCardType];
+
+
+export const DashboardJourneyRewardCardType = {
+  physical: 'physical',
+  experience: 'experience',
+} as const;
+
+export type DashboardJourneyRewardCardStatus = typeof DashboardJourneyRewardCardStatus[keyof typeof DashboardJourneyRewardCardStatus];
+
+
+export const DashboardJourneyRewardCardStatus = {
+  pending: 'pending',
+  unlocked: 'unlocked',
+  claimed: 'claimed',
+} as const;
+
+export interface DashboardJourneyRewardCard {
+  habitId: number;
+  habitTitle: string;
+  title: string;
+  type: DashboardJourneyRewardCardType;
+  status: DashboardJourneyRewardCardStatus;
+  /**
+     * @minimum 0
+     * @maximum 22
+     */
+  currentDay: number;
+  /**
+     * @minimum 0
+     * @maximum 22
+     */
+  daysRemaining: number;
+  /**
+     * Calendar progress
+     * @minimum 0
+     * @maximum 100
+     */
+  progressPercent: number;
+  /**
+     * Normalized private object path served through the authenticated object route.
+     * @nullable
+     */
+  imageUrl: string | null;
+}
+
 export interface DashboardToday {
   /** Today's calendar date in the user's saved timezone */
   date: string;
@@ -1884,6 +2103,8 @@ export interface DashboardToday {
   xp: number;
   xpToNextLevel: number;
   habitsToday: DashboardHabitToday[];
+  /** Optional private real-world journey reward cards; absent on older servers. */
+  realRewards?: DashboardJourneyRewardCard[];
 }
 
 export interface DashboardCalendarDay {

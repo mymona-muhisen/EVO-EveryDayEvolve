@@ -1,0 +1,515 @@
+57. Acceptance Criteria
+
+الميزة مكتملة عندما:
+
+ يستطيع المستخدم اختيار مكافأة أثناء إنشاء الرحلة.
+ يدعم Physical وExperience.
+ الاسم مطلوب.
+ الوصف اختياري.
+ الصورة اختيارية.
+ السعر اختياري.
+ Reward مرتبطة برحلة محددة.
+ Reward تظهر في Dashboard.
+ Reward تظهر في Journey.
+ Progress يحدث مع الرحلة.
+ Minimum achievement يحافظ على تقدم الرحلة.
+ Missed day لا يرجع Reward للخلف.
+ Day 22 الناجح يفتح Reward.
+ فتح Reward يتم من Backend.
+ Reward status محفوظ.
+ المستخدم يستطيع Claim Reward.
+ Claim لا يعني شراءً إلكترونيًا.
+ Completion Screen تعرض:
+عدد الأيام
+consistency
+XP
+Coins
+habit
+reward
+ الرحلة تصبح Completed.
+ الرحلة تبقى محفوظة كتاريخ.
+ المستخدم يستطيع بدء Journey جديدة.
+ لا يتم استخدام AI في العمليات الحسابية.
+ لا يتم تنفيذ payment.
+ Mobile RTL يعمل.
+58. Prompt جاهز لـReplit
+Implement Feature 07:
+REAL REWARD + REWARD PROGRESS + JOURNEY COMPLETION
+
+IMPORTANT:
+Do not redesign unrelated features.
+Do not remove existing Habit, Adaptive Habit, Daily Experience, Journey, Map, Character, XP, or Coins functionality.
+Inspect the existing reward and journey implementation first.
+Reuse the current database, APIs, storage, UI components, and business logic wherever possible.
+
+==================================================
+1. PRODUCT GOAL
+==================================================
+
+The reward system gives every active journey one personal real-world reward.
+
+The reward may be:
+- physical item
+- personal experience
+
+The application does NOT purchase the reward.
+The reward is a personal commitment/goal selected by the user.
+
+The experience is:
+
+Choose reward
+→ see reward throughout journey
+→ progress toward reward
+→ complete 22-day journey
+→ reward unlocks
+→ celebrate
+→ user claims reward
+→ journey becomes history
+
+==================================================
+2. REWARD CREATION
+==================================================
+
+During journey creation ask:
+
+"What are you working toward?"
+
+Allow:
+
+Reward type:
+- physical
+- experience
+
+Required:
+- title
+
+Optional:
+- description
+- image
+- estimated value
+
+Examples:
+- Headphones
+- New book
+- Dinner
+- Cinema night
+- Day trip
+
+Do not add payment processing.
+
+==================================================
+3. REWARD DATA
+==================================================
+
+Use/reuse existing rewards table if available.
+
+Preferred fields:
+
+id
+user_id
+journey_id
+title
+description
+type
+image_url
+estimated_value
+status
+created_at
+unlocked_at
+claimed_at
+updated_at
+
+Status:
+- pending
+- unlocked
+- claimed
+
+Each journey has one active reward in V1.
+
+==================================================
+4. REWARD CONFIRMATION
+==================================================
+
+Before starting the journey show a summary:
+
+Habit
+Target
+Minimum
+22-day journey
+Reward
+
+Actions:
+- Start Journey
+- Edit Reward
+
+Save the reward and connect it to the journey.
+
+==================================================
+5. DASHBOARD REWARD CARD
+==================================================
+
+Show:
+
+🎁 Reward title
+Journey progress
+Days remaining
+
+Example:
+
+New Headphones
+Day 8 / 22
+14 days remaining
+
+Use a simple progress bar.
+
+Do not confuse:
+Journey day
+Consistency
+Reward distance
+
+They are separate concepts.
+
+==================================================
+6. JOURNEY REWARD DISPLAY
+==================================================
+
+Show reward on Journey page.
+
+Display:
+- image or fallback icon
+- title
+- current day
+- days remaining
+
+The reward should visually remain present but not dominate the map.
+
+==================================================
+7. PROGRESS RULE
+==================================================
+
+Reward progress follows actual Journey progress.
+
+A successful minimum is enough to keep the journey moving.
+
+BUILD:
+actual >= minimum → successful day
+
+REDUCE:
+actual <= success limit → successful day
+
+Do not require full target completion to keep the journey moving.
+
+A missed day does not move the reward backward.
+
+==================================================
+8. DAILY UPDATE
+==================================================
+
+After a successful day:
+- update journey state
+- update reward progress display
+- show lightweight progress animation if appropriate
+
+Do not call AI for this.
+
+Use deterministic business logic.
+
+==================================================
+9. MISSED DAYS
+==================================================
+
+If a day is missed:
+- Journey continues
+- Reward remains attached
+- Reward progress does not reset
+- Consistency updates independently
+
+Do not punish the user by moving the reward backward.
+
+==================================================
+10. RECOVERY COMPATIBILITY
+==================================================
+
+If Recovery exists:
+- recovered day follows existing consistency rules
+- reward progress remains tied to journey progress
+- do not duplicate rewards or progress
+
+==================================================
+11. FINAL DAY
+==================================================
+
+On Day 22:
+Show:
+"Final Day"
+
+Highlight:
+- final map destination
+- current habit
+- reward
+
+After successful completion of Day 22:
+
+SERVER MUST:
+1. verify Day 22 is successfully completed
+2. set journey.status = completed
+3. set journey.completed_at
+4. set reward.status = unlocked
+5. set reward.unlocked_at
+6. update character celebration state if existing
+7. ensure this operation is idempotent
+
+Do NOT unlock reward based only on frontend state.
+
+==================================================
+12. COMPLETION SCREEN
+==================================================
+
+Create a polished final celebration.
+
+Show:
+
+"Your journey is complete."
+
+Then:
+
+- 22 days
+- successful days
+- missed days
+- recovered days if applicable
+- XP earned
+- Coins earned
+- Habit title
+- Reward
+
+Show the user's current Character in celebration state.
+
+==================================================
+13. REWARD CLAIM
+==================================================
+
+Button:
+"Claim Reward"
+
+This does NOT initiate a purchase.
+
+It records:
+reward.status = claimed
+reward.claimed_at = now
+
+Show:
+"Reward claimed."
+
+Then:
+"Enjoy it — you earned this moment."
+
+Allow:
+- View Journey
+- Start New Journey
+
+==================================================
+14. REWARD TYPES
+==================================================
+
+PHYSICAL:
+Show:
+- image/title
+- optional value
+
+EXPERIENCE:
+Show:
+- title
+- description
+- optional image
+
+No payment or external purchase flow.
+
+==================================================
+15. REWARD EDITING
+==================================================
+
+Allow reward editing during the journey if current app architecture supports it.
+
+Require confirmation.
+
+Do not create complex history/versioning.
+
+Update:
+- updated_at
+
+Do not break the Journey relationship.
+
+==================================================
+16. PRIVACY
+==================================================
+
+Reward is private by default.
+
+Do not make the reward publicly visible through social features unless the user explicitly chooses sharing in a later social feature.
+
+==================================================
+17. COMPLETION CELEBRATION
+==================================================
+
+Sequence:
+
+Day 22 successful
+→ Character reaches final destination
+→ Final node opens
+→ Reward appears
+→ lightweight celebration
+→ completion summary
+→ claim reward
+
+Avoid heavy video/3D assets.
+
+Use existing character/map assets.
+
+==================================================
+18. JOURNEY HISTORY
+==================================================
+
+After completion:
+- keep journey data
+- keep reward data
+- keep habit history
+- mark journey completed
+
+Completed journeys should remain viewable later.
+
+Do not delete them.
+
+Use existing Profile/history page if available.
+
+==================================================
+19. START NEW JOURNEY
+==================================================
+
+After completion:
+button:
+"Start another journey"
+
+Route to existing Habit Creation flow.
+
+Do not automatically create another habit.
+
+==================================================
+20. BACKEND SECURITY
+==================================================
+
+Backend is authoritative for:
+- journey completion
+- reward unlock
+- reward claim
+
+Do not trust client-provided:
+- current day
+- completion state
+- reward unlocked
+- reward status
+
+Prevent:
+- duplicate unlock
+- duplicate claim
+- duplicate completion rewards
+
+==================================================
+21. UI STATES
+==================================================
+
+Implement:
+- no reward
+- reward creation
+- reward preview
+- reward attached
+- reward progress
+- final day
+- completion
+- reward unlocked
+- reward claimed
+- journey history
+- reward loading
+- reward error
+- claim error
+- empty state
+
+==================================================
+22. RESPONSIVE / RTL
+==================================================
+
+Test:
+- 375px
+- 390px
+- 414px
+- tablet
+- desktop
+
+All UI must support Arabic RTL.
+
+Reward card must remain readable and visually prominent without overwhelming the Journey map.
+
+==================================================
+23. TESTING
+==================================================
+
+Test:
+
+1. Create physical reward.
+2. Create experience reward.
+3. Reward without image.
+4. Reward with image.
+5. Reward with value.
+6. Reward without value.
+7. Reward attached to journey.
+8. Reward shown on Dashboard.
+9. Reward shown on Journey.
+10. Complete minimum.
+11. Verify progress updates.
+12. Miss day.
+13. Verify progress does not reset.
+14. Recover if Recovery exists.
+15. Complete Day 22.
+16. Verify reward unlocks server-side.
+17. Click complete twice.
+18. Verify no duplicate unlock.
+19. Claim reward.
+20. Click claim twice.
+21. Verify no duplicate claim.
+22. Refresh.
+23. Logout/login.
+24. Verify completed journey persists.
+25. Start another journey.
+26. Mobile RTL test.
+27. API failure handling.
+
+==================================================
+24. ACCEPTANCE CRITERIA
+==================================================
+
+DONE when:
+
+- [ ] One real reward can be attached to a journey.
+- [ ] Physical and experience rewards work.
+- [ ] Reward is visible throughout the journey.
+- [ ] Progress is understandable.
+- [ ] Minimum completion keeps progress moving.
+- [ ] Missed days do not reset reward progress.
+- [ ] Day 22 valid completion unlocks reward.
+- [ ] Unlock is server-authoritative.
+- [ ] Claim state persists.
+- [ ] Completion celebration works.
+- [ ] Journey becomes completed.
+- [ ] Completed journey remains available as history.
+- [ ] User can start another journey.
+- [ ] No payment system is implemented.
+- [ ] No AI is needed for reward logic.
+- [ ] Existing Journey/Character/Coins/XP functionality remains intact.
+
+Before editing:
+1. Inspect existing reward tables/API.
+2. Inspect Journey completion logic.
+3. Inspect Character celebration.
+4. Inspect existing storage for reward images.
+5. Reuse existing components.
+
+Then implement and run the complete end-to-end test

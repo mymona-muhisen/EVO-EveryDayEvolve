@@ -56,6 +56,8 @@ const ddl = [
   `CREATE TYPE ${quote("checkin_difficulty")} AS ENUM ('easy', 'normal', 'hard', 'very_hard')`,
   `CREATE TYPE ${quote("missed_reason")} AS ENUM ('too_difficult', 'no_time', 'forgot', 'lost_motivation', 'unexpected', 'other')`,
   `CREATE TYPE ${quote("coin_transaction_reason")} AS ENUM ('checkin', 'streak_bonus', 'streak_recovery', 'reward_redemption', 'item_purchase', 'challenge_bonus', 'manual')`,
+  `CREATE TYPE ${quote("journey_reward_type")} AS ENUM ('physical', 'experience')`,
+  `CREATE TYPE ${quote("journey_reward_status")} AS ENUM ('pending', 'unlocked', 'claimed')`,
   `CREATE TABLE ${quote("users")} (
     id text PRIMARY KEY,
     display_name text NOT NULL,
@@ -108,6 +110,52 @@ const ddl = [
     milestones jsonb NOT NULL,
     created_at timestamptz NOT NULL DEFAULT now()
   )`,
+  `CREATE TABLE ${quote("time_entries")} (
+    id serial PRIMARY KEY,
+    user_id text NOT NULL REFERENCES ${quote("users")}(id) ON DELETE CASCADE,
+    habit_id integer REFERENCES ${quote("habits")}(id) ON DELETE SET NULL,
+    label text NOT NULL,
+    duration_minutes integer NOT NULL,
+    date date NOT NULL,
+    note text,
+    category text NOT NULL DEFAULT 'other',
+    source text NOT NULL DEFAULT 'manual',
+    start_time timestamptz,
+    end_time timestamptz,
+    created_at timestamptz NOT NULL DEFAULT now()
+  )`,
+  `CREATE TABLE ${quote("memories")} (
+    id serial PRIMARY KEY,
+    user_id text NOT NULL REFERENCES ${quote("users")}(id) ON DELETE CASCADE,
+    habit_id integer REFERENCES ${quote("habits")}(id) ON DELETE SET NULL,
+    note text NOT NULL,
+    photo_object_path text,
+    date date NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now()
+  )`,
+  `CREATE TABLE ${quote("journey_rewards")} (
+    id serial PRIMARY KEY,
+    user_id text NOT NULL REFERENCES ${quote("users")}(id) ON DELETE CASCADE,
+    habit_id integer REFERENCES ${quote("habits")}(id) ON DELETE SET NULL,
+    title text NOT NULL,
+    type ${quote("journey_reward_type")} NOT NULL,
+    description text,
+    image_url text,
+    estimated_value double precision,
+    status ${quote("journey_reward_status")} NOT NULL DEFAULT 'pending',
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    unlocked_at timestamptz,
+    claimed_at timestamptz,
+    CONSTRAINT journey_rewards_habit_unique UNIQUE (habit_id)
+  )`,
+  `CREATE TABLE ${quote("object_uploads")} (
+    object_path text PRIMARY KEY,
+    user_id text NOT NULL REFERENCES ${quote("users")}(id) ON DELETE CASCADE,
+    created_at timestamptz NOT NULL DEFAULT now()
+  )`,
+  `CREATE INDEX "journey_rewards_owner_created_idx" ON ${quote("journey_rewards")} (user_id, created_at)`,
+  `CREATE INDEX "object_uploads_owner_idx" ON ${quote("object_uploads")} (user_id)`,
   `CREATE TABLE ${quote("rewards")} (
     id serial PRIMARY KEY,
     user_id text NOT NULL REFERENCES ${quote("users")}(id) ON DELETE CASCADE,
@@ -286,11 +334,16 @@ async function prepare() {
       export { default as habitsRouter } from ${JSON.stringify(join(apiDir, "src/routes/habits.ts"))};
       export { default as checkinsRouter } from ${JSON.stringify(join(apiDir, "src/routes/checkins.ts"))};
       export { default as rewardsRouter } from ${JSON.stringify(join(apiDir, "src/routes/rewards.ts"))};
+      export { default as journeyRewardsRouter } from ${JSON.stringify(join(apiDir, "src/routes/journeyRewards.ts"))};
+      export { default as dashboardRouter } from ${JSON.stringify(join(apiDir, "src/routes/dashboard.ts"))};
+      export { default as memoriesRouter } from ${JSON.stringify(join(apiDir, "src/routes/memories.ts"))};
+      export { default as storageRouter } from ${JSON.stringify(join(apiDir, "src/routes/storage.ts"))};
       export { default as dailyRouter } from ${JSON.stringify(join(apiDir, "src/routes/daily.ts"))};
       export {
         getDailyHabitState, changeDailyHabitExecution, saveDailyHabitReflection,
         recordDailyAdaptationDecision, getDailyOverview,
       } from ${JSON.stringify(join(apiDir, "src/lib/dailyExecutionService.ts"))};
+      export { mockStorageObjects } from "@google-cloud/storage";
       export { db, pool } from "@workspace/db";
     `,
   );
@@ -307,6 +360,10 @@ async function prepare() {
       esbuild.onResolve({ filter: /^@clerk\/express$/ }, () => ({
         path: "isolated-clerk-auth",
         namespace: "isolated-clerk",
+      }));
+      esbuild.onResolve({ filter: /^@google-cloud\/storage$/ }, () => ({
+        path: "isolated-google-storage",
+        namespace: "isolated-google-storage",
       }));
       esbuild.onResolve({ filter: /^pg$/ }, () => ({
         path: pgEntry,
@@ -334,6 +391,47 @@ async function prepare() {
         contents: `
           export const getAuth = (req) => ({ userId: req.headers["x-test-user"] ?? null });
           export const clerkClient = { users: { getUser: async () => { throw new Error("No Clerk in integration test"); } } };
+        `,
+      }));
+      esbuild.onLoad({ filter: /.*/, namespace: "isolated-google-storage" }, () => ({
+        loader: "js",
+        contents: `
+          import { Readable } from "node:stream";
+          export const mockStorageObjects = new Map();
+          class MockFile {
+            constructor(key) {
+              this.key = key;
+              this.name = key;
+            }
+            async exists() {
+              return [mockStorageObjects.has(this.key)];
+            }
+            async getMetadata() {
+              const object = mockStorageObjects.get(this.key);
+              if (!object) throw new Error("Mock object not found");
+              return [structuredClone(object.metadata)];
+            }
+            async setMetadata(update) {
+              const object = mockStorageObjects.get(this.key);
+              if (!object) throw new Error("Mock object not found");
+              object.metadata.metadata = {
+                ...(object.metadata.metadata ?? {}),
+                ...(update.metadata ?? {}),
+              };
+              return [structuredClone(object.metadata)];
+            }
+            createReadStream() {
+              return Readable.from([Buffer.from("mock private image")]);
+            }
+          }
+          export class Storage {
+            bucket(bucketName) {
+              return {
+                file: (objectName) => new MockFile(\`\${bucketName}/\${objectName}\`),
+              };
+            }
+          }
+          export class File {}
         `,
       }));
     },
@@ -383,9 +481,13 @@ async function reset() {
     `TRUNCATE ${quote("user_journey_milestones")}, ${quote("journey_milestones")},
      ${quote("coin_transactions")}, ${quote("habit_daily_action_keys")}, ${quote("habit_daily_executions")},
      ${quote("habit_plan_revisions")}, ${quote("habit_days")},
-      ${quote("checkins")}, ${quote("rewards")}, ${quote("habits")},
+      ${quote("checkins")}, ${quote("memories")}, ${quote("time_entries")},
+      ${quote("object_uploads")},
+     ${quote("journey_rewards")},
+      ${quote("rewards")}, ${quote("habits")},
      ${quote("users")} RESTART IDENTITY CASCADE`,
   );
+  service.mockStorageObjects.clear();
 }
 
 async function seedUser({ id = "reward-test-user", level = 1, xp = 0, coins = 0 } = {}) {
@@ -430,7 +532,14 @@ const dailyToday = dailyNow.toISOString().slice(0, 10);
 async function startJourneyApi(userId) {
   const app = express();
   app.use(express.json());
-  app.use(service.habitsRouter, service.rewardsRouter);
+  app.use(
+    service.habitsRouter,
+    service.rewardsRouter,
+    service.journeyRewardsRouter,
+    service.dashboardRouter,
+    service.memoriesRouter,
+    service.storageRouter,
+  );
   const server = app.listen(0, "127.0.0.1");
   await new Promise((resolve) => server.once("listening", resolve));
   const baseUrl = `http://127.0.0.1:${server.address().port}`;
@@ -2371,5 +2480,411 @@ test("real check-ins override stale execution status; elapsed execution-only act
     assert.equal(successful.missedDays, 21);
   } finally {
     await api.close();
+  }
+});
+
+test("private journey rewards unlock and claim from server journey state without touching coin rewards", async () => {
+  await reset();
+  const userId = await seedUser({ id: "journey-reward-owner", coins: 37, xp: 12 });
+  const otherUserId = await seedUser({ id: "journey-reward-other" });
+  const habitId = await seedHabit({ userId });
+  await seedDailyJourney(habitId, addDays(dailyToday, -21));
+
+  const ownerApi = await startJourneyApi(userId);
+  const otherApi = await startJourneyApi(otherUserId);
+  try {
+    const create = await ownerApi.request("/journey-rewards", "POST", {
+      habitId,
+      title: "A day at the coast",
+      type: "experience",
+      description: "Take a real break after completing the journey.",
+      estimatedValue: 75,
+    });
+    assert.equal(create.status, 201);
+    const pending = await create.json();
+    assert.equal(pending.status, "pending");
+    assert.equal(pending.currentDay, 22);
+    assert.equal(pending.daysRemaining, 0);
+    const prematureClaim = await ownerApi.request(`/journey-rewards/${pending.id}/claim`, "POST");
+    assert.equal(prematureClaim.status, 409, "calendar completion alone cannot unlock the reward");
+
+    await service.recordCheckin(userId, habitId, {
+      date: new Date(`${dailyToday}T00:00:00.000Z`),
+      completed: true,
+      value: 5,
+    });
+    const staleUnlink = await ownerApi.request(`/journey-rewards/${pending.id}`, "PATCH", {
+      confirm: true,
+      habitId: null,
+    });
+    assert.equal(staleUnlink.status, 409,
+      "a completed journey is synchronized before a pending reward can be detached");
+    const beforeClaimWallet = (await adminPool.query(
+      `SELECT coins, xp FROM ${quote("users")} WHERE id = $1`,
+      [userId],
+    )).rows[0];
+    const beforeClaimLedger = await adminPool.query(
+      `SELECT count(*)::int AS count FROM ${quote("coin_transactions")} WHERE user_id = $1`,
+      [userId],
+    );
+    const refreshed = await ownerApi.request(`/journey-rewards/${pending.id}`);
+    assert.equal(refreshed.status, 200);
+    const unlocked = await refreshed.json();
+    assert.equal(unlocked.status, "unlocked");
+    assert.ok(unlocked.unlockedAt);
+
+    const dashboardResponse = await ownerApi.request("/dashboard/today");
+    assert.equal(dashboardResponse.status, 200);
+    const dashboard = await dashboardResponse.json();
+    assert.equal(dashboard.realRewards.length, 1);
+    assert.equal(dashboard.realRewards[0].status, "unlocked");
+    assert.equal(dashboard.realRewards[0].progressPercent, 100);
+
+    const wrongOwner = await otherApi.request(`/journey-rewards/${pending.id}`);
+    assert.equal(wrongOwner.status, 404);
+    assert.deepEqual(await (await otherApi.request("/journey-rewards")).json(), []);
+
+    const firstClaim = await ownerApi.request(`/journey-rewards/${pending.id}/claim`, "POST");
+    assert.equal(firstClaim.status, 200);
+    const claimed = await firstClaim.json();
+    assert.equal(claimed.status, "claimed");
+    assert.ok(claimed.claimedAt);
+    const repeatedClaim = await ownerApi.request(`/journey-rewards/${pending.id}/claim`, "POST");
+    assert.equal(repeatedClaim.status, 200);
+    assert.equal((await repeatedClaim.json()).claimedAt, claimed.claimedAt);
+
+    const afterClaimWallet = (await adminPool.query(
+      `SELECT coins, xp FROM ${quote("users")} WHERE id = $1`,
+      [userId],
+    )).rows[0];
+    const afterClaimLedger = await adminPool.query(
+      `SELECT count(*)::int AS count FROM ${quote("coin_transactions")} WHERE user_id = $1`,
+      [userId],
+    );
+    assert.deepEqual(afterClaimWallet, beforeClaimWallet,
+      "claiming a real-world reward does not grant or spend XP/coins");
+    assert.equal(afterClaimLedger.rows[0].count, beforeClaimLedger.rows[0].count);
+    assert.equal((await rows("rewards")).length, 0, "journey rewards stay outside the coin store");
+  } finally {
+    await Promise.all([ownerApi.close(), otherApi.close()]);
+  }
+});
+
+test("journey reward ownership, strict request fields, image provenance, and one-reward attachment are enforced", async () => {
+  await reset();
+  const userId = await seedUser({ id: "journey-reward-validation" });
+  const habitId = await seedHabit({ userId });
+  await seedDailyJourney(habitId, addDays(dailyToday, -1));
+  const api = await startJourneyApi(userId);
+  try {
+    const [beforeHabits, forgedCreate] = await Promise.all([
+      adminPool.query(`SELECT count(*)::int AS count FROM ${quote("habits")} WHERE user_id = $1`, [userId]),
+      api.request("/journey-rewards", "POST", {
+        title: "Forged",
+        type: "physical",
+        status: "unlocked",
+        userId: "someone-else",
+        currentDay: 22,
+      }),
+    ]);
+    assert.equal(forgedCreate.status, 400, "server state and owner fields are rejected");
+
+    const [first, second] = await Promise.all([
+      api.request("/journey-rewards", "POST", {
+        habitId, title: "One reward", type: "physical",
+      }),
+      api.request("/journey-rewards", "POST", {
+        habitId, title: "Duplicate reward", type: "physical",
+      }),
+    ]);
+    assert.deepEqual([first.status, second.status].sort(), [201, 409]);
+    const reward = first.status === 201 ? await first.json() : await second.json();
+    assert.equal(reward.status, "pending");
+    assert.equal((await adminPool.query(
+      `SELECT count(*)::int AS count FROM ${quote("journey_rewards")} WHERE habit_id = $1`,
+      [habitId],
+    )).rows[0].count, 1);
+
+    const forgedUpdate = await api.request(`/journey-rewards/${reward.id}`, "PATCH", {
+      confirm: true,
+      status: "claimed",
+      habitId: null,
+    });
+    assert.equal(forgedUpdate.status, 400);
+
+    const invalidImageHabit = await api.request("/habits", "POST", {
+      title: "With unclaimed image",
+      emoji: "🌱",
+      category: "health",
+      cadence: "daily",
+      unit: "minutes",
+      targetValue: 10,
+      difficulty: "easy",
+      goalType: "build",
+      journeyReward: {
+        title: "Unclaimed photo",
+        type: "physical",
+        imageObjectPath: "/objects/uploads/not-owned",
+      },
+    });
+    assert.equal(invalidImageHabit.status, 400,
+      "an image not issued to this user cannot be attached to a new journey");
+    const afterHabits = await adminPool.query(
+      `SELECT count(*)::int AS count FROM ${quote("habits")} WHERE user_id = $1`,
+      [userId],
+    );
+    assert.equal(afterHabits.rows[0].count, beforeHabits.rows[0].count,
+      "failed image validation leaves no partially-created habit");
+
+    const createdWithForgedOwner = await api.request("/habits", "POST", {
+      title: "Forged ownership",
+      emoji: "🌱",
+      category: "health",
+      cadence: "daily",
+      unit: "minutes",
+      targetValue: 10,
+      difficulty: "easy",
+      goalType: "build",
+      userId: "another-user",
+    });
+    assert.equal(createdWithForgedOwner.status, 400);
+  } finally {
+    await api.close();
+  }
+});
+
+test("minimum-success final check-in, private unlock, and coin grant roll back together then retry once", async () => {
+  await reset();
+  const userId = await seedUser({ id: "journey-reward-atomic-boundary", coins: 9, xp: 2 });
+  const habitId = await seedHabit({ userId });
+  await seedDailyJourney(habitId, addDays(dailyToday, -21), {
+    targetValue: 10,
+    minimumValue: 5,
+  });
+  const rewardInsert = await adminPool.query(
+    `INSERT INTO ${quote("journey_rewards")} (user_id, habit_id, title, type)
+     VALUES ($1, $2, 'Minimum finish reward', 'physical') RETURNING id`,
+    [userId, habitId],
+  );
+  const rewardId = rewardInsert.rows[0].id;
+  const before = (await adminPool.query(
+    `SELECT u.coins, u.xp, h.current_streak, h.journey_completed_at
+     FROM ${quote("users")} u JOIN ${quote("habits")} h ON h.user_id = u.id
+     WHERE u.id = $1 AND h.id = $2`,
+    [userId, habitId],
+  )).rows[0];
+  const ledgerBefore = (await adminPool.query(
+    `SELECT count(*)::int AS count FROM ${quote("coin_transactions")} WHERE user_id = $1`,
+    [userId],
+  )).rows[0].count;
+
+  await adminPool.query(`
+    CREATE FUNCTION ${quote("reject_journey_reward_unlock")}()
+    RETURNS trigger LANGUAGE plpgsql AS $function$
+    BEGIN
+      IF OLD.status = 'pending' AND NEW.status = 'unlocked' THEN
+        RAISE EXCEPTION 'injected journey reward unlock failure';
+      END IF;
+      RETURN NEW;
+    END;
+    $function$`);
+  let triggerInstalled = false;
+  try {
+    await adminPool.query(
+      `CREATE TRIGGER reject_journey_reward_unlock
+       BEFORE UPDATE ON ${quote("journey_rewards")}
+       FOR EACH ROW EXECUTE FUNCTION ${quote("reject_journey_reward_unlock")}()`,
+    );
+    triggerInstalled = true;
+    await assert.rejects(service.recordCheckin(userId, habitId, {
+      date: new Date(`${dailyToday}T00:00:00.000Z`),
+      value: 5,
+    }));
+
+    const failedBoundary = (await adminPool.query(
+      `SELECT u.coins, u.xp, h.current_streak, h.journey_completed_at,
+              r.status, r.unlocked_at,
+              (SELECT count(*)::int FROM ${quote("checkins")} c
+               WHERE c.habit_id = h.id AND c.date = $3) AS checkin_count,
+              (SELECT count(*)::int FROM ${quote("coin_transactions")} ct
+               WHERE ct.user_id = u.id) AS ledger_count
+       FROM ${quote("users")} u
+       JOIN ${quote("habits")} h ON h.user_id = u.id
+       JOIN ${quote("journey_rewards")} r ON r.habit_id = h.id
+       WHERE u.id = $1 AND h.id = $2`,
+      [userId, habitId, dailyToday],
+    )).rows[0];
+    assert.equal(failedBoundary.coins, before.coins);
+    assert.equal(failedBoundary.xp, before.xp);
+    assert.equal(failedBoundary.current_streak, before.current_streak);
+    assert.equal(failedBoundary.journey_completed_at, null);
+    assert.equal(failedBoundary.status, "pending");
+    assert.equal(failedBoundary.unlocked_at, null);
+    assert.equal(failedBoundary.checkin_count, 0);
+    assert.equal(failedBoundary.ledger_count, ledgerBefore);
+  } finally {
+    if (triggerInstalled) {
+      await adminPool.query(
+        `DROP TRIGGER reject_journey_reward_unlock ON ${quote("journey_rewards")}`,
+      );
+    }
+    await adminPool.query(`DROP FUNCTION ${quote("reject_journey_reward_unlock")}()`);
+  }
+
+  const successfulMinimum = await service.recordCheckin(userId, habitId, {
+    date: new Date(`${dailyToday}T00:00:00.000Z`),
+    value: 5,
+  });
+  assert.equal(successfulMinimum.completed, true);
+  assert.equal(successfulMinimum.targetCompleted, false,
+    "minimum success completes the scheduled day without reaching the full target");
+  assert.ok(successfulMinimum.habit.journeyCompletedAt);
+  const successfulState = (await adminPool.query(
+    `SELECT u.coins, u.xp, r.status, r.unlocked_at,
+            (SELECT count(*)::int FROM ${quote("checkins")} c WHERE c.habit_id = h.id) AS checkin_count,
+            (SELECT count(*)::int FROM ${quote("coin_transactions")} ct WHERE ct.user_id = u.id) AS ledger_count
+     FROM ${quote("users")} u
+     JOIN ${quote("habits")} h ON h.user_id = u.id
+     JOIN ${quote("journey_rewards")} r ON r.habit_id = h.id
+     WHERE u.id = $1 AND h.id = $2`,
+    [userId, habitId],
+  )).rows[0];
+  assert.equal(successfulState.status, "unlocked");
+  assert.ok(successfulState.unlocked_at);
+  assert.equal(successfulState.checkin_count, 1);
+  assert.ok(successfulState.coins > before.coins);
+  assert.ok(successfulState.xp > before.xp);
+
+  await service.recordCheckin(userId, habitId, {
+    date: new Date(`${dailyToday}T00:00:00.000Z`),
+    value: 5,
+  });
+  const retriedState = (await adminPool.query(
+    `SELECT u.coins, u.xp, r.status, r.unlocked_at,
+            (SELECT count(*)::int FROM ${quote("checkins")} c WHERE c.habit_id = h.id) AS checkin_count,
+            (SELECT count(*)::int FROM ${quote("coin_transactions")} ct WHERE ct.user_id = u.id) AS ledger_count
+     FROM ${quote("users")} u
+     JOIN ${quote("habits")} h ON h.user_id = u.id
+     JOIN ${quote("journey_rewards")} r ON r.habit_id = h.id
+     WHERE u.id = $1 AND h.id = $2`,
+    [userId, habitId],
+  )).rows[0];
+  assert.deepEqual(retriedState, successfulState,
+    "a same-day retry cannot duplicate the check-in, wallet grant, or unlock timestamp");
+
+  const api = await startJourneyApi(userId);
+  try {
+    const firstClaim = await api.request(`/journey-rewards/${rewardId}/claim`, "POST");
+    assert.equal(firstClaim.status, 200);
+    const first = await firstClaim.json();
+    assert.equal(first.status, "claimed");
+    const secondClaim = await api.request(`/journey-rewards/${rewardId}/claim`, "POST");
+    assert.equal(secondClaim.status, 200);
+    assert.equal((await secondClaim.json()).claimedAt, first.claimedAt);
+
+    const afterClaims = (await adminPool.query(
+      `SELECT u.coins, u.xp,
+              (SELECT count(*)::int FROM ${quote("coin_transactions")} ct WHERE ct.user_id = u.id) AS ledger_count
+       FROM ${quote("users")} u WHERE u.id = $1`,
+      [userId],
+    )).rows[0];
+    assert.deepEqual(afterClaims, {
+      coins: retriedState.coins,
+      xp: retriedState.xp,
+      ledger_count: retriedState.ledger_count,
+    }, "claim retries do not touch the coin or XP wallets");
+  } finally {
+    await api.close();
+  }
+});
+
+test("memory photo ACL adoption preserves foreign ownership and accepts owned private uploads", async () => {
+  await reset();
+  const ownerId = await seedUser({ id: "memory-photo-owner" });
+  const attackerId = await seedUser({ id: "memory-photo-attacker" });
+  const originalPrivateObjectDir = process.env.PRIVATE_OBJECT_DIR;
+  process.env.PRIVATE_OBJECT_DIR = "/test-bucket/private";
+  const foreignPhotoPath = "/objects/uploads/owner-photo";
+  const ownerUploadPath = "/objects/uploads/owner-upload";
+  const storageKey = (objectPath) =>
+    `test-bucket/private/${objectPath.slice("/objects/".length)}`;
+  const foreignMetadata = {
+    metadata: {
+      "custom:aclPolicy": JSON.stringify({ owner: ownerId, visibility: "private" }),
+      "custom:retained": "owner metadata",
+    },
+    contentType: "image/png",
+  };
+  service.mockStorageObjects.set(storageKey(foreignPhotoPath), {
+    metadata: structuredClone(foreignMetadata),
+  });
+  service.mockStorageObjects.set(storageKey(ownerUploadPath), {
+    metadata: { metadata: {}, contentType: "image/jpeg" },
+  });
+  await adminPool.query(
+    `INSERT INTO ${quote("object_uploads")} (object_path, user_id) VALUES ($1, $2)`,
+    [ownerUploadPath, ownerId],
+  );
+
+  const ownerApi = await startJourneyApi(ownerId);
+  const attackerApi = await startJourneyApi(attackerId);
+  try {
+    const originalMetadata = structuredClone(
+      service.mockStorageObjects.get(storageKey(foreignPhotoPath)).metadata,
+    );
+    const attackResponse = await attackerApi.request("/memories", "POST", {
+      note: "Try to adopt someone else's image",
+      photoObjectPath: foreignPhotoPath,
+      date: dailyToday,
+    });
+    assert.equal(attackResponse.status, 403);
+    assert.match((await attackResponse.json()).error, /owned by this user/i);
+    const attackerMemories = (await adminPool.query(
+      `SELECT count(*)::int AS count FROM ${quote("memories")} WHERE user_id = $1`,
+      [attackerId],
+    )).rows[0];
+    assert.equal(attackerMemories.count, 0, "rejected ACL adoption creates no memory");
+    assert.deepEqual(
+      service.mockStorageObjects.get(storageKey(foreignPhotoPath)).metadata,
+      originalMetadata,
+      "rejected ACL adoption does not mutate original metadata",
+    );
+
+    const ownerRead = await ownerApi.request("/storage/objects/uploads/owner-photo");
+    assert.equal(ownerRead.status, 200, "the original owner retains read access");
+    assert.equal(await ownerRead.text(), "mock private image");
+    const attackerRead = await attackerApi.request("/storage/objects/uploads/owner-photo");
+    assert.equal(attackerRead.status, 403, "the foreign caller cannot read the object");
+
+    const existingOwnerMemory = await ownerApi.request("/memories", "POST", {
+      note: "Attach my existing private photo",
+      photoObjectPath: foreignPhotoPath,
+      date: dailyToday,
+    });
+    assert.equal(existingOwnerMemory.status, 201,
+      "same-owner private ACLs remain compatible with existing memory photos");
+    assert.deepEqual(
+      service.mockStorageObjects.get(storageKey(foreignPhotoPath)).metadata,
+      originalMetadata,
+      "same-owner adoption is idempotent and preserves metadata",
+    );
+
+    const uploadedMemory = await ownerApi.request("/memories", "POST", {
+      note: "Attach my authenticated upload",
+      photoObjectPath: ownerUploadPath,
+      date: dailyToday,
+    });
+    assert.equal(uploadedMemory.status, 201,
+      "the authenticated owner can adopt a path issued by the upload endpoint");
+    const uploadedAcl = JSON.parse(
+      service.mockStorageObjects.get(storageKey(ownerUploadPath)).metadata.metadata["custom:aclPolicy"],
+    );
+    assert.deepEqual(uploadedAcl, { owner: ownerId, visibility: "private" });
+    const foreignUploadRead = await attackerApi.request("/storage/objects/uploads/owner-upload");
+    assert.equal(foreignUploadRead.status, 403);
+  } finally {
+    await Promise.all([ownerApi.close(), attackerApi.close()]);
+    if (originalPrivateObjectDir === undefined) delete process.env.PRIVATE_OBJECT_DIR;
+    else process.env.PRIVATE_OBJECT_DIR = originalPrivateObjectDir;
   }
 });

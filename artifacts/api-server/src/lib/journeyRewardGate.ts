@@ -2,6 +2,10 @@ import { and, eq } from "drizzle-orm";
 import { db, checkinsTable, habitDaysTable, habitsTable, rewardsTable } from "@workspace/db";
 import { HABIT_JOURNEY_LENGTH, isWithinJourneyWindow } from "./habitJourney";
 import { evaluateJourneyLifecycle } from "./journeyLifecycle";
+import {
+  getJourneyLifecycle,
+  synchronizeJourneyCompletion,
+} from "./journeyRewardService";
 
 type JourneyGateTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
@@ -79,6 +83,10 @@ export async function preserveJourneyRewardGate(
   today: string,
 ): Promise<void> {
   const rewardIds = await rewardsAssociatedWithHabit(tx, userId, habit);
+  if (habit.journeyStartDate != null && habit.journeyLength === HABIT_JOURNEY_LENGTH) {
+    const lifecycle = await getJourneyLifecycle(tx, habit, today);
+    await synchronizeJourneyCompletion(tx, userId, habit, today, new Date(), lifecycle);
+  }
   if (!rewardIds.length
     || habit.journeyStartDate == null
     || habit.journeyLength !== HABIT_JOURNEY_LENGTH) return;

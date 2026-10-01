@@ -5,8 +5,10 @@ import {
 } from "@workspace/api-zod";
 import { Router, type IRouter, type Request, type Response } from "express";
 import { getAuth } from "@clerk/express";
+import { db, objectUploadsTable } from "@workspace/db";
 
 import { requireAuth } from "../middlewares/requireAuth";
+import { ensureUser } from "../lib/userService";
 import { ObjectPermission } from "../lib/objectAcl";
 import {
   ObjectNotFoundError,
@@ -28,6 +30,7 @@ router.post(
   "/storage/uploads/request-url",
   requireAuth,
   async (req: Request, res: Response) => {
+    await ensureUser(req.userId!);
     const parsed = RequestUploadUrlBody.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: "Missing or invalid required fields" });
@@ -40,6 +43,16 @@ router.post(
       const uploadURL = await objectStorageService.getObjectEntityUploadURL();
       const objectPath =
         objectStorageService.normalizeObjectEntityPath(uploadURL);
+      if (!objectPath.startsWith("/objects/uploads/")) {
+        throw new Error("Upload URL did not resolve to a private upload path");
+      }
+      const [provenance] = await db.insert(objectUploadsTable).values({
+        objectPath,
+        userId: req.userId!,
+      }).onConflictDoNothing().returning({ objectPath: objectUploadsTable.objectPath });
+      if (!provenance) {
+        throw new Error("Could not register private upload ownership");
+      }
 
       res.json(
         RequestUploadUrlResponse.parse({

@@ -30,3 +30,9 @@ misread as "the app naturally produced this."
 state (e.g. both a "recover streak" button and an "ask coach" button only render while
 `currentStreak === 0`) mean you must test the action that changes the state (recover) LAST,
 or the other button disappears before you get to it.
+
+Journey fixtures must move the entire immutable calendar coherently, not just the journey start date. Prefer a fresh unexecuted fixture before shifting dates; do not rewind paid check-ins or unlocked rewards.
+
+**Why:** A start-date-only backshift left saved day plans outside the new window. Lifecycle progress reached day 22 while the returned plan contained only one date, producing an apparent progress defect that was actually inconsistent test data.
+
+**How to apply:** Seed the start date, saved day-plan dates, and any unexecuted daily state together; verify the complete 22-date window before browser execution. Leave genuine actuals, earnings, wallets, ledgers, and unlock timestamps untouched. Calendar completion does not imply 22 successful sessions; consistency must still reflect actual known successes.

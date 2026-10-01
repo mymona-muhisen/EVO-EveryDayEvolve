@@ -8,6 +8,7 @@ import { toDateOnly } from "./dates";
 import { todayInTimezone } from "./dates";
 import { effectiveMinimum, evaluateHabitCheckin } from "./aiRules";
 import { addCalendarDays, HABIT_JOURNEY_LENGTH } from "./habitJourney";
+import { synchronizeJourneyCompletion } from "./journeyRewardService";
 
 export class CheckinConflictError extends Error {}
 type CheckinTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -206,13 +207,17 @@ export async function recordCheckinInTransaction(
         await grantRewards(userId, { coins: bonusCoins, reason: "streak_bonus" }, tx);
       }
     }
+    const journeyState = await synchronizeJourneyCompletion(tx, userId, updatedHabit, today);
 
     // Validate before COMMIT; a response-schema failure must not persist a
     // reward while reporting failure to the client.
     const response = CreateCheckinResponse.parse({
       ...checkin,
       newStreak,
-      habit: updatedHabit,
+      habit: {
+        ...updatedHabit,
+        journeyCompletedAt: journeyState.completedAt,
+      },
     });
     return {
       ...response,

@@ -214,6 +214,11 @@ paths:
         Starts at today in the owner's timezone using the habit's stored plan and cadence.
         The operation is idempotent: an existing journey is returned unchanged. The server
         owns all dates and plan snapshots; no check-in rewards or journey unlocks are granted.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/StartHabitJourneyInput" }
       parameters:
         - name: habitId
           in: path
@@ -853,6 +858,129 @@ paths:
               schema: { $ref: "#/components/schemas/Error" }
         "404":
           description: Not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /journey-rewards:
+    get:
+      operationId: listJourneyRewards
+      tags: [rewards]
+      summary: List the current owner's private real-world journey rewards and history
+      responses:
+        "200":
+          description: Owner-only journey rewards, including unattached pending rewards
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/JourneyReward" }
+    post:
+      operationId: createJourneyReward
+      tags: [rewards]
+      summary: Create a private physical or experience reward, optionally attaching it to an existing journey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/JourneyRewardCreateInput" }
+      responses:
+        "201":
+          description: Created pending journey reward
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/JourneyReward" }
+        "400":
+          description: Invalid reward or attachment
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "409":
+          description: The selected journey already has a real-world reward
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /journey-rewards/{journeyRewardId}:
+    get:
+      operationId: getJourneyReward
+      tags: [rewards]
+      summary: Read one of the current owner's private real-world journey rewards
+      parameters:
+        - name: journeyRewardId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Owner's journey reward
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/JourneyReward" }
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+    patch:
+      operationId: updateJourneyReward
+      tags: [rewards]
+      summary: Update a pending journey reward after explicit user confirmation
+      parameters:
+        - name: journeyRewardId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/JourneyRewardUpdateInput" }
+      responses:
+        "200":
+          description: Updated pending journey reward
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/JourneyReward" }
+        "400":
+          description: Confirmation was not provided or the update is invalid
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "409":
+          description: Only pending rewards can be updated or the selected journey already has a reward
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /journey-rewards/{journeyRewardId}/claim:
+    post:
+      operationId: claimJourneyReward
+      tags: [rewards]
+      summary: Record the owner's claim of an unlocked personal reward without payment or coin spending
+      parameters:
+        - name: journeyRewardId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Claimed reward; repeated claims return the same claimed state
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/JourneyReward" }
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "409":
+          description: The reward has not been unlocked by eligible server-side journey completion
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
@@ -1554,6 +1682,10 @@ components:
         minimumFloor: { type: ["number", "null"], minimum: 0 }
         journeyStartDate: { type: ["string", "null"], format: date }
         journeyLength: { type: ["integer", "null"], minimum: 1, maximum: 22 }
+        journeyCompletedAt:
+          type: ["string", "null"]
+          format: date-time
+          description: Server-recorded journey completion instant; optional for compatibility with older servers.
         rewardId: { type: ["integer", "null"], minimum: 1 }
         difficulty: { type: string, enum: [easy, medium, hard] }
         goalType: { type: string, enum: [build, quit] }
@@ -1567,6 +1699,7 @@ components:
         createdAt: { type: string, format: date-time }
     HabitInput:
       type: object
+      additionalProperties: false
       required: [title, emoji, category, cadence, unit, targetValue, difficulty, goalType]
       properties:
         title: { type: string, minLength: 1 }
@@ -1592,13 +1725,21 @@ components:
         journeyStartDate: { type: string, format: date }
         journeyLength: { type: integer, minimum: 1, maximum: 22 }
         rewardId: { type: integer, minimum: 1 }
+        journeyReward: { $ref: "#/components/schemas/JourneyRewardInput" }
         difficulty: { type: string, enum: [easy, medium, hard] }
         goalType: { type: string, enum: [build, quit] }
         milestones:
           type: array
           items: { $ref: "#/components/schemas/HabitMilestone" }
+    StartHabitJourneyInput:
+      type: object
+      additionalProperties: false
+      description: Optional real-world personal reward to attach while starting a legacy habit's journey.
+      properties:
+        journeyReward: { $ref: "#/components/schemas/JourneyRewardInput" }
     HabitUpdate:
       type: object
+      additionalProperties: false
       properties:
         title: { type: string, minLength: 1 }
         emoji: { type: string }
@@ -1772,6 +1913,11 @@ components:
             eligibleDays: { type: integer, description: Elapsed scheduled dates only; rest and future dates are excluded }
         missedDays: { type: integer, description: Elapsed scheduled dates without a successful check-in }
         restDays: { type: integer, description: Rest dates in the fixed calendar snapshot }
+        realReward:
+          oneOf:
+            - $ref: "#/components/schemas/JourneyReward"
+            - type: "null"
+          description: Optional private personal reward attached to this journey; absent on older servers.
         selectedReward:
           oneOf:
             - $ref: "#/components/schemas/HabitJourneyReward"
@@ -2147,6 +2293,70 @@ components:
         title: { type: string, minLength: 1 }
         emoji: { type: string }
         coinCost: { type: integer, minimum: 1 }
+    JourneyRewardInput:
+      type: object
+      additionalProperties: false
+      required: [title, type]
+      description: User-selected personal goal only. It has no price in coins and does not initiate a purchase.
+      properties:
+        title: { type: string, minLength: 1 }
+        type: { type: string, enum: [physical, experience] }
+        description: { type: string, maxLength: 2000 }
+        imageObjectPath:
+          type: string
+          minLength: 1
+          description: Private normalized object path returned by the existing photo upload flow; never a public URL or file bytes.
+        estimatedValue: { type: number, minimum: 0 }
+    JourneyRewardCreateInput:
+      type: object
+      additionalProperties: false
+      required: [title, type]
+      description: Create an owner-private real-world reward, optionally attached to an existing journey. Omit habitId to leave it unattached.
+      properties:
+        habitId: { type: ["integer", "null"], minimum: 1 }
+        title: { type: string, minLength: 1 }
+        type: { type: string, enum: [physical, experience] }
+        description: { type: string, maxLength: 2000 }
+        imageObjectPath:
+          type: string
+          minLength: 1
+          description: Private normalized object path returned by the existing photo upload flow; never a public URL or file bytes.
+        estimatedValue: { type: number, minimum: 0 }
+    JourneyRewardUpdateInput:
+      type: object
+      additionalProperties: false
+      required: [confirm]
+      description: Updates are accepted only while status is pending and only with explicit confirmation=true.
+      properties:
+        confirm: { type: boolean, enum: [true] }
+        habitId: { type: ["integer", "null"], minimum: 1, description: Attach to an existing owner journey or explicitly detach with null. }
+        title: { type: string, minLength: 1 }
+        type: { type: string, enum: [physical, experience] }
+        description: { type: ["string", "null"], maxLength: 2000 }
+        imageObjectPath:
+          type: ["string", "null"]
+          minLength: 1
+          description: Private normalized object path returned by the existing photo upload flow; null removes the image.
+        estimatedValue: { type: ["number", "null"], minimum: 0 }
+    JourneyReward:
+      type: object
+      required: [id, habitId, title, type, description, imageUrl, estimatedValue, status, createdAt, updatedAt, unlockedAt, claimedAt, currentDay, daysRemaining]
+      description: Owner-private personal reward and its server-computed 22-calendar-day progress. Image URL is a normalized private object path.
+      properties:
+        id: { type: integer }
+        habitId: { type: ["integer", "null"] }
+        title: { type: string }
+        type: { type: string, enum: [physical, experience] }
+        description: { type: ["string", "null"] }
+        imageUrl: { type: ["string", "null"], description: Normalized private object path; clients serve it through the authenticated object route. }
+        estimatedValue: { type: ["number", "null"], minimum: 0 }
+        status: { type: string, enum: [pending, unlocked, claimed] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        unlockedAt: { type: ["string", "null"], format: date-time }
+        claimedAt: { type: ["string", "null"], format: date-time }
+        currentDay: { type: ["integer", "null"], minimum: 0, maximum: 22, description: Current server-computed calendar day of the attached journey; null when unattached. }
+        daysRemaining: { type: ["integer", "null"], minimum: 0, maximum: 22, description: Remaining calendar days in the attached 22-day journey; null when unattached. }
     RedeemRewardResult:
       type: object
       required: [reward, coinsRemaining]
@@ -2310,6 +2520,23 @@ components:
         habitsToday:
           type: array
           items: { $ref: "#/components/schemas/DashboardHabitToday" }
+        realRewards:
+          type: array
+          description: Optional private real-world journey reward cards; absent on older servers.
+          items: { $ref: "#/components/schemas/DashboardJourneyRewardCard" }
+    DashboardJourneyRewardCard:
+      type: object
+      required: [habitId, habitTitle, title, type, status, currentDay, daysRemaining, progressPercent, imageUrl]
+      properties:
+        habitId: { type: integer }
+        habitTitle: { type: string }
+        title: { type: string }
+        type: { type: string, enum: [physical, experience] }
+        status: { type: string, enum: [pending, unlocked, claimed] }
+        currentDay: { type: integer, minimum: 0, maximum: 22 }
+        daysRemaining: { type: integer, minimum: 0, maximum: 22 }
+        progressPercent: { type: integer, minimum: 0, maximum: 100, description: Calendar progress, independent from consistency and coin/XP earnings. }
+        imageUrl: { type: ["string", "null"], description: Normalized private object path served through the authenticated object route. }
     DashboardCalendarDay:
       type: object
       required: [date, completedCount, scheduledCount, timeMinutes]

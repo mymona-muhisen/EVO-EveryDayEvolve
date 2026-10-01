@@ -16,8 +16,9 @@ import { requireAuth } from "../middlewares/requireAuth";
 import { ensureUser } from "../lib/userService";
 import { spendCoins } from "../lib/gamificationService";
 import { recoverStreakCost } from "../lib/rules";
-import { toDateOnly, coerceQueryDates } from "../lib/dates";
+import { toDateOnly, coerceQueryDates, todayInTimezone } from "../lib/dates";
 import { CheckinConflictError, recordCheckin } from "../lib/checkinService";
+import { synchronizeJourneyCompletion } from "../lib/journeyRewardService";
 
 const router: IRouter = Router();
 router.use(requireAuth);
@@ -127,7 +128,7 @@ router.patch("/habits/:habitId/checkins/:date", async (req, res): Promise<void> 
 });
 
 router.post("/habits/:habitId/recover-streak", async (req, res): Promise<void> => {
-  await ensureUser(req.userId!);
+  const user = await ensureUser(req.userId!);
   const params = RecoverStreakParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -165,6 +166,20 @@ router.post("/habits/:habitId/recover-streak", async (req, res): Promise<void> =
     .where(eq(habitsTable.id, habit.id))
     .returning();
 
+  await db.transaction(async (tx) => {
+    const [owner] = await tx.select({ id: usersTable.id }).from(usersTable)
+      .where(eq(usersTable.id, req.userId!)).for("update");
+    if (!owner) return;
+    const [lockedHabit] = await tx.select().from(habitsTable).where(and(
+      eq(habitsTable.id, updatedHabit.id),
+      eq(habitsTable.userId, req.userId!),
+    )).for("update");
+    if (lockedHabit) {
+      await synchronizeJourneyCompletion(
+        tx, req.userId!, lockedHabit, todayInTimezone(user.timezone),
+      );
+    }
+  });
   res.json(RecoverStreakResponse.parse({ habit: updatedHabit, coinsSpent: cost }));
 });
 

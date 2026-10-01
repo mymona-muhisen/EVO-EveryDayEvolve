@@ -7,6 +7,8 @@ export * from "./trackingSessions";
 export * from "./dayAnalysisCache";
 export * from "./memories";
 export * from "./rewards";
+export * from "./journeyRewards";
+export * from "./objectUploads";
 export * from "./wallet";
 export * from "./character";
 export * from "./decorations";

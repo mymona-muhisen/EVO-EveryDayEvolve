@@ -69,6 +69,9 @@ import type {
   JoinGroupInput,
   JourneyDecoration,
   JourneyProgress,
+  JourneyReward,
+  JourneyRewardCreateInput,
+  JourneyRewardUpdateInput,
   ListHabitCheckinsParams,
   ListHabitsParams,
   ListMemoriesParams,
@@ -82,6 +85,7 @@ import type {
   Reward,
   RewardInput,
   RewardUpdate,
+  StartHabitJourneyInput,
   TimeEntriesSummary,
   TimeEntry,
   TimeEntryInput,
@@ -869,14 +873,29 @@ export const getStartHabitJourneyUrl = (habitId: number,) => {
  * Starts at today in the owner's timezone using the habit's stored plan and cadence. The operation is idempotent: an existing journey is returned unchanged. The server owns all dates and plan snapshots; no check-in rewards or journey unlocks are granted.
  * @summary Start an existing legacy habit's 22-calendar-day journey
  */
-export const startHabitJourney = async (habitId: number, options?: Parameters<typeof customFetch>[1]): Promise<HabitJourney> => {
+export const startHabitJourney = async (habitId: number,
+    startHabitJourneyInput?: StartHabitJourneyInput, options?: Parameters<typeof customFetch>[1]): Promise<HabitJourney> => {
 
-  return customFetch<HabitJourney>(getStartHabitJourneyUrl(habitId),
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<HabitJourney>(getStartHabitJourneyUrl(habitId),
   {
     ...options,
-    method: 'POST'
-
-
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(startHabitJourneyInput)
   }
 );}
 
@@ -901,9 +920,9 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof startHabitJourney>>, StartHabitJourneyMutationVariables> = (props) => {
-          const {habitId} = props ?? {};
+          const {habitId,data} = props ?? {};
 
-          return  startHabitJourney(habitId,requestOptions)
+          return  startHabitJourney(habitId,data,requestOptions)
         }
 
 
@@ -914,9 +933,9 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
   return  { mutationFn, ...mutationOptions }}
 
     export type StartHabitJourneyMutationResult = NonNullable<Awaited<ReturnType<typeof startHabitJourney>>>
-
+    export type StartHabitJourneyMutationBody = BodyType<StartHabitJourneyInput> | undefined
     export type StartHabitJourneyMutationError = ErrorType<Error>
-    export type StartHabitJourneyMutationVariables = {habitId: number}
+    export type StartHabitJourneyMutationVariables = {habitId: number;data?: BodyType<StartHabitJourneyInput>}
 
     /**
  * @summary Start an existing legacy habit's 22-calendar-day journey
@@ -3277,6 +3296,411 @@ export const useRedeemReward = <TError = ErrorType<Error>,
         TContext
       > => {
       return useMutation(getRedeemRewardMutationOptions(options));
+    }
+
+export const getListJourneyRewardsUrl = () => {
+
+
+
+
+  return `/api/journey-rewards`
+}
+
+/**
+ * @summary List the current owner's private real-world journey rewards and history
+ */
+export const listJourneyRewards = async ( options?: Parameters<typeof customFetch>[1]): Promise<JourneyReward[]> => {
+
+  return customFetch<JourneyReward[]>(getListJourneyRewardsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListJourneyRewardsQueryKey = () => {
+    return [
+    `/api/journey-rewards`
+    ] as const;
+    }
+
+
+export const getListJourneyRewardsQueryOptions = <TData = Awaited<ReturnType<typeof listJourneyRewards>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listJourneyRewards>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListJourneyRewardsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listJourneyRewards>>> = ({ signal }) => listJourneyRewards({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listJourneyRewards>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListJourneyRewardsQueryResult = NonNullable<Awaited<ReturnType<typeof listJourneyRewards>>>
+export type ListJourneyRewardsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List the current owner's private real-world journey rewards and history
+ */
+
+export function useListJourneyRewards<TData = Awaited<ReturnType<typeof listJourneyRewards>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listJourneyRewards>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListJourneyRewardsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateJourneyRewardUrl = () => {
+
+
+
+
+  return `/api/journey-rewards`
+}
+
+/**
+ * @summary Create a private physical or experience reward, optionally attaching it to an existing journey
+ */
+export const createJourneyReward = async (journeyRewardCreateInput: JourneyRewardCreateInput, options?: Parameters<typeof customFetch>[1]): Promise<JourneyReward> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<JourneyReward>(getCreateJourneyRewardUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(journeyRewardCreateInput)
+  }
+);}
+
+
+
+
+
+export const getCreateJourneyRewardMutationKey = () => ['createJourneyReward'] as const;
+
+export const getCreateJourneyRewardMutationOptions = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createJourneyReward>>, TError,CreateJourneyRewardMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createJourneyReward>>, TError,CreateJourneyRewardMutationVariables, TContext> => {
+
+const mutationKey = getCreateJourneyRewardMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createJourneyReward>>, CreateJourneyRewardMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  createJourneyReward(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateJourneyRewardMutationResult = NonNullable<Awaited<ReturnType<typeof createJourneyReward>>>
+    export type CreateJourneyRewardMutationBody = BodyType<JourneyRewardCreateInput>
+    export type CreateJourneyRewardMutationError = ErrorType<Error>
+    export type CreateJourneyRewardMutationVariables = {data: BodyType<JourneyRewardCreateInput>}
+
+    /**
+ * @summary Create a private physical or experience reward, optionally attaching it to an existing journey
+ */
+export const useCreateJourneyReward = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createJourneyReward>>, TError,CreateJourneyRewardMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createJourneyReward>>,
+        TError,
+        CreateJourneyRewardMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateJourneyRewardMutationOptions(options));
+    }
+
+export const getGetJourneyRewardUrl = (journeyRewardId: number,) => {
+
+
+
+
+  return `/api/journey-rewards/${journeyRewardId}`
+}
+
+/**
+ * @summary Read one of the current owner's private real-world journey rewards
+ */
+export const getJourneyReward = async (journeyRewardId: number, options?: Parameters<typeof customFetch>[1]): Promise<JourneyReward> => {
+
+  return customFetch<JourneyReward>(getGetJourneyRewardUrl(journeyRewardId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetJourneyRewardQueryKey = (journeyRewardId: number,) => {
+    return [
+    `/api/journey-rewards/${journeyRewardId}`
+    ] as const;
+    }
+
+
+export const getGetJourneyRewardQueryOptions = <TData = Awaited<ReturnType<typeof getJourneyReward>>, TError = ErrorType<Error>>(journeyRewardId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getJourneyReward>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetJourneyRewardQueryKey(journeyRewardId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getJourneyReward>>> = ({ signal }) => getJourneyReward(journeyRewardId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: journeyRewardId !== null && journeyRewardId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getJourneyReward>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetJourneyRewardQueryResult = NonNullable<Awaited<ReturnType<typeof getJourneyReward>>>
+export type GetJourneyRewardQueryError = ErrorType<Error>
+
+
+/**
+ * @summary Read one of the current owner's private real-world journey rewards
+ */
+
+export function useGetJourneyReward<TData = Awaited<ReturnType<typeof getJourneyReward>>, TError = ErrorType<Error>>(
+ journeyRewardId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getJourneyReward>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetJourneyRewardQueryOptions(journeyRewardId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateJourneyRewardUrl = (journeyRewardId: number,) => {
+
+
+
+
+  return `/api/journey-rewards/${journeyRewardId}`
+}
+
+/**
+ * @summary Update a pending journey reward after explicit user confirmation
+ */
+export const updateJourneyReward = async (journeyRewardId: number,
+    journeyRewardUpdateInput: JourneyRewardUpdateInput, options?: Parameters<typeof customFetch>[1]): Promise<JourneyReward> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<JourneyReward>(getUpdateJourneyRewardUrl(journeyRewardId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(journeyRewardUpdateInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateJourneyRewardMutationKey = () => ['updateJourneyReward'] as const;
+
+export const getUpdateJourneyRewardMutationOptions = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateJourneyReward>>, TError,UpdateJourneyRewardMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateJourneyReward>>, TError,UpdateJourneyRewardMutationVariables, TContext> => {
+
+const mutationKey = getUpdateJourneyRewardMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateJourneyReward>>, UpdateJourneyRewardMutationVariables> = (props) => {
+          const {journeyRewardId,data} = props ?? {};
+
+          return  updateJourneyReward(journeyRewardId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateJourneyRewardMutationResult = NonNullable<Awaited<ReturnType<typeof updateJourneyReward>>>
+    export type UpdateJourneyRewardMutationBody = BodyType<JourneyRewardUpdateInput>
+    export type UpdateJourneyRewardMutationError = ErrorType<Error>
+    export type UpdateJourneyRewardMutationVariables = {journeyRewardId: number;data: BodyType<JourneyRewardUpdateInput>}
+
+    /**
+ * @summary Update a pending journey reward after explicit user confirmation
+ */
+export const useUpdateJourneyReward = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateJourneyReward>>, TError,UpdateJourneyRewardMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateJourneyReward>>,
+        TError,
+        UpdateJourneyRewardMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdateJourneyRewardMutationOptions(options));
+    }
+
+export const getClaimJourneyRewardUrl = (journeyRewardId: number,) => {
+
+
+
+
+  return `/api/journey-rewards/${journeyRewardId}/claim`
+}
+
+/**
+ * @summary Record the owner's claim of an unlocked personal reward without payment or coin spending
+ */
+export const claimJourneyReward = async (journeyRewardId: number, options?: Parameters<typeof customFetch>[1]): Promise<JourneyReward> => {
+
+  return customFetch<JourneyReward>(getClaimJourneyRewardUrl(journeyRewardId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getClaimJourneyRewardMutationKey = () => ['claimJourneyReward'] as const;
+
+export const getClaimJourneyRewardMutationOptions = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof claimJourneyReward>>, TError,ClaimJourneyRewardMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof claimJourneyReward>>, TError,ClaimJourneyRewardMutationVariables, TContext> => {
+
+const mutationKey = getClaimJourneyRewardMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof claimJourneyReward>>, ClaimJourneyRewardMutationVariables> = (props) => {
+          const {journeyRewardId} = props ?? {};
+
+          return  claimJourneyReward(journeyRewardId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ClaimJourneyRewardMutationResult = NonNullable<Awaited<ReturnType<typeof claimJourneyReward>>>
+
+    export type ClaimJourneyRewardMutationError = ErrorType<Error>
+    export type ClaimJourneyRewardMutationVariables = {journeyRewardId: number}
+
+    /**
+ * @summary Record the owner's claim of an unlocked personal reward without payment or coin spending
+ */
+export const useClaimJourneyReward = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof claimJourneyReward>>, TError,ClaimJourneyRewardMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof claimJourneyReward>>,
+        TError,
+        ClaimJourneyRewardMutationVariables,
+        TContext
+      > => {
+      return useMutation(getClaimJourneyRewardMutationOptions(options));
     }
 
 export const getGetWalletUrl = () => {

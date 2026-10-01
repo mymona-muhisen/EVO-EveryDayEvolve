@@ -14,7 +14,7 @@ function useReducedMotion() {
   return r;
 }
 
-export function JourneyMap({ journey, selected, onSelect, placements = [], fullscreen = false }: { journey: HabitJourney; selected: number; onSelect: (day: number) => void; fullscreen?: boolean; placements?: { decorationId: number; islandId: string; slot: number; assetFile: string; name: string }[] }) {
+export function JourneyMap({ journey, selected, onSelect, placements = [], fullscreen = false, preservePagePosition = false, layoutRevision = 0 }: { journey: HabitJourney; selected: number; onSelect: (day: number) => void; fullscreen?: boolean; preservePagePosition?: boolean; layoutRevision?: number; placements?: { decorationId: number; islandId: string; slot: number; assetFile: string; name: string }[] }) {
   const reduced = useReducedMotion();
   const character = useGlobalCharacter();
   const cur = calendarDay(journey), today = journey.today.slice(0, 10);
@@ -30,6 +30,8 @@ export function JourneyMap({ journey, selected, onSelect, placements = [], fulls
     if (!el) return;
     let active = true;
     const controls = el.closest('[data-journey-layout]')?.querySelector<HTMLElement>('[data-journey-controls]');
+    const rewardEl = el.closest('[data-journey-layout]')?.querySelector<HTMLElement>('[data-journey-reward]');
+    const rewardSpace = () => { const h = rewardEl?.getBoundingClientRect().height ?? 0; return h > 0 ? h + 16 : 0; };
     const center = () => {
       if (!active) return;
       const node = el.querySelector<HTMLButtonElement>(`#jnode-${cur}`);
@@ -41,35 +43,43 @@ export function JourneyMap({ journey, selected, onSelect, placements = [], fulls
       if (!active) return;
       // The mobile toolbar follows the map, so reserve its actual wrapped
       // height as well as the fixed navigation and the grid's 24px gap.
-      const footerSpace = fullscreen ? 16 : window.innerWidth < 1024 ? 96 + (controls?.getBoundingClientRect().height ?? 0) + 24 : 24;
-      if (el.getBoundingClientRect().top > window.innerHeight - footerSpace - 220) {
-        el.scrollIntoView({ block: 'start', behavior: 'auto' });
+      const footerSpace = fullscreen ? 16 : window.innerWidth < 1024 ? 96 + (controls?.getBoundingClientRect().height ?? 0) + rewardSpace() + 24 : 24;
+      if (!preservePagePosition && el.getBoundingClientRect().top > window.innerHeight - footerSpace - 220) {
+        // Fit measures the final document position, not an inherited smooth
+        // scroll still in progress. Fullscreen return is owned by the page.
+        el.scrollIntoView({ block: 'start', behavior: 'instant' });
       }
       const available = window.innerHeight - Math.max(0, el.getBoundingClientRect().top) - footerSpace;
-      el.style.maxHeight = `${Math.max(220, fullscreen ? available : Math.min(window.innerHeight * .65, available))}px`;
+      const maxHeight = `${Math.max(220, fullscreen ? available : Math.min(window.innerHeight * .65, available))}px`;
+      if (el.style.maxHeight !== maxHeight) el.style.maxHeight = maxHeight;
       center();
     };
-    const size = new ResizeObserver(center);
+    // Reward/status changes resize the sidebar while the map also changes
+    // height. Do not write layout during ResizeObserver delivery.
+    let fitFrame: number | null = null, centerFrame: number | null = null;
+    const scheduleFit = () => {
+      if (!active || fitFrame !== null) return;
+      fitFrame = requestAnimationFrame(() => { fitFrame = null; fit(); });
+    };
+    const scheduleCenter = () => {
+      if (!active || centerFrame !== null) return;
+      centerFrame = requestAnimationFrame(() => { centerFrame = null; center(); });
+    };
+    const size = new ResizeObserver(scheduleCenter);
     size.observe(el);
-    const controlSize = new ResizeObserver(fit);
+    const controlSize = new ResizeObserver(scheduleFit);
     if (controls) controlSize.observe(controls);
-    const frame = requestAnimationFrame(fit);
-    let historyFrame: number | null = null;
-    const afterHistoryRestore = () => {
-      // Closing fullscreen traverses its temporary history entry. Browser
-      // scroll restoration happens after popstate and can undo initial fit.
-      if (historyFrame !== null) cancelAnimationFrame(historyFrame);
-      historyFrame = requestAnimationFrame(() => { historyFrame = null; fit(); });
-    };
-    window.addEventListener('resize', fit);
-    window.addEventListener('popstate', afterHistoryRestore);
-    document.fonts.ready.then(fit);
+    if (rewardEl) controlSize.observe(rewardEl);
+    scheduleFit();
+    window.addEventListener('resize', scheduleFit);
+    document.fonts.ready.then(scheduleFit);
     return () => {
-      active = false; size.disconnect(); controlSize.disconnect(); cancelAnimationFrame(frame);
-      if (historyFrame !== null) cancelAnimationFrame(historyFrame);
-      window.removeEventListener('resize', fit); window.removeEventListener('popstate', afterHistoryRestore);
+      active = false; size.disconnect(); controlSize.disconnect();
+      if (fitFrame !== null) cancelAnimationFrame(fitFrame);
+      if (centerFrame !== null) cancelAnimationFrame(centerFrame);
+      window.removeEventListener('resize', scheduleFit);
     };
-  }, [journey.habitId, cur, cp.y, fullscreen]);
+  }, [journey.habitId, cur, cp.y, fullscreen, preservePagePosition, layoutRevision]);
   const charSrc = reduced ? base('character-idle-still.webp') : walk ? base(`character-walk-${walk}.gif`) : base('character-idle.gif');
   return <div ref={viewport} style={{ overflowAnchor: 'none', scrollBehavior: 'auto' }} className={`mx-auto w-full overflow-y-auto ${fullscreen ? 'max-w-[800px]' : 'max-w-[560px] max-h-[65dvh]'} overflow-x-hidden rounded-[28px]`} role="region" aria-label="خريطة الرحلة، مرّر عموديًا لاستكشاف الأيام" tabIndex={0}>
     <div className="relative w-full overflow-hidden" style={{ height: MAP_HEIGHT, background: 'linear-gradient(#cfe3df,#eef0e0 55%,#f7e9cf)' }} data-testid="journey-map">
