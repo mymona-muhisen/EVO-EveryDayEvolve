@@ -30,7 +30,9 @@ _Populate as you build — non-obvious choices a reader couldn't infer from the 
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+- «رحلتي» is the entry point to the same 22-calendar-day map shown for each habit, not a separate XP journey. Keep wardrobe, levels, and the character shop available separately.
+- Uploaded `components/` assets are purchasable island decorations, placed above the islands. They must not appear as automatic success-count unlocks. Buying an item preserves ownership when its placement is removed or moved.
+- The map supports an immersive fullscreen view with an exit control and a working in-app fallback when native browser fullscreen is unavailable.
 
 ## User preferences
 

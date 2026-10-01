@@ -24,7 +24,7 @@ export function Modal({title,children,onClose}: {title:string,children:ReactNode
 export function Field({label,children}: {label:string,children:ReactNode}) { return <label className="block mb-4"><span className="block text-sm font-bold mb-2">{label}</span>{children}</label>; }
 const nav = [
   {href:'/home',label:'اليوم',icon:Home},{href:'/habits',label:'عاداتي',icon:ListChecks},{href:'/time',label:'وقتي',icon:Clock3},{href:'/memories',label:'ذكرياتي',icon:Images},
-  {href:'/rewards',label:'المكافآت',icon:Gift},{href:'/journey',label:'رحلتي',icon:Map},{href:'/groups',label:'المجموعات',icon:Users},{href:'/settings',label:'الإعدادات',icon:Settings}
+  {href:'/rewards',label:'المكافآت',icon:Gift},{href:'/journey',label:'رحلتي',icon:Map},{href:'/character',label:'الشخصية والمتجر',icon:Sparkles},{href:'/groups',label:'المجموعات',icon:Users},{href:'/settings',label:'الإعدادات',icon:Settings}
 ];
 export function Shell({user,children}: {user:User,children:ReactNode}) {
   const [location] = useLocation();
@@ -32,7 +32,7 @@ export function Shell({user,children}: {user:User,children:ReactNode}) {
     <aside className="hidden md:flex w-[245px] shrink-0 bg-[#1e493f] text-[#f6ead2] min-h-[100dvh] sticky top-0 h-[100dvh] flex-col px-4 py-7">
       <Link href="/home" className="flex items-center gap-3 px-4 mb-9"><img src={`${import.meta.env.BASE_URL}logo.svg`} className="w-10 h-10" alt="شعار رحلة العادة"/><span className="font-black text-xl" style={{fontFamily:'Cairo'}}>رحلة العادة</span></Link>
       <div className="px-4 text-[#a9c8b6] text-xs font-bold mb-3">مساحتك الخاصة</div>
-      <nav className="space-y-1">{nav.map(({href,label,icon:Icon})=><Link key={href} href={href} className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${location===href || (href==='/habits'&&location.startsWith('/habits/')) ? 'bg-[#e2ad73] text-[#1d463b] font-bold shadow-sm' : 'text-[#d7e4d8] hover:bg-[#356052]'}`}><Icon size={19} strokeWidth={1.8}/>{label}</Link>)}</nav>
+      <nav className="space-y-1">{nav.map(({href,label,icon:Icon})=><Link key={href} href={href} className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${location===href || (href==='/journey'&&/^\/habits\/\d+\/journey/.test(location)) || (href==='/habits'&&location.startsWith('/habits/')&&!location.includes('/journey')) ? 'bg-[#e2ad73] text-[#1d463b] font-bold shadow-sm' : 'text-[#d7e4d8] hover:bg-[#356052]'}`}><Icon size={19} strokeWidth={1.8}/>{label}</Link>)}</nav>
       <div className="mt-auto px-3"><div className="border-t border-[#477266] pt-5 flex items-center gap-3"><span className="w-10 h-10 rounded-full bg-[#e4ae73] flex items-center justify-center text-xl">{user.avatarEmoji}</span><div className="min-w-0"><div className="font-bold truncate">{user.displayName}</div><div className="text-xs text-[#a9c8b6]">المستوى {user.level}</div></div></div></div>
     </aside>
     <div className="flex-1 min-w-0">

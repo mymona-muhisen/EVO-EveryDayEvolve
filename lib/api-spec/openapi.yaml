@@ -26,6 +26,8 @@ tags:
     description: Coin balance and transaction history
   - name: character
     description: Character catalog, ownership, and equipping
+  - name: decorations
+    description: Coin-purchasable island decorations and habit placements
   - name: journey
     description: Level/XP journey map progress
   - name: dashboard
@@ -952,6 +954,141 @@ paths:
               schema: { $ref: "#/components/schemas/CharacterItem" }
         "400":
           description: Item not owned
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /decorations/catalog:
+    get:
+      operationId: listDecorationCatalog
+      tags: [decorations]
+      summary: List purchasable island decorations and ownership state
+      responses:
+        "200":
+          description: Decoration catalog
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/DecorationItem" }
+
+  /decorations/items/{itemId}/purchase:
+    post:
+      operationId: purchaseDecorationItem
+      tags: [decorations]
+      summary: Purchase a decoration with coins
+      parameters:
+        - name: itemId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DecorationPurchaseInput" }
+      responses:
+        "200":
+          description: Purchased, already owned, or an idempotent replay
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DecorationPurchase" }
+        "400":
+          description: Invalid input or insufficient coins
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: Decoration not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "409":
+          description: Idempotency key was committed for a different decoration
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /habits/{habitId}/decorations:
+    get:
+      operationId: getHabitDecorations
+      tags: [decorations]
+      summary: Get a habit's island decoration placements
+      parameters:
+        - name: habitId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Habit decoration placements
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/HabitDecorations" }
+        "404":
+          description: Habit not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /habits/{habitId}/decorations/{itemId}:
+    put:
+      operationId: placeHabitDecoration
+      tags: [decorations]
+      summary: Place or move an owned decoration in a bounded island slot
+      parameters:
+        - name: habitId
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: itemId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/HabitDecorationPlacementInput" }
+      responses:
+        "200":
+          description: Placed decoration
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/JourneyDecoration" }
+        "400":
+          description: Invalid island or slot
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: Habit, decoration, or ownership not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "409":
+          description: Island slot is occupied by another decoration
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+    delete:
+      operationId: removeHabitDecoration
+      tags: [decorations]
+      summary: Remove a habit decoration placement without refunding or revoking ownership
+      parameters:
+        - name: habitId
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: itemId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "204":
+          description: Removed (including when no placement existed)
+        "404":
+          description: Habit not found
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
@@ -2002,6 +2139,53 @@ components:
         coinCost: { type: integer }
         owned: { type: boolean }
         equipped: { type: boolean }
+    DecorationItem:
+      type: object
+      required: [id, name, assetFile, coinCost, owned]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        assetFile: { type: string }
+        coinCost: { type: integer, minimum: 1 }
+        owned: { type: boolean }
+    DecorationPurchaseInput:
+      type: object
+      required: [idempotencyKey]
+      properties:
+        idempotencyKey: { type: string, minLength: 1, maxLength: 128 }
+    DecorationPurchase:
+      type: object
+      required: [item, walletCoins, purchased]
+      properties:
+        item: { $ref: "#/components/schemas/DecorationItem" }
+        walletCoins: { type: integer, minimum: 0 }
+        purchased: { type: boolean }
+    IslandId:
+      type: string
+      enum: [beginnings, study, forest, dreams, heart, adventure]
+    JourneyDecoration:
+      type: object
+      required: [decorationId, islandId, slot, name, assetFile]
+      properties:
+        decorationId: { type: integer }
+        islandId: { $ref: "#/components/schemas/IslandId" }
+        slot: { type: integer, minimum: 0, maximum: 5 }
+        name: { type: string }
+        assetFile: { type: string }
+    HabitDecorations:
+      type: object
+      required: [habitId, placements]
+      properties:
+        habitId: { type: integer }
+        placements:
+          type: array
+          items: { $ref: "#/components/schemas/JourneyDecoration" }
+    HabitDecorationPlacementInput:
+      type: object
+      required: [islandId, slot]
+      properties:
+        islandId: { $ref: "#/components/schemas/IslandId" }
+        slot: { type: integer, minimum: 0, maximum: 5 }
     MyCharacter:
       type: object
       required: [level, xp, xpToNextLevel, equippedItems]

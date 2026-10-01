@@ -1,5 +1,6 @@
 import { db, characterItemsTable, journeyMilestonesTable } from "@workspace/db";
 import { logger } from "./logger";
+import { seedDecorationCatalog } from "./decorationCatalog";
 
 // Global catalogs, seeded once and shared by all users. Idempotent via
 // onConflictDoNothing (unique on name / levelRequired) — safe to run on
@@ -36,5 +37,6 @@ const JOURNEY_MILESTONES = [
 export async function seedCatalogs(): Promise<void> {
   await db.insert(characterItemsTable).values([...CHARACTER_ITEMS]).onConflictDoNothing();
   await db.insert(journeyMilestonesTable).values([...JOURNEY_MILESTONES]).onConflictDoNothing();
-  logger.info("Catalog seed check complete (character items + journey milestones)");
+  await seedDecorationCatalog();
+  logger.info("Catalog seed check complete (character items + journey milestones + island decorations)");
 }

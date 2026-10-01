@@ -15,6 +15,7 @@ import dashboardRouter from "./dashboard";
 import groupsRouter from "./groups";
 import aiRouter from "./ai";
 import dailyRouter from "./daily";
+import decorationsRouter from "./decorations";
 
 const router: IRouter = Router();
 
@@ -34,5 +35,6 @@ router.use(dashboardRouter);
 router.use(groupsRouter);
 router.use(aiRouter);
 router.use(dailyRouter);
+router.use(decorationsRouter);
 
 export default router;

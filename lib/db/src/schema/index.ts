@@ -9,5 +9,6 @@ export * from "./memories";
 export * from "./rewards";
 export * from "./wallet";
 export * from "./character";
+export * from "./decorations";
 export * from "./journey";
 export * from "./groups";

@@ -14,6 +14,7 @@ import { HomePage } from '@/pages/home';
 import { HabitsPage, HabitDetailPage } from '@/pages/habits';
 import { TimePage, MemoriesPage } from '@/pages/life';
 import { RewardsPage, JourneyPage } from '@/pages/rewards-journey';
+import { JourneyEntryPage } from '@/pages/journey-entry';
 import { HabitJourneyPage } from '@/pages/habit-journey';
 import { HabitJourneyCompletePage } from '@/pages/habit-journey-complete';
 import { GroupsPage, GroupDetailPage } from '@/pages/groups';
@@ -114,7 +115,8 @@ function Routes(){
     <Route path="/time">{()=><Protected>{user=><TimePage user={user}/>}</Protected>}</Route>
     <Route path="/memories">{()=><Protected>{()=><MemoriesPage/>}</Protected>}</Route>
     <Route path="/rewards">{()=><Protected>{()=><RewardsPage/>}</Protected>}</Route>
-    <Route path="/journey">{()=><Protected>{()=><JourneyPage/>}</Protected>}</Route>
+    <Route path="/journey">{()=><Protected>{()=><JourneyEntryPage/>}</Protected>}</Route>
+    <Route path="/character">{()=><Protected>{()=><JourneyPage/>}</Protected>}</Route>
     <Route path="/groups">{()=><Protected>{()=><GroupsPage/>}</Protected>}</Route>
     <Route path="/groups/:groupId">{()=><Protected>{()=><GroupDetailPage/>}</Protected>}</Route>
     <Route path="/settings">{()=><Protected>{user=><SettingsPage user={user}/>}</Protected>}</Route>

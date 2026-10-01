@@ -1855,6 +1855,122 @@ export const EquipCharacterItemResponse = zod.object({
 
 
 /**
+ * @summary List purchasable island decorations and ownership state
+ */
+
+
+
+export const ListDecorationCatalogResponseItem = zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "assetFile": zod.string(),
+  "coinCost": zod.number().int().min(1),
+  "owned": zod.boolean()
+})
+export const ListDecorationCatalogResponse = zod.array(ListDecorationCatalogResponseItem)
+
+
+/**
+ * @summary Purchase a decoration with coins
+ */
+export const PurchaseDecorationItemParams = zod.object({
+  "itemId": zod.coerce.number().int()
+})
+
+export const purchaseDecorationItemBodyIdempotencyKeyMax = 128;
+
+
+
+export const PurchaseDecorationItemBody = zod.object({
+  "idempotencyKey": zod.string().min(1).max(purchaseDecorationItemBodyIdempotencyKeyMax)
+})
+
+
+export const purchaseDecorationItemResponseWalletCoinsMin = 0;
+
+
+
+export const PurchaseDecorationItemResponse = zod.object({
+  "item": zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "assetFile": zod.string(),
+  "coinCost": zod.number().int().min(1),
+  "owned": zod.boolean()
+}),
+  "walletCoins": zod.number().int().min(purchaseDecorationItemResponseWalletCoinsMin),
+  "purchased": zod.boolean()
+})
+
+
+/**
+ * @summary Get a habit's island decoration placements
+ */
+export const GetHabitDecorationsParams = zod.object({
+  "habitId": zod.coerce.number().int()
+})
+
+export const getHabitDecorationsResponsePlacementsItemSlotMin = 0;
+export const getHabitDecorationsResponsePlacementsItemSlotMax = 5;
+
+
+
+export const GetHabitDecorationsResponse = zod.object({
+  "habitId": zod.number().int(),
+  "placements": zod.array(zod.object({
+  "decorationId": zod.number().int(),
+  "islandId": zod.enum(['beginnings', 'study', 'forest', 'dreams', 'heart', 'adventure']),
+  "slot": zod.number().int().min(getHabitDecorationsResponsePlacementsItemSlotMin).max(getHabitDecorationsResponsePlacementsItemSlotMax),
+  "name": zod.string(),
+  "assetFile": zod.string()
+}))
+})
+
+
+/**
+ * @summary Place or move an owned decoration in a bounded island slot
+ */
+export const PlaceHabitDecorationParams = zod.object({
+  "habitId": zod.coerce.number().int(),
+  "itemId": zod.coerce.number().int()
+})
+
+export const placeHabitDecorationBodySlotMin = 0;
+export const placeHabitDecorationBodySlotMax = 5;
+
+
+
+export const PlaceHabitDecorationBody = zod.object({
+  "islandId": zod.enum(['beginnings', 'study', 'forest', 'dreams', 'heart', 'adventure']),
+  "slot": zod.number().int().min(placeHabitDecorationBodySlotMin).max(placeHabitDecorationBodySlotMax)
+})
+
+export const placeHabitDecorationResponseSlotMin = 0;
+export const placeHabitDecorationResponseSlotMax = 5;
+
+
+
+export const PlaceHabitDecorationResponse = zod.object({
+  "decorationId": zod.number().int(),
+  "islandId": zod.enum(['beginnings', 'study', 'forest', 'dreams', 'heart', 'adventure']),
+  "slot": zod.number().int().min(placeHabitDecorationResponseSlotMin).max(placeHabitDecorationResponseSlotMax),
+  "name": zod.string(),
+  "assetFile": zod.string()
+})
+
+
+/**
+ * @summary Remove a habit decoration placement without refunding or revoking ownership
+ */
+export const RemoveHabitDecorationParams = zod.object({
+  "habitId": zod.coerce.number().int(),
+  "itemId": zod.coerce.number().int()
+})
+
+export const RemoveHabitDecorationResponse = zod.void()
+
+
+/**
  * @summary Get level/XP and milestone map progress
  */
 export const GetJourneyProgressResponse = zod.object({

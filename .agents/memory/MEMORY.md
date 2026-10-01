@@ -11,3 +11,4 @@
 - [Daily habit boundaries](daily-habit-boundaries.md) — timer time is not activity proof; known legacy schedules differ from unknown history; consistency recovery is separate from paid repair.
 - [Journey reward boundaries](journey-reward-boundaries.md) — valid final scheduled success, durable unlock gates across unlink/delete, and explicitly partial historical earnings.
 - [Journey map verification](journey-map-verification.md) — measure full node/character visibility on first entry and reload at both map ends, including fixed navigation.
+- [Reference catalog publishing](reference-catalog-publishing.md) — schema publishing does not copy migration seed rows; seed reference catalogs idempotently without changing existing prices or ownership.

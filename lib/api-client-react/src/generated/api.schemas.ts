@@ -1730,6 +1730,68 @@ export interface CharacterItem {
   equipped: boolean;
 }
 
+export interface DecorationItem {
+  id: number;
+  name: string;
+  assetFile: string;
+  /** @minimum 1 */
+  coinCost: number;
+  owned: boolean;
+}
+
+export interface DecorationPurchaseInput {
+  /**
+     * @minLength 1
+     * @maxLength 128
+     */
+  idempotencyKey: string;
+}
+
+export interface DecorationPurchase {
+  item: DecorationItem;
+  /** @minimum 0 */
+  walletCoins: number;
+  purchased: boolean;
+}
+
+export type IslandId = typeof IslandId[keyof typeof IslandId];
+
+
+export const IslandId = {
+  beginnings: 'beginnings',
+  study: 'study',
+  forest: 'forest',
+  dreams: 'dreams',
+  heart: 'heart',
+  adventure: 'adventure',
+} as const;
+
+export interface JourneyDecoration {
+  decorationId: number;
+  islandId: IslandId;
+  /**
+     * @minimum 0
+     * @maximum 5
+     */
+  slot: number;
+  name: string;
+  assetFile: string;
+}
+
+export interface HabitDecorations {
+  habitId: number;
+  placements: JourneyDecoration[];
+}
+
+export interface HabitDecorationPlacementInput {
+  islandId: IslandId;
+  /**
+     * @minimum 0
+     * @maximum 5
+     */
+  slot: number;
+}
+
 export interface MyCharacter {
   level: number;
   xp: number;

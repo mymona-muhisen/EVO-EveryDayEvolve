@@ -41,6 +41,9 @@ import type {
   DailyOverview,
   DashboardCalendarDay,
   DashboardToday,
+  DecorationItem,
+  DecorationPurchase,
+  DecorationPurchaseInput,
   Error,
   GetDailyOverviewParams,
   GetDashboardCalendarParams,
@@ -57,11 +60,14 @@ import type {
   HabitAdaptation,
   HabitBuilderInput,
   HabitBuilderResult,
+  HabitDecorationPlacementInput,
+  HabitDecorations,
   HabitInput,
   HabitJourney,
   HabitUpdate,
   HealthStatus,
   JoinGroupInput,
+  JourneyDecoration,
   JourneyProgress,
   ListHabitCheckinsParams,
   ListHabitsParams,
@@ -3734,6 +3740,416 @@ export const useEquipCharacterItem = <TError = ErrorType<Error>,
         TContext
       > => {
       return useMutation(getEquipCharacterItemMutationOptions(options));
+    }
+
+export const getListDecorationCatalogUrl = () => {
+
+
+
+
+  return `/api/decorations/catalog`
+}
+
+/**
+ * @summary List purchasable island decorations and ownership state
+ */
+export const listDecorationCatalog = async ( options?: Parameters<typeof customFetch>[1]): Promise<DecorationItem[]> => {
+
+  return customFetch<DecorationItem[]>(getListDecorationCatalogUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListDecorationCatalogQueryKey = () => {
+    return [
+    `/api/decorations/catalog`
+    ] as const;
+    }
+
+
+export const getListDecorationCatalogQueryOptions = <TData = Awaited<ReturnType<typeof listDecorationCatalog>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listDecorationCatalog>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListDecorationCatalogQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listDecorationCatalog>>> = ({ signal }) => listDecorationCatalog({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listDecorationCatalog>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListDecorationCatalogQueryResult = NonNullable<Awaited<ReturnType<typeof listDecorationCatalog>>>
+export type ListDecorationCatalogQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List purchasable island decorations and ownership state
+ */
+
+export function useListDecorationCatalog<TData = Awaited<ReturnType<typeof listDecorationCatalog>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listDecorationCatalog>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListDecorationCatalogQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getPurchaseDecorationItemUrl = (itemId: number,) => {
+
+
+
+
+  return `/api/decorations/items/${itemId}/purchase`
+}
+
+/**
+ * @summary Purchase a decoration with coins
+ */
+export const purchaseDecorationItem = async (itemId: number,
+    decorationPurchaseInput: DecorationPurchaseInput, options?: Parameters<typeof customFetch>[1]): Promise<DecorationPurchase> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<DecorationPurchase>(getPurchaseDecorationItemUrl(itemId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(decorationPurchaseInput)
+  }
+);}
+
+
+
+
+
+export const getPurchaseDecorationItemMutationKey = () => ['purchaseDecorationItem'] as const;
+
+export const getPurchaseDecorationItemMutationOptions = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof purchaseDecorationItem>>, TError,PurchaseDecorationItemMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof purchaseDecorationItem>>, TError,PurchaseDecorationItemMutationVariables, TContext> => {
+
+const mutationKey = getPurchaseDecorationItemMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof purchaseDecorationItem>>, PurchaseDecorationItemMutationVariables> = (props) => {
+          const {itemId,data} = props ?? {};
+
+          return  purchaseDecorationItem(itemId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PurchaseDecorationItemMutationResult = NonNullable<Awaited<ReturnType<typeof purchaseDecorationItem>>>
+    export type PurchaseDecorationItemMutationBody = BodyType<DecorationPurchaseInput>
+    export type PurchaseDecorationItemMutationError = ErrorType<Error>
+    export type PurchaseDecorationItemMutationVariables = {itemId: number;data: BodyType<DecorationPurchaseInput>}
+
+    /**
+ * @summary Purchase a decoration with coins
+ */
+export const usePurchaseDecorationItem = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof purchaseDecorationItem>>, TError,PurchaseDecorationItemMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof purchaseDecorationItem>>,
+        TError,
+        PurchaseDecorationItemMutationVariables,
+        TContext
+      > => {
+      return useMutation(getPurchaseDecorationItemMutationOptions(options));
+    }
+
+export const getGetHabitDecorationsUrl = (habitId: number,) => {
+
+
+
+
+  return `/api/habits/${habitId}/decorations`
+}
+
+/**
+ * @summary Get a habit's island decoration placements
+ */
+export const getHabitDecorations = async (habitId: number, options?: Parameters<typeof customFetch>[1]): Promise<HabitDecorations> => {
+
+  return customFetch<HabitDecorations>(getGetHabitDecorationsUrl(habitId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetHabitDecorationsQueryKey = (habitId: number,) => {
+    return [
+    `/api/habits/${habitId}/decorations`
+    ] as const;
+    }
+
+
+export const getGetHabitDecorationsQueryOptions = <TData = Awaited<ReturnType<typeof getHabitDecorations>>, TError = ErrorType<Error>>(habitId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getHabitDecorations>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetHabitDecorationsQueryKey(habitId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getHabitDecorations>>> = ({ signal }) => getHabitDecorations(habitId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: habitId !== null && habitId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getHabitDecorations>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetHabitDecorationsQueryResult = NonNullable<Awaited<ReturnType<typeof getHabitDecorations>>>
+export type GetHabitDecorationsQueryError = ErrorType<Error>
+
+
+/**
+ * @summary Get a habit's island decoration placements
+ */
+
+export function useGetHabitDecorations<TData = Awaited<ReturnType<typeof getHabitDecorations>>, TError = ErrorType<Error>>(
+ habitId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getHabitDecorations>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetHabitDecorationsQueryOptions(habitId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getPlaceHabitDecorationUrl = (habitId: number,
+    itemId: number,) => {
+
+
+
+
+  return `/api/habits/${habitId}/decorations/${itemId}`
+}
+
+/**
+ * @summary Place or move an owned decoration in a bounded island slot
+ */
+export const placeHabitDecoration = async (habitId: number,
+    itemId: number,
+    habitDecorationPlacementInput: HabitDecorationPlacementInput, options?: Parameters<typeof customFetch>[1]): Promise<JourneyDecoration> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<JourneyDecoration>(getPlaceHabitDecorationUrl(habitId,itemId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(habitDecorationPlacementInput)
+  }
+);}
+
+
+
+
+
+export const getPlaceHabitDecorationMutationKey = () => ['placeHabitDecoration'] as const;
+
+export const getPlaceHabitDecorationMutationOptions = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof placeHabitDecoration>>, TError,PlaceHabitDecorationMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof placeHabitDecoration>>, TError,PlaceHabitDecorationMutationVariables, TContext> => {
+
+const mutationKey = getPlaceHabitDecorationMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof placeHabitDecoration>>, PlaceHabitDecorationMutationVariables> = (props) => {
+          const {habitId,itemId,data} = props ?? {};
+
+          return  placeHabitDecoration(habitId,itemId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PlaceHabitDecorationMutationResult = NonNullable<Awaited<ReturnType<typeof placeHabitDecoration>>>
+    export type PlaceHabitDecorationMutationBody = BodyType<HabitDecorationPlacementInput>
+    export type PlaceHabitDecorationMutationError = ErrorType<Error>
+    export type PlaceHabitDecorationMutationVariables = {habitId: number;itemId: number;data: BodyType<HabitDecorationPlacementInput>}
+
+    /**
+ * @summary Place or move an owned decoration in a bounded island slot
+ */
+export const usePlaceHabitDecoration = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof placeHabitDecoration>>, TError,PlaceHabitDecorationMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof placeHabitDecoration>>,
+        TError,
+        PlaceHabitDecorationMutationVariables,
+        TContext
+      > => {
+      return useMutation(getPlaceHabitDecorationMutationOptions(options));
+    }
+
+export const getRemoveHabitDecorationUrl = (habitId: number,
+    itemId: number,) => {
+
+
+
+
+  return `/api/habits/${habitId}/decorations/${itemId}`
+}
+
+/**
+ * @summary Remove a habit decoration placement without refunding or revoking ownership
+ */
+export const removeHabitDecoration = async (habitId: number,
+    itemId: number, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getRemoveHabitDecorationUrl(habitId,itemId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getRemoveHabitDecorationMutationKey = () => ['removeHabitDecoration'] as const;
+
+export const getRemoveHabitDecorationMutationOptions = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removeHabitDecoration>>, TError,RemoveHabitDecorationMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof removeHabitDecoration>>, TError,RemoveHabitDecorationMutationVariables, TContext> => {
+
+const mutationKey = getRemoveHabitDecorationMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof removeHabitDecoration>>, RemoveHabitDecorationMutationVariables> = (props) => {
+          const {habitId,itemId} = props ?? {};
+
+          return  removeHabitDecoration(habitId,itemId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RemoveHabitDecorationMutationResult = NonNullable<Awaited<ReturnType<typeof removeHabitDecoration>>>
+
+    export type RemoveHabitDecorationMutationError = ErrorType<Error>
+    export type RemoveHabitDecorationMutationVariables = {habitId: number;itemId: number}
+
+    /**
+ * @summary Remove a habit decoration placement without refunding or revoking ownership
+ */
+export const useRemoveHabitDecoration = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removeHabitDecoration>>, TError,RemoveHabitDecorationMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof removeHabitDecoration>>,
+        TError,
+        RemoveHabitDecorationMutationVariables,
+        TContext
+      > => {
+      return useMutation(getRemoveHabitDecorationMutationOptions(options));
     }
 
 export const getGetJourneyProgressUrl = () => {

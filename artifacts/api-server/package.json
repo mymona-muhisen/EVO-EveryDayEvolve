@@ -13,6 +13,7 @@
     "test:journey": "node ./test/run-ai.mjs journey",
     "test:recovery": "node ./test/recovery-flow.mjs",
     "test:rewards": "node ./test/reward-atomicity.mjs",
+    "test:decorations": "node ./test/decoration-atomicity.mjs",
     "test:ai:live": "node ./test/run-ai.mjs smoke"
   },
   "dependencies": {
