@@ -7,8 +7,12 @@
  */
 import type { Checkin } from './checkin';
 import type { HabitDayCueType } from './habitDayCueType';
+import type { HabitDayDifficulty } from './habitDayDifficulty';
 import type { HabitDayExecutionType } from './habitDayExecutionType';
 import type { HabitDayGoalType } from './habitDayGoalType';
+import type { HabitDayMissedReason } from './habitDayMissedReason';
+import type { HabitDayRecoveryStatus } from './habitDayRecoveryStatus';
+import type { HabitDayStatus } from './habitDayStatus';
 import type { HabitDayUnit } from './habitDayUnit';
 
 export interface HabitDay {
@@ -36,5 +40,26 @@ export interface HabitDay {
   cue?: string | null;
   /** @nullable */
   startAction?: string | null;
+  status: HabitDayStatus;
+  /**
+     * Self-reported or execution-recorded plan-unit quantity; timer duration alone is not activity proof
+     * @nullable
+     */
+  actualValue: number | null;
+  /**
+     * Server-accounted active timer seconds
+     * @nullable
+     */
+  actualSeconds: number | null;
+  /** @nullable */
+  difficulty: HabitDayDifficulty;
+  /** @nullable */
+  missedReason: HabitDayMissedReason;
+  /** Recovery Lite remains disabled */
+  recoveryEnabled: boolean;
+  recoveryUsed: number;
+  recoveryLimit: number;
+  /** @nullable */
+  recoveryStatus: HabitDayRecoveryStatus;
   checkin: Checkin | null;
 }

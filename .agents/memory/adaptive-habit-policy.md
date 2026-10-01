@@ -9,6 +9,12 @@ A habit journey is a 22-calendar-day product challenge, not a scientific promise
 
 **How to apply:** Keep all calendar dates visible, but derive execution eligibility and consistency from their stored scheduled status. Preserve legacy habits without silently manufacturing historical journey plans or rewards.
 
+The interactive island map must preserve this calendar policy. A completion may animate or celebrate, but must not make tomorrow executable early or reinterpret the challenge as 22 successful sessions.
+
+**Why:** The user explicitly chose to retain the existing 22-calendar-day journey when the interactive-map brief proposed immediate next-day advancement.
+
+**How to apply:** Derive the character's day from the server's calendar position. Keep cosmetic celebration separate from date eligibility and financial rewards.
+
 Today's stored plan remains authoritative even after accepting a new future plan. Numeric adaptation must use fresh evidence for the accepted plan, rather than repeatedly reusing the same old easy/hard days.
 
 **Why:** Future-only changes intentionally leave today's target unchanged. Using the latest habit settings for today's recording can report a false failure; reusing old observations can repeatedly escalate or shrink targets without new behavior.

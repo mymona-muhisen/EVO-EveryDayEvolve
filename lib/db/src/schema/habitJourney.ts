@@ -60,10 +60,7 @@ export const habitDaysTable = pgTable("habit_days", {
   cue: text("cue"),
   startAction: text("start_action"),
   planRevision: integer("plan_revision").notNull().default(1),
-}, (table) => [
-  unique("habit_days_habit_day_unique").on(table.habitId, table.dayNumber),
-  unique("habit_days_habit_date_unique").on(table.habitId, table.date),
-]);
+}, (table) => [unique("habit_days_habit_date_unique").on(table.habitId, table.date)]);
 
 /** Append-only audit of accepted plan revisions and their effective date. */
 export const habitPlanRevisionsTable = pgTable("habit_plan_revisions", {

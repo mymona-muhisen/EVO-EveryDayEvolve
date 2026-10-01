@@ -6,6 +6,11 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { HabitDay } from './habitDay';
+import type { HabitJourneyConsistency } from './habitJourneyConsistency';
+import type { HabitJourneyEarnings } from './habitJourneyEarnings';
+import type { HabitJourneyFinalEligibility } from './habitJourneyFinalEligibility';
+import type { HabitJourneyReward } from './habitJourneyReward';
+import type { HabitJourneyStatus } from './habitJourneyStatus';
 
 export interface HabitJourney {
   habitId: number;
@@ -16,5 +21,25 @@ export interface HabitJourney {
   completed: number;
   successful: number;
   currentDay: number;
+  /** Authoritative local calendar date in the user's saved timezone */
+  today: Date;
+  /** Authoritative IANA timezone used to resolve today */
+  timezone: string;
+  status: HabitJourneyStatus;
+  /**
+     * Set once when final eligibility is met; never an XP or coin award
+     * @nullable
+     */
+  completedAt: Date | null;
+  consistency: HabitJourneyConsistency;
+  /** Elapsed scheduled dates without a successful check-in */
+  missedDays: number;
+  /** Rest dates in the fixed calendar snapshot */
+  restDays: number;
+  selectedReward: HabitJourneyReward | null;
+  /** Server-computed unlock state; selected rewards require a valid completed 22-day journey */
+  rewardUnlocked: boolean;
+  finalEligibility: HabitJourneyFinalEligibility;
+  earnings: HabitJourneyEarnings;
   days: HabitDay[];
 }

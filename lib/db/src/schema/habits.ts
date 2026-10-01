@@ -73,6 +73,7 @@ export const habitsTable = pgTable("habits", {
   minimumFloor: doublePrecision("minimum_floor"),
   journeyStartDate: date("journey_start_date", { mode: "string" }),
   journeyLength: integer("journey_length"),
+  journeyCompletedAt: timestamp("journey_completed_at", { withTimezone: true }),
   rewardId: integer("reward_id"),
   difficulty: habitDifficultyEnum("difficulty").notNull(),
   goalType: habitGoalTypeEnum("goal_type").notNull(),

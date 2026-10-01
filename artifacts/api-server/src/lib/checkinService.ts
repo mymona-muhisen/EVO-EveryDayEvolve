@@ -5,8 +5,9 @@ import type { z } from "zod";
 import { grantRewards } from "./gamificationService";
 import { coinsForCheckin, continuesStreak, xpForDifficulty } from "./rules";
 import { toDateOnly } from "./dates";
+import { todayInTimezone } from "./dates";
 import { effectiveMinimum, evaluateHabitCheckin } from "./aiRules";
-import { addCalendarDays } from "./habitJourney";
+import { addCalendarDays, HABIT_JOURNEY_LENGTH } from "./habitJourney";
 
 export class CheckinConflictError extends Error {}
 type CheckinTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -40,7 +41,7 @@ export async function recordCheckinInTransaction(
     goalType: "build" | "quit";
   },
 ) {
-    const [user] = await tx.select({ id: usersTable.id }).from(usersTable)
+    const [user] = await tx.select({ id: usersTable.id, timezone: usersTable.timezone }).from(usersTable)
       .where(eq(usersTable.id, userId)).for("update");
     if (!user) throw new Error("User not found");
     const [habit] = await tx.select().from(habitsTable)
@@ -49,6 +50,10 @@ export async function recordCheckinInTransaction(
     if (!habit) return null;
 
     const date = toDateOnly(input.date);
+    const today = todayInTimezone(user.timezone);
+    if (habit.journeyStartDate != null && habit.journeyLength != null && date > today) {
+      throw new CheckinConflictError("Future journey dates cannot be completed early.");
+    }
     const { value, note, moodRating, difficulty, missedReason } = input;
     const [dayPlan] = await tx.select().from(habitDaysTable)
       .where(and(eq(habitDaysTable.habitId, habit.id), eq(habitDaysTable.date, date)));
@@ -72,6 +77,16 @@ export async function recordCheckinInTransaction(
     const [existing] = await tx.select().from(checkinsTable)
       .where(and(eq(checkinsTable.habitId, habit.id), eq(checkinsTable.date, date)))
       .for("update");
+    const isHistoricalJourneyDate = habit.journeyStartDate != null
+      && habit.journeyLength === HABIT_JOURNEY_LENGTH
+      && date < today;
+    if (isHistoricalJourneyDate && (!existing
+      || (input.completed !== undefined && input.completed !== existing.completed)
+      || (input.value !== undefined && input.value !== existing.value))) {
+      throw new CheckinConflictError(
+        "Past journey check-ins cannot be created or change completion/actual values.",
+      );
+    }
     // Omitted fields in a value-only retry are not reflection clears.
     const effectiveValue = value !== undefined ? value : existing?.value ?? null;
     const effectiveNote = note !== undefined ? note : existing?.note ?? null;
@@ -84,7 +99,7 @@ export async function recordCheckinInTransaction(
     const successLimitSnapshot = existing?.successLimitSnapshot
       ?? snapshot?.successLimitValue ?? dayPlan?.successLimitValue ?? habit.successLimitValue;
     const goalTypeSnapshot = existing?.goalTypeSnapshot ?? snapshot?.goalType ?? dayPlan?.goalType ?? habit.goalType;
-    const { completed, targetCompleted } = evaluateHabitCheckin({
+    const evaluated = evaluateHabitCheckin({
       goalType: goalTypeSnapshot,
       targetValue: targetSnapshot,
       minimumValue: minimumSnapshot,
@@ -92,6 +107,9 @@ export async function recordCheckinInTransaction(
       value: effectiveValue,
       legacyCompleted: input.completed ?? existing?.completed,
     });
+    const { completed, targetCompleted } = isHistoricalJourneyDate && existing
+      ? { completed: existing.completed, targetCompleted: existing.targetCompleted }
+      : evaluated;
     if (existing?.completed && !completed) {
       throw new CheckinConflictError("A successful check-in cannot be changed to incomplete");
     }
@@ -106,6 +124,7 @@ export async function recordCheckinInTransaction(
     let newStreak = habit.currentStreak;
     let longestStreak = habit.longestStreak;
     let coinsEarned = existing?.coinsEarned ?? 0;
+    let xpEarned = existing?.xpEarned ?? null;
     let bonusCoins = 0;
     let lastBrokenStreak = habit.lastBrokenStreak;
     let streakBrokenAt = habit.streakBrokenAt;
@@ -119,6 +138,7 @@ export async function recordCheckinInTransaction(
         if (shouldReward) {
           const { base, bonus } = coinsForCheckin(habit.difficulty, newStreak);
           coinsEarned = base + bonus;
+          xpEarned = xpForDifficulty(habit.difficulty);
           bonusCoins = bonus;
         }
         lastBrokenStreak = null;
@@ -148,6 +168,7 @@ export async function recordCheckinInTransaction(
       targetCompleted,
       rewardGranted: shouldReward,
       coinsEarned,
+      xpEarned,
     }).onConflictDoUpdate({
       target: [checkinsTable.habitId, checkinsTable.date],
       set: {
@@ -163,6 +184,7 @@ export async function recordCheckinInTransaction(
         targetCompleted,
         goalTypeSnapshot,
         ...(shouldReward ? { rewardGranted: true, coinsEarned } : {}),
+        ...(shouldReward ? { xpEarned } : {}),
       },
     }).returning();
 
@@ -176,7 +198,7 @@ export async function recordCheckinInTransaction(
 
     if (shouldReward) {
       await grantRewards(userId, {
-        xp: xpForDifficulty(habit.difficulty),
+        xp: xpEarned!,
         coins: coinsEarned - bonusCoins,
         reason: "checkin",
       }, tx);
@@ -195,7 +217,7 @@ export async function recordCheckinInTransaction(
     return {
       ...response,
       rewardDelta: shouldReward
-        ? { xp: xpForDifficulty(habit.difficulty), coins: coinsEarned }
+        ? { xp: xpEarned!, coins: coinsEarned }
         : { xp: 0, coins: 0 },
     };
 }

@@ -1,0 +1,16 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "8fz-5KVnk8MwArIP_ExyQ"
+uri = "file://.local/reports/feature05-verification.html"
+type = "html"
+title = "تقرير Feature 05 — التنفيذ والتحقق"
+description = "تقرير قابل للعرض والتنزيل، يتضمن الملفات وAPI وقاعدة البيانات و79 اختبارًا ونتائج المتصفح والقيود المعلنة."
+logical_id = "7af54973-7d9f-481f-8961-37c78a3d50d5"
+content_hash = "sha256:3debbc175e60772ead06b38968e4c4a43225886dca6eefc8746a329cb5ddfdf2"
+size = 35446
+mtime_ms = 1790862985541
+storage_uri = "gcs://replit-rams-assets-archer/rams/assets/repl:4d2a677a-cb3d-44ac-9898-50521e868d04/7af54973-7d9f-481f-8961-37c78a3d50d5/b67b507f-8905-46ac-b5a7-f03ad77a9dc1"
+storage_version_token = "1790862986568863"
+content_type = "text/html"

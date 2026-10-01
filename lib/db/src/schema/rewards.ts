@@ -15,6 +15,8 @@ export const rewardsTable = pgTable("rewards", {
   coinCost: integer("coin_cost").notNull(),
   isRedeemed: boolean("is_redeemed").notNull().default(false),
   redeemedAt: timestamp("redeemed_at", { withTimezone: true }),
+  journeyRequired: boolean("journey_required").notNull().default(false),
+  journeyUnlockedAt: timestamp("journey_unlocked_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

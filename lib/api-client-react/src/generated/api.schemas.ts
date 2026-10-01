@@ -580,6 +580,11 @@ export interface Checkin {
   goalTypeSnapshot: CheckinGoalTypeSnapshot;
   targetCompleted: boolean;
   coinsEarned: number;
+  /**
+     * Exact XP persisted atomically with newly granted check-in rewards; null means historical earnings are unknown
+     * @nullable
+     */
+  xpEarned: number | null;
   createdAt: string;
 }
 
@@ -879,6 +884,80 @@ export interface HabitBuilderResult {
   source: HabitBuilderResultSource;
 }
 
+export type HabitJourneyStatus = typeof HabitJourneyStatus[keyof typeof HabitJourneyStatus];
+
+
+export const HabitJourneyStatus = {
+  not_started: 'not_started',
+  active: 'active',
+  completed: 'completed',
+  expired: 'expired',
+} as const;
+
+export type HabitJourneyConsistency = {
+  /** Real successful check-ins on elapsed scheduled dates only */
+  successfulDays: number;
+  /** Elapsed scheduled dates only; rest and future dates are excluded */
+  eligibleDays: number;
+};
+
+export type HabitJourneyFinalEligibilityCalendarDayRequired = typeof HabitJourneyFinalEligibilityCalendarDayRequired[keyof typeof HabitJourneyFinalEligibilityCalendarDayRequired];
+
+
+export const HabitJourneyFinalEligibilityCalendarDayRequired = {
+  NUMBER_22: 22,
+} as const;
+
+/**
+ * @nullable
+ */
+export type HabitJourneyFinalEligibilityUnmetReason = typeof HabitJourneyFinalEligibilityUnmetReason[keyof typeof HabitJourneyFinalEligibilityUnmetReason] | null;
+
+
+export const HabitJourneyFinalEligibilityUnmetReason = {
+  journey_not_started: 'journey_not_started',
+  calendar_days_remaining: 'calendar_days_remaining',
+  final_scheduled_day_not_successful: 'final_scheduled_day_not_successful',
+  no_scheduled_days: 'no_scheduled_days',
+} as const;
+
+export type HabitJourneyFinalEligibility = {
+  eligible: boolean;
+  calendarDayRequired: HabitJourneyFinalEligibilityCalendarDayRequired;
+  /**
+     * Last scheduled date in the immutable 22-calendar-day snapshot; it can precede day 22 when the final date is a rest day
+     * @nullable
+     */
+  finalScheduledDate: string | null;
+  /** True only when the final scheduled date has a real successful check-in */
+  finalDateSuccessful: boolean;
+  /** @nullable */
+  unmetReason: HabitJourneyFinalEligibilityUnmetReason;
+};
+
+export type HabitJourneyEarnings = {
+  /** Sum of persisted exact journey-attributed XP; unknown historical XP contributes zero and is signaled by xpComplete=false */
+  xp: number;
+  /** Sum of persisted check-in coin earnings; not inferred from wallet balances */
+  coins: number;
+  /** False when any successful historical check-in has unknown XP; historical XP is never estimated */
+  xpComplete: boolean;
+  /** Successful check-ins whose historical XP payout is unknown */
+  unknownCheckins: number;
+  /** True when successful historical check-ins have no recorded coin amount or reward-granted evidence */
+  coinHistoryMayBeIncomplete: boolean;
+};
+
+export interface HabitJourneyReward {
+  id: number;
+  title: string;
+  emoji: string;
+  coinCost: number;
+  isRedeemed: boolean;
+  /** @nullable */
+  redeemedAt: string | null;
+}
+
 export type HabitDayGoalType = typeof HabitDayGoalType[keyof typeof HabitDayGoalType];
 
 
@@ -925,6 +1004,65 @@ export const HabitDayCueType = {
   custom: 'custom',
 } as const;
 
+export type HabitDayStatus = typeof HabitDayStatus[keyof typeof HabitDayStatus];
+
+
+export const HabitDayStatus = {
+  rest: 'rest',
+  future: 'future',
+  pending: 'pending',
+  in_progress: 'in_progress',
+  paused: 'paused',
+  minimum_reached: 'minimum_reached',
+  target_reached: 'target_reached',
+  pending_reflection: 'pending_reflection',
+  completed: 'completed',
+  missed: 'missed',
+  recovery_available: 'recovery_available',
+  recovery_active: 'recovery_active',
+  recovered: 'recovered',
+} as const;
+
+/**
+ * @nullable
+ */
+export type HabitDayDifficulty = typeof HabitDayDifficulty[keyof typeof HabitDayDifficulty] | null;
+
+
+export const HabitDayDifficulty = {
+  easy: 'easy',
+  normal: 'normal',
+  hard: 'hard',
+  very_hard: 'very_hard',
+} as const;
+
+/**
+ * @nullable
+ */
+export type HabitDayMissedReason = typeof HabitDayMissedReason[keyof typeof HabitDayMissedReason] | null;
+
+
+export const HabitDayMissedReason = {
+  too_difficult: 'too_difficult',
+  no_time: 'no_time',
+  forgot: 'forgot',
+  lost_motivation: 'lost_motivation',
+  unexpected: 'unexpected',
+  other: 'other',
+} as const;
+
+/**
+ * @nullable
+ */
+export type HabitDayRecoveryStatus = typeof HabitDayRecoveryStatus[keyof typeof HabitDayRecoveryStatus] | null;
+
+
+export const HabitDayRecoveryStatus = {
+  recovery_available: 'recovery_available',
+  recovery_active: 'recovery_active',
+  recovered: 'recovered',
+} as const;
+
 export interface HabitDay {
   date: string;
   dayNumber: number;
@@ -950,6 +1088,27 @@ export interface HabitDay {
   cue?: string | null;
   /** @nullable */
   startAction?: string | null;
+  status: HabitDayStatus;
+  /**
+     * Self-reported or execution-recorded plan-unit quantity; timer duration alone is not activity proof
+     * @nullable
+     */
+  actualValue: number | null;
+  /**
+     * Server-accounted active timer seconds
+     * @nullable
+     */
+  actualSeconds: number | null;
+  /** @nullable */
+  difficulty: HabitDayDifficulty;
+  /** @nullable */
+  missedReason: HabitDayMissedReason;
+  /** Recovery Lite remains disabled */
+  recoveryEnabled: boolean;
+  recoveryUsed: number;
+  recoveryLimit: number;
+  /** @nullable */
+  recoveryStatus: HabitDayRecoveryStatus;
   checkin: Checkin | null;
 }
 
@@ -962,6 +1121,26 @@ export interface HabitJourney {
   completed: number;
   successful: number;
   currentDay: number;
+  /** Authoritative local calendar date in the user's saved timezone */
+  today: string;
+  /** Authoritative IANA timezone used to resolve today */
+  timezone: string;
+  status: HabitJourneyStatus;
+  /**
+     * Set once when final eligibility is met; never an XP or coin award
+     * @nullable
+     */
+  completedAt: string | null;
+  consistency: HabitJourneyConsistency;
+  /** Elapsed scheduled dates without a successful check-in */
+  missedDays: number;
+  /** Rest dates in the fixed calendar snapshot */
+  restDays: number;
+  selectedReward: HabitJourneyReward | null;
+  /** Server-computed unlock state; selected rewards require a valid completed 22-day journey */
+  rewardUnlocked: boolean;
+  finalEligibility: HabitJourneyFinalEligibility;
+  earnings: HabitJourneyEarnings;
   days: HabitDay[];
 }
 

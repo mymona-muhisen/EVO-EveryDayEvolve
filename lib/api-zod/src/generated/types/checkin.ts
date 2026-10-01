@@ -34,5 +34,10 @@ export interface Checkin {
   goalTypeSnapshot: CheckinGoalTypeSnapshot;
   targetCompleted: boolean;
   coinsEarned: number;
+  /**
+     * Exact XP persisted atomically with newly granted check-in rewards; null means historical earnings are unknown
+     * @nullable
+     */
+  xpEarned: number | null;
   createdAt: Date;
 }

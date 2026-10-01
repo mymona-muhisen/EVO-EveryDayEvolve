@@ -429,6 +429,39 @@ export const GetHabitJourneyResponse = zod.object({
   "completed": zod.number().int(),
   "successful": zod.number().int(),
   "currentDay": zod.number().int(),
+  "today": zod.coerce.date().describe('Authoritative local calendar date in the user\'s saved timezone'),
+  "timezone": zod.string().describe('Authoritative IANA timezone used to resolve today'),
+  "status": zod.enum(['not_started', 'active', 'completed', 'expired']),
+  "completedAt": zod.coerce.date().nullable().describe('Set once when final eligibility is met; never an XP or coin award'),
+  "consistency": zod.object({
+  "successfulDays": zod.number().int().describe('Real successful check-ins on elapsed scheduled dates only'),
+  "eligibleDays": zod.number().int().describe('Elapsed scheduled dates only; rest and future dates are excluded')
+}),
+  "missedDays": zod.number().int().describe('Elapsed scheduled dates without a successful check-in'),
+  "restDays": zod.number().int().describe('Rest dates in the fixed calendar snapshot'),
+  "selectedReward": zod.union([zod.object({
+  "id": zod.number().int(),
+  "title": zod.string(),
+  "emoji": zod.string(),
+  "coinCost": zod.number().int(),
+  "isRedeemed": zod.boolean(),
+  "redeemedAt": zod.coerce.date().nullable()
+}),zod.null()]),
+  "rewardUnlocked": zod.boolean().describe('Server-computed unlock state; selected rewards require a valid completed 22-day journey'),
+  "finalEligibility": zod.object({
+  "eligible": zod.boolean(),
+  "calendarDayRequired": zod.literal(22),
+  "finalScheduledDate": zod.coerce.date().nullable().describe('Last scheduled date in the immutable 22-calendar-day snapshot; it can precede day 22 when the final date is a rest day'),
+  "finalDateSuccessful": zod.boolean().describe('True only when the final scheduled date has a real successful check-in'),
+  "unmetReason": zod.union([zod.literal('journey_not_started'),zod.literal('calendar_days_remaining'),zod.literal('final_scheduled_day_not_successful'),zod.literal('no_scheduled_days'),zod.literal(null)]).nullable()
+}),
+  "earnings": zod.object({
+  "xp": zod.number().int().describe('Sum of persisted exact journey-attributed XP; unknown historical XP contributes zero and is signaled by xpComplete=false'),
+  "coins": zod.number().int().describe('Sum of persisted check-in coin earnings; not inferred from wallet balances'),
+  "xpComplete": zod.boolean().describe('False when any successful historical check-in has unknown XP; historical XP is never estimated'),
+  "unknownCheckins": zod.number().int().describe('Successful check-ins whose historical XP payout is unknown'),
+  "coinHistoryMayBeIncomplete": zod.boolean().describe('True when successful historical check-ins have no recorded coin amount or reward-granted evidence')
+}),
   "days": zod.array(zod.object({
   "date": zod.coerce.date(),
   "dayNumber": zod.number().int(),
@@ -445,6 +478,15 @@ export const GetHabitJourneyResponse = zod.object({
   "cueTime": zod.string().nullish(),
   "cue": zod.string().nullish(),
   "startAction": zod.string().nullish(),
+  "status": zod.enum(['rest', 'future', 'pending', 'in_progress', 'paused', 'minimum_reached', 'target_reached', 'pending_reflection', 'completed', 'missed', 'recovery_available', 'recovery_active', 'recovered']),
+  "actualValue": zod.number().nullable().describe('Self-reported or execution-recorded plan-unit quantity; timer duration alone is not activity proof'),
+  "actualSeconds": zod.number().int().nullable().describe('Server-accounted active timer seconds'),
+  "difficulty": zod.union([zod.literal('easy'),zod.literal('normal'),zod.literal('hard'),zod.literal('very_hard'),zod.literal(null)]).nullable(),
+  "missedReason": zod.union([zod.literal('too_difficult'),zod.literal('no_time'),zod.literal('forgot'),zod.literal('lost_motivation'),zod.literal('unexpected'),zod.literal('other'),zod.literal(null)]).nullable(),
+  "recoveryEnabled": zod.boolean().describe('Recovery Lite remains disabled'),
+  "recoveryUsed": zod.number().int(),
+  "recoveryLimit": zod.number().int(),
+  "recoveryStatus": zod.union([zod.literal('recovery_available'),zod.literal('recovery_active'),zod.literal('recovered'),zod.literal(null)]).nullable(),
   "checkin": zod.union([zod.object({
   "id": zod.number().int(),
   "habitId": zod.number().int(),
@@ -461,6 +503,104 @@ export const GetHabitJourneyResponse = zod.object({
   "goalTypeSnapshot": zod.union([zod.literal('build'),zod.literal('quit'),zod.literal(null)]).nullable(),
   "targetCompleted": zod.boolean(),
   "coinsEarned": zod.number().int(),
+  "xpEarned": zod.number().int().nullable().describe('Exact XP persisted atomically with newly granted check-in rewards; null means historical earnings are unknown'),
+  "createdAt": zod.coerce.date()
+}),zod.null()])
+}))
+})
+
+
+/**
+ * Starts at today in the owner's timezone using the habit's stored plan and cadence. The operation is idempotent: an existing journey is returned unchanged. The server owns all dates and plan snapshots; no check-in rewards or journey unlocks are granted.
+ * @summary Start an existing legacy habit's 22-calendar-day journey
+ */
+export const StartHabitJourneyParams = zod.object({
+  "habitId": zod.coerce.number().int()
+})
+
+export const StartHabitJourneyResponse = zod.object({
+  "habitId": zod.number().int(),
+  "startDate": zod.coerce.date().nullable(),
+  "length": zod.number().int(),
+  "total": zod.number().int(),
+  "completed": zod.number().int(),
+  "successful": zod.number().int(),
+  "currentDay": zod.number().int(),
+  "today": zod.coerce.date().describe('Authoritative local calendar date in the user\'s saved timezone'),
+  "timezone": zod.string().describe('Authoritative IANA timezone used to resolve today'),
+  "status": zod.enum(['not_started', 'active', 'completed', 'expired']),
+  "completedAt": zod.coerce.date().nullable().describe('Set once when final eligibility is met; never an XP or coin award'),
+  "consistency": zod.object({
+  "successfulDays": zod.number().int().describe('Real successful check-ins on elapsed scheduled dates only'),
+  "eligibleDays": zod.number().int().describe('Elapsed scheduled dates only; rest and future dates are excluded')
+}),
+  "missedDays": zod.number().int().describe('Elapsed scheduled dates without a successful check-in'),
+  "restDays": zod.number().int().describe('Rest dates in the fixed calendar snapshot'),
+  "selectedReward": zod.union([zod.object({
+  "id": zod.number().int(),
+  "title": zod.string(),
+  "emoji": zod.string(),
+  "coinCost": zod.number().int(),
+  "isRedeemed": zod.boolean(),
+  "redeemedAt": zod.coerce.date().nullable()
+}),zod.null()]),
+  "rewardUnlocked": zod.boolean().describe('Server-computed unlock state; selected rewards require a valid completed 22-day journey'),
+  "finalEligibility": zod.object({
+  "eligible": zod.boolean(),
+  "calendarDayRequired": zod.literal(22),
+  "finalScheduledDate": zod.coerce.date().nullable().describe('Last scheduled date in the immutable 22-calendar-day snapshot; it can precede day 22 when the final date is a rest day'),
+  "finalDateSuccessful": zod.boolean().describe('True only when the final scheduled date has a real successful check-in'),
+  "unmetReason": zod.union([zod.literal('journey_not_started'),zod.literal('calendar_days_remaining'),zod.literal('final_scheduled_day_not_successful'),zod.literal('no_scheduled_days'),zod.literal(null)]).nullable()
+}),
+  "earnings": zod.object({
+  "xp": zod.number().int().describe('Sum of persisted exact journey-attributed XP; unknown historical XP contributes zero and is signaled by xpComplete=false'),
+  "coins": zod.number().int().describe('Sum of persisted check-in coin earnings; not inferred from wallet balances'),
+  "xpComplete": zod.boolean().describe('False when any successful historical check-in has unknown XP; historical XP is never estimated'),
+  "unknownCheckins": zod.number().int().describe('Successful check-ins whose historical XP payout is unknown'),
+  "coinHistoryMayBeIncomplete": zod.boolean().describe('True when successful historical check-ins have no recorded coin amount or reward-granted evidence')
+}),
+  "days": zod.array(zod.object({
+  "date": zod.coerce.date(),
+  "dayNumber": zod.number().int(),
+  "scheduled": zod.boolean(),
+  "title": zod.string().nullish(),
+  "targetValue": zod.number(),
+  "minimumValue": zod.number(),
+  "busyDayValue": zod.number().nullable(),
+  "successLimitValue": zod.number().nullable(),
+  "goalType": zod.enum(['build', 'quit']),
+  "unit": zod.union([zod.literal('minutes'),zod.literal('count'),zod.literal('pages'),zod.literal('custom'),zod.literal(null)]).nullish(),
+  "executionType": zod.union([zod.literal('duration'),zod.literal('count'),zod.literal('boolean'),zod.literal('limit'),zod.literal(null)]).nullish(),
+  "cueType": zod.union([zod.literal('time'),zod.literal('routine'),zod.literal('custom'),zod.literal(null)]).nullish(),
+  "cueTime": zod.string().nullish(),
+  "cue": zod.string().nullish(),
+  "startAction": zod.string().nullish(),
+  "status": zod.enum(['rest', 'future', 'pending', 'in_progress', 'paused', 'minimum_reached', 'target_reached', 'pending_reflection', 'completed', 'missed', 'recovery_available', 'recovery_active', 'recovered']),
+  "actualValue": zod.number().nullable().describe('Self-reported or execution-recorded plan-unit quantity; timer duration alone is not activity proof'),
+  "actualSeconds": zod.number().int().nullable().describe('Server-accounted active timer seconds'),
+  "difficulty": zod.union([zod.literal('easy'),zod.literal('normal'),zod.literal('hard'),zod.literal('very_hard'),zod.literal(null)]).nullable(),
+  "missedReason": zod.union([zod.literal('too_difficult'),zod.literal('no_time'),zod.literal('forgot'),zod.literal('lost_motivation'),zod.literal('unexpected'),zod.literal('other'),zod.literal(null)]).nullable(),
+  "recoveryEnabled": zod.boolean().describe('Recovery Lite remains disabled'),
+  "recoveryUsed": zod.number().int(),
+  "recoveryLimit": zod.number().int(),
+  "recoveryStatus": zod.union([zod.literal('recovery_available'),zod.literal('recovery_active'),zod.literal('recovered'),zod.literal(null)]).nullable(),
+  "checkin": zod.union([zod.object({
+  "id": zod.number().int(),
+  "habitId": zod.number().int(),
+  "date": zod.coerce.date(),
+  "completed": zod.boolean(),
+  "value": zod.number().nullable(),
+  "note": zod.string().nullable(),
+  "moodRating": zod.number().int().nullable(),
+  "difficulty": zod.union([zod.literal('easy'),zod.literal('normal'),zod.literal('hard'),zod.literal('very_hard'),zod.literal(null)]).nullable(),
+  "missedReason": zod.union([zod.literal('too_difficult'),zod.literal('no_time'),zod.literal('forgot'),zod.literal('lost_motivation'),zod.literal('unexpected'),zod.literal('other'),zod.literal(null)]).nullable(),
+  "targetSnapshot": zod.number().nullable(),
+  "minimumSnapshot": zod.number().nullable(),
+  "successLimitSnapshot": zod.number().nullable(),
+  "goalTypeSnapshot": zod.union([zod.literal('build'),zod.literal('quit'),zod.literal(null)]).nullable(),
+  "targetCompleted": zod.boolean(),
+  "coinsEarned": zod.number().int(),
+  "xpEarned": zod.number().int().nullable().describe('Exact XP persisted atomically with newly granted check-in rewards; null means historical earnings are unknown'),
   "createdAt": zod.coerce.date()
 }),zod.null()])
 }))
@@ -538,6 +678,7 @@ export const GetDailyHabitDayResponse = zod.object({
   "goalTypeSnapshot": zod.union([zod.literal('build'),zod.literal('quit'),zod.literal(null)]).nullable(),
   "targetCompleted": zod.boolean(),
   "coinsEarned": zod.number().int(),
+  "xpEarned": zod.number().int().nullable().describe('Exact XP persisted atomically with newly granted check-in rewards; null means historical earnings are unknown'),
   "createdAt": zod.coerce.date()
 }),zod.null()]),
   "successfulDays": zod.number().int().min(getDailyHabitDayResponseSuccessfulDaysMin),
@@ -640,6 +781,7 @@ export const ChangeDailyHabitExecutionResponse = zod.object({
   "goalTypeSnapshot": zod.union([zod.literal('build'),zod.literal('quit'),zod.literal(null)]).nullable(),
   "targetCompleted": zod.boolean(),
   "coinsEarned": zod.number().int(),
+  "xpEarned": zod.number().int().nullable().describe('Exact XP persisted atomically with newly granted check-in rewards; null means historical earnings are unknown'),
   "createdAt": zod.coerce.date()
 }),zod.null()]),
   "successfulDays": zod.number().int().min(changeDailyHabitExecutionResponseExecutionSuccessfulDaysMin),
@@ -742,6 +884,7 @@ export const SaveDailyHabitReflectionResponse = zod.object({
   "goalTypeSnapshot": zod.union([zod.literal('build'),zod.literal('quit'),zod.literal(null)]).nullable(),
   "targetCompleted": zod.boolean(),
   "coinsEarned": zod.number().int(),
+  "xpEarned": zod.number().int().nullable().describe('Exact XP persisted atomically with newly granted check-in rewards; null means historical earnings are unknown'),
   "createdAt": zod.coerce.date()
 }),zod.null()]),
   "successfulDays": zod.number().int().min(saveDailyHabitReflectionResponseExecutionSuccessfulDaysMin),
@@ -833,6 +976,7 @@ export const RecordDailyAdaptationDecisionResponse = zod.object({
   "goalTypeSnapshot": zod.union([zod.literal('build'),zod.literal('quit'),zod.literal(null)]).nullable(),
   "targetCompleted": zod.boolean(),
   "coinsEarned": zod.number().int(),
+  "xpEarned": zod.number().int().nullable().describe('Exact XP persisted atomically with newly granted check-in rewards; null means historical earnings are unknown'),
   "createdAt": zod.coerce.date()
 }),zod.null()]),
   "successfulDays": zod.number().int().min(recordDailyAdaptationDecisionResponseSuccessfulDaysMin),
@@ -928,6 +1072,7 @@ export const GetDailyOverviewResponse = zod.object({
   "goalTypeSnapshot": zod.union([zod.literal('build'),zod.literal('quit'),zod.literal(null)]).nullable(),
   "targetCompleted": zod.boolean(),
   "coinsEarned": zod.number().int(),
+  "xpEarned": zod.number().int().nullable().describe('Exact XP persisted atomically with newly granted check-in rewards; null means historical earnings are unknown'),
   "createdAt": zod.coerce.date()
 }),zod.null()]),
   "successfulDays": zod.number().int().min(getDailyOverviewResponseHabitsItemExecutionSuccessfulDaysMin),
@@ -970,6 +1115,7 @@ export const ListHabitCheckinsResponseItem = zod.object({
   "goalTypeSnapshot": zod.union([zod.literal('build'),zod.literal('quit'),zod.literal(null)]).nullable(),
   "targetCompleted": zod.boolean(),
   "coinsEarned": zod.number().int(),
+  "xpEarned": zod.number().int().nullable().describe('Exact XP persisted atomically with newly granted check-in rewards; null means historical earnings are unknown'),
   "createdAt": zod.coerce.date()
 })
 export const ListHabitCheckinsResponse = zod.array(ListHabitCheckinsResponseItem)
@@ -1023,6 +1169,7 @@ export const CreateCheckinResponse = zod.object({
   "goalTypeSnapshot": zod.union([zod.literal('build'),zod.literal('quit'),zod.literal(null)]).nullable(),
   "targetCompleted": zod.boolean(),
   "coinsEarned": zod.number().int(),
+  "xpEarned": zod.number().int().nullable().describe('Exact XP persisted atomically with newly granted check-in rewards; null means historical earnings are unknown'),
   "createdAt": zod.coerce.date()
 }).and(zod.object({
   "newStreak": zod.number().int(),
@@ -1101,6 +1248,7 @@ export const UpdateCheckinReflectionResponse = zod.object({
   "goalTypeSnapshot": zod.union([zod.literal('build'),zod.literal('quit'),zod.literal(null)]).nullable(),
   "targetCompleted": zod.boolean(),
   "coinsEarned": zod.number().int(),
+  "xpEarned": zod.number().int().nullable().describe('Exact XP persisted atomically with newly granted check-in rewards; null means historical earnings are unknown'),
   "createdAt": zod.coerce.date()
 })
 

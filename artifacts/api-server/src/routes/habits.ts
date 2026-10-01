@@ -1,8 +1,8 @@
-import { Router, type IRouter } from "express";
-import { eq, and, desc } from "drizzle-orm";
+import { Router, type IRouter, type Request, type Response } from "express";
+import { eq, and, asc, desc } from "drizzle-orm";
 import {
   db, habitsTable, checkinsTable, habitDaysTable, habitPlanRevisionsTable,
-  habitDailyExecutionsTable, rewardsTable,
+  habitDailyExecutionsTable, rewardsTable, usersTable,
 } from "@workspace/db";
 import {
   ListHabitsQueryParams,
@@ -17,6 +17,8 @@ import {
   DeleteHabitParams,
   GetHabitJourneyParams,
   GetHabitJourneyResponse,
+  StartHabitJourneyParams,
+  StartHabitJourneyResponse,
 } from "@workspace/api-zod";
 import { requireAuth } from "../middlewares/requireAuth";
 import { ensureUser } from "../lib/userService";
@@ -27,10 +29,14 @@ import {
 import { habitAdaptationMessages } from "../lib/aiMessages";
 import { toDateOnly, todayInTimezone } from "../lib/dates";
 import {
-  addCalendarDays, HABIT_JOURNEY_LENGTH, isScheduledDate, makeJourneyDays, snapshotPlan,
+  addCalendarDays, HABIT_JOURNEY_LENGTH, isScheduledDate, isWithinJourneyWindow, journeyDayNumber, makeJourneyDays, snapshotPlan,
   resolveExecutionType,
 } from "../lib/habitJourney";
 import { reviseFutureUnrecordedDays } from "../lib/habitPlanService";
+import { evaluateJourneyLifecycle } from "../lib/journeyLifecycle";
+import {
+  journeysAssociatedWithReward, markJourneyRewardRequired, preserveJourneyRewardGate,
+} from "../lib/journeyRewardGate";
 
 const router: IRouter = Router();
 router.use(requireAuth);
@@ -180,6 +186,7 @@ router.post("/habits", async (req, res): Promise<void> => {
     await tx.insert(habitPlanRevisionsTable).values({
       habitId: habit.id, revision: 1, effectiveFrom: journeyStartDate, plan,
     });
+    await preserveJourneyRewardGate(tx, req.userId!, habit, today);
     return { habit } as const;
   });
 
@@ -211,69 +218,346 @@ router.get("/habits/:habitId", async (req, res): Promise<void> => {
   res.json(GetHabitResponse.parse(habit));
 });
 
-router.get("/habits/:habitId/journey", async (req, res): Promise<void> => {
-  const user = await ensureUser(req.userId!);
+const getHabitJourneyHandler = async (req: Request, res: Response): Promise<void> => {
+  await ensureUser(req.userId!);
   const params = GetHabitJourneyParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
     return;
   }
-  const [habit] = await db.select().from(habitsTable).where(and(
-    eq(habitsTable.id, params.data.habitId),
-    eq(habitsTable.userId, req.userId!),
-  ));
-  if (!habit) {
+  const result = await db.transaction(async (tx) => {
+    const [user] = await tx.select().from(usersTable)
+      .where(eq(usersTable.id, req.userId!)).for("update");
+    if (!user) return { kind: "not_found" } as const;
+    const [habit] = await tx.select().from(habitsTable).where(and(
+      eq(habitsTable.id, params.data.habitId),
+      eq(habitsTable.userId, req.userId!),
+    )).for("update");
+    if (!habit) return { kind: "not_found" } as const;
+
+    const savedDays = await tx.select().from(habitDaysTable)
+      .where(eq(habitDaysTable.habitId, habit.id));
+    const days = habit.journeyStartDate != null && habit.journeyLength != null
+      ? savedDays.filter((day) => isWithinJourneyWindow(
+        day.date, habit.journeyStartDate!, habit.journeyLength!,
+      ))
+      : savedDays;
+    days.sort((left, right) => left.date.localeCompare(right.date));
+    const [checkins, revisions, executions] = days.length
+      ? await Promise.all([
+        tx.select().from(checkinsTable).where(eq(checkinsTable.habitId, habit.id)),
+        tx.select().from(habitPlanRevisionsTable).where(eq(habitPlanRevisionsTable.habitId, habit.id)),
+        tx.select().from(habitDailyExecutionsTable).where(eq(habitDailyExecutionsTable.habitId, habit.id)),
+      ])
+      : [[], [], []];
+    const rewardFields = {
+      id: rewardsTable.id,
+      title: rewardsTable.title,
+      emoji: rewardsTable.emoji,
+      coinCost: rewardsTable.coinCost,
+      isRedeemed: rewardsTable.isRedeemed,
+      redeemedAt: rewardsTable.redeemedAt,
+      journeyRequired: rewardsTable.journeyRequired,
+      journeyUnlockedAt: rewardsTable.journeyUnlockedAt,
+    };
+    const [forwardReward] = habit.rewardId == null
+      ? []
+      : await tx.select(rewardFields).from(rewardsTable).where(and(
+        eq(rewardsTable.id, habit.rewardId),
+        eq(rewardsTable.userId, req.userId!),
+      )).limit(1);
+    const [reverseReward] = forwardReward
+      ? []
+      : await tx.select(rewardFields).from(rewardsTable).where(and(
+        eq(rewardsTable.habitId, habit.id),
+        eq(rewardsTable.userId, req.userId!),
+      )).orderBy(asc(rewardsTable.createdAt), asc(rewardsTable.id)).limit(1);
+    const selectedReward = forwardReward ?? reverseReward;
+    const byDate = new Map(checkins.map((checkin) => [checkin.date, checkin]));
+    const executionByDate = new Map(executions.map((execution) => [execution.date, execution]));
+    const planByRevision = new Map(revisions.map((revision) => [revision.revision, revision.plan]));
+    const scheduledDays = days.filter((day) => day.scheduled);
+    const today = todayInTimezone(user.timezone);
+    const lifecycle = evaluateJourneyLifecycle({
+      startDate: habit.journeyStartDate,
+      length: habit.journeyLength,
+      today,
+      scheduledDates: scheduledDays.map((day) => day.date),
+      successfulDates: new Set(checkins.filter((checkin) => checkin.completed).map((checkin) => checkin.date)),
+      completedAt: habit.journeyCompletedAt,
+    });
+    let completedAt = habit.journeyCompletedAt;
+    if (lifecycle.shouldCommitCompletion) {
+      completedAt = new Date();
+      await tx.update(habitsTable).set({ journeyCompletedAt: completedAt })
+        .where(and(eq(habitsTable.id, habit.id), eq(habitsTable.userId, req.userId!)));
+    }
+    const currentDay = days.length === 0 || lifecycle.calendarDay < 1
+      ? 0
+      : Math.min(days.length, lifecycle.calendarDay);
+    const successfulDays = scheduledDays.filter((day) => day.date <= today
+      && byDate.get(day.date)?.completed).length;
+    const eligibleDays = scheduledDays.filter((day) => day.date <= today).length;
+    const missedDays = scheduledDays.filter((day) => {
+      if (day.date < today) return !byDate.get(day.date)?.completed;
+      if (day.date !== today || byDate.get(day.date)?.completed) return false;
+      const execution = executionByDate.get(day.date);
+      const checkin = byDate.get(day.date);
+      return execution?.status === "missed" || checkin?.missedReason != null;
+    }).length;
+    const journeyCheckins = checkins.filter((checkin) => scheduledDays.some((day) => day.date === checkin.date)
+      && checkin.completed);
+    const unknownCheckins = journeyCheckins.filter((checkin) => checkin.xpEarned == null).length;
+    const coinHistoryMayBeIncomplete = journeyCheckins.some((checkin) =>
+      checkin.xpEarned == null && checkin.coinsEarned === 0 && !checkin.rewardGranted);
+    let rewardUnlocked = false;
+    if (selectedReward) {
+      const linkedJourneys = await journeysAssociatedWithReward(tx, req.userId!, selectedReward.id);
+      const definedJourneys = linkedJourneys.filter((linked) =>
+        linked.journeyStartDate != null && linked.journeyLength === HABIT_JOURNEY_LENGTH);
+      let qualifyingJourneyFound = false;
+      for (const linked of definedJourneys) {
+        if (linked.id === habit.id) {
+          await markJourneyRewardRequired(
+            tx, req.userId!, selectedReward.id, lifecycle.status === "completed",
+          );
+          if (lifecycle.status === "completed") qualifyingJourneyFound = true;
+          continue;
+        }
+        const [linkedSavedDays, linkedCheckins] = await Promise.all([
+          tx.select().from(habitDaysTable).where(eq(habitDaysTable.habitId, linked.id)),
+          tx.select().from(checkinsTable).where(eq(checkinsTable.habitId, linked.id)),
+        ]);
+        const linkedDays = linkedSavedDays.filter((day) => isWithinJourneyWindow(
+          day.date, linked.journeyStartDate!, linked.journeyLength!,
+        ));
+        const linkedLifecycle = evaluateJourneyLifecycle({
+          startDate: linked.journeyStartDate,
+          length: linked.journeyLength,
+          today,
+          scheduledDates: linkedDays.filter((day) => day.scheduled).map((day) => day.date),
+          successfulDates: new Set(linkedCheckins
+            .filter((checkin) => checkin.completed)
+            .map((checkin) => checkin.date)),
+          completedAt: linked.journeyCompletedAt,
+        });
+        if (linkedLifecycle.shouldCommitCompletion) {
+          await tx.update(habitsTable).set({ journeyCompletedAt: new Date() }).where(and(
+            eq(habitsTable.id, linked.id),
+            eq(habitsTable.userId, req.userId!),
+          ));
+        }
+        await markJourneyRewardRequired(
+          tx, req.userId!, selectedReward.id, linkedLifecycle.status === "completed",
+        );
+        if (linkedLifecycle.status === "completed") qualifyingJourneyFound = true;
+      }
+      const journeyRequired = selectedReward.journeyRequired || definedJourneys.length > 0;
+      rewardUnlocked = selectedReward.isRedeemed
+        || !journeyRequired
+        || selectedReward.journeyUnlockedAt != null
+        || qualifyingJourneyFound;
+    }
+    return {
+      kind: "ok" as const,
+      payload: {
+        habitId: habit.id,
+        startDate: habit.journeyStartDate,
+        length: habit.journeyLength ?? 0,
+        total: scheduledDays.length,
+        completed: scheduledDays.filter((day) => byDate.has(day.date)).length,
+        successful: scheduledDays.filter((day) => byDate.get(day.date)?.completed).length,
+        currentDay,
+        today,
+        timezone: user.timezone,
+        status: lifecycle.status,
+        completedAt,
+        consistency: { successfulDays, eligibleDays },
+        missedDays,
+        restDays: days.filter((day) => !day.scheduled).length,
+        selectedReward: selectedReward == null ? null : {
+          id: selectedReward.id,
+          title: selectedReward.title,
+          emoji: selectedReward.emoji,
+          coinCost: selectedReward.coinCost,
+          isRedeemed: selectedReward.isRedeemed,
+          redeemedAt: selectedReward.redeemedAt,
+        },
+        rewardUnlocked: Boolean(selectedReward && rewardUnlocked),
+        finalEligibility: lifecycle.finalEligibility,
+        earnings: {
+          xp: journeyCheckins.reduce((sum, checkin) => sum + (checkin.xpEarned ?? 0), 0),
+          coins: journeyCheckins.reduce((sum, checkin) => sum + checkin.coinsEarned, 0),
+          xpComplete: unknownCheckins === 0,
+          unknownCheckins,
+          coinHistoryMayBeIncomplete,
+        },
+        days: days.map((day) => {
+          const plan = planByRevision.get(day.planRevision);
+          const checkin = byDate.get(day.date) ?? null;
+          const execution = executionByDate.get(day.date);
+          const executionActivityStatus = execution?.status === "in_progress"
+            || execution?.status === "paused"
+            || execution?.status === "minimum_reached"
+            || execution?.status === "target_reached"
+            || execution?.status === "pending_reflection";
+          const status = !day.scheduled
+            ? "rest"
+            : day.date > today
+              ? "future"
+              : checkin?.completed
+                ? "completed"
+                : checkin?.missedReason != null || execution?.status === "missed" || day.date < today
+                  ? "missed"
+                  : executionActivityStatus ? execution!.status : "pending";
+          const recoveryStatus = habit.recoveryEnabled && execution
+            && ["recovery_available", "recovery_active", "recovered"].includes(execution.status)
+            ? execution.status as "recovery_available" | "recovery_active" | "recovered"
+            : null;
+          return {
+            date: day.date,
+            dayNumber: habit.journeyStartDate == null
+              ? day.dayNumber
+              : journeyDayNumber(day.date, habit.journeyStartDate),
+            scheduled: day.scheduled,
+            targetValue: day.targetValue,
+            minimumValue: day.minimumValue,
+            busyDayValue: day.busyDayValue,
+            successLimitValue: day.successLimitValue,
+            goalType: day.goalType,
+            unit: day.unit ?? plan?.unit ?? habit.unit,
+            executionType: day.executionType ?? plan?.executionType
+              ?? resolveExecutionType(day.unit ?? plan?.unit ?? habit.unit, day.goalType, habit.executionType),
+            cueType: day.cueType ?? plan?.cueType ?? null,
+            cueTime: day.cueTime ?? plan?.cueTime ?? null,
+            cue: day.cue ?? plan?.cue ?? null,
+            startAction: day.startAction ?? plan?.startAction ?? null,
+            status,
+            actualValue: execution?.actualValue ?? checkin?.value ?? null,
+            actualSeconds: execution?.actualSeconds ?? null,
+            difficulty: execution?.difficulty ?? checkin?.difficulty ?? null,
+            missedReason: execution?.missedReason ?? checkin?.missedReason ?? null,
+            recoveryEnabled: false,
+            recoveryUsed: habit.recoveryUsed,
+            recoveryLimit: habit.recoveryLimit,
+            recoveryStatus,
+            checkin,
+          };
+        }),
+      },
+    };
+  });
+  if (result.kind === "not_found") {
     res.status(404).json({ error: "Habit not found" });
     return;
   }
-  const days = await db.select().from(habitDaysTable)
-    .where(eq(habitDaysTable.habitId, habit.id))
-    .orderBy(habitDaysTable.dayNumber);
-  const [checkins, revisions] = days.length
-    ? await Promise.all([
-      db.select().from(checkinsTable).where(eq(checkinsTable.habitId, habit.id)),
-      db.select().from(habitPlanRevisionsTable).where(eq(habitPlanRevisionsTable.habitId, habit.id)),
-    ])
-    : [[], []];
-  const byDate = new Map(checkins.map((checkin) => [checkin.date, checkin]));
-  const planByRevision = new Map(revisions.map((revision) => [revision.revision, revision.plan]));
-  const scheduledDays = days.filter((day) => day.scheduled);
-  const today = todayInTimezone(user.timezone);
-  const startDate = habit.journeyStartDate;
-  const elapsed = startDate
-    ? Math.floor((Date.parse(`${today}T00:00:00Z`) - Date.parse(`${startDate}T00:00:00Z`)) / 86_400_000) + 1
-    : 0;
-  const payload = {
-    habitId: habit.id,
-    startDate,
-    length: habit.journeyLength ?? 0,
-    total: scheduledDays.length,
-    completed: scheduledDays.filter((day) => byDate.has(day.date)).length,
-    successful: scheduledDays.filter((day) => byDate.get(day.date)?.completed).length,
-    currentDay: days.length === 0 || elapsed < 1 ? 0 : Math.min(days.length, elapsed),
-    days: days.map((day) => {
-      const plan = planByRevision.get(day.planRevision);
-      return ({
-      date: day.date,
-      dayNumber: day.dayNumber,
-      scheduled: day.scheduled,
-      targetValue: day.targetValue,
-      minimumValue: day.minimumValue,
-      busyDayValue: day.busyDayValue,
-      successLimitValue: day.successLimitValue,
-      goalType: day.goalType,
-      unit: day.unit ?? plan?.unit ?? habit.unit,
-      executionType: day.executionType ?? plan?.executionType
-        ?? resolveExecutionType(day.unit ?? plan?.unit ?? habit.unit, day.goalType, habit.executionType),
-      cueType: day.cueType ?? plan?.cueType ?? null,
-      cueTime: day.cueTime ?? plan?.cueTime ?? null,
-      cue: day.cue ?? plan?.cue ?? null,
-      startAction: day.startAction ?? plan?.startAction ?? null,
-      checkin: byDate.get(day.date) ?? null,
-      });
-    }),
-  };
-  res.json(GetHabitJourneyResponse.parse(payload));
+  res.json(GetHabitJourneyResponse.parse(result.payload));
+};
+
+router.get("/habits/:habitId/journey", getHabitJourneyHandler);
+
+router.post("/habits/:habitId/journey", async (req, res): Promise<void> => {
+  await ensureUser(req.userId!);
+  const params = StartHabitJourneyParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  const result = await db.transaction(async (tx) => {
+    const [user] = await tx.select().from(usersTable)
+      .where(eq(usersTable.id, req.userId!)).for("update");
+    if (!user) return { kind: "not_found" } as const;
+    const [habit] = await tx.select().from(habitsTable).where(and(
+      eq(habitsTable.id, params.data.habitId),
+      eq(habitsTable.userId, req.userId!),
+    )).for("update");
+    if (!habit) return { kind: "not_found" } as const;
+    if (habit.journeyStartDate != null || habit.journeyLength != null) {
+      return habit.journeyStartDate != null
+        && habit.journeyLength === HABIT_JOURNEY_LENGTH
+        ? { kind: "existing" } as const
+        : { kind: "invalid" } as const;
+    }
+
+    const today = todayInTimezone(user.timezone);
+    const minimumValue = effectiveMinimum(habit.targetValue, habit.minimumValue);
+    if (habit.cadence === "custom_days" && !habit.customDays?.length) {
+      return { kind: "invalid" } as const;
+    }
+    const executionType = resolveExecutionType(habit.unit, habit.goalType, habit.executionType);
+    const [latestRevision] = await tx.select({ revision: habitPlanRevisionsTable.revision })
+      .from(habitPlanRevisionsTable)
+      .where(eq(habitPlanRevisionsTable.habitId, habit.id))
+      .orderBy(desc(habitPlanRevisionsTable.revision))
+      .limit(1);
+    const revision = (latestRevision?.revision ?? 0) + 1;
+    const plan = snapshotPlan({
+      title: habit.title,
+      cadence: habit.cadence,
+      customDays: habit.customDays,
+      targetValue: habit.targetValue,
+      minimumValue,
+      busyDayValue: habit.busyDayValue,
+      successLimitValue: habit.successLimitValue,
+      minimumFloor: habit.minimumFloor ?? defaultMinimumFloor(habit.goalType),
+      goalType: habit.goalType,
+      unit: habit.unit,
+      executionType,
+      cueType: habit.cueType,
+      cueTime: habit.cueTime,
+      cue: habit.cue,
+      startAction: habit.startAction,
+      friction: habit.friction,
+    });
+    const journeyDays = makeJourneyDays(habit.id, today, HABIT_JOURNEY_LENGTH, {
+      title: habit.title,
+      targetValue: habit.targetValue,
+      minimumValue,
+      busyDayValue: habit.busyDayValue,
+      successLimitValue: habit.successLimitValue,
+      goalType: habit.goalType,
+      unit: habit.unit,
+      executionType,
+      cueType: habit.cueType,
+      cueTime: habit.cueTime,
+      cue: habit.cue,
+      startAction: habit.startAction,
+      planRevision: revision,
+      cadence: habit.cadence,
+      customDays: habit.customDays,
+    });
+    const savedDays = await tx.select().from(habitDaysTable)
+      .where(eq(habitDaysTable.habitId, habit.id));
+    const savedDates = new Set(savedDays.map((day) => day.date));
+    const missingDays = journeyDays.filter((day) => !savedDates.has(day.date));
+    if (missingDays.length) await tx.insert(habitDaysTable).values(missingDays);
+    await tx.insert(habitPlanRevisionsTable).values({
+      habitId: habit.id,
+      revision,
+      effectiveFrom: today,
+      plan,
+    });
+    const [startedHabit] = await tx.update(habitsTable).set({
+      journeyStartDate: today,
+      journeyLength: HABIT_JOURNEY_LENGTH,
+    }).where(and(
+      eq(habitsTable.id, habit.id),
+      eq(habitsTable.userId, req.userId!),
+    )).returning();
+    await preserveJourneyRewardGate(tx, req.userId!, startedHabit, today);
+    return { kind: "started" } as const;
+  });
+
+  if (result.kind === "not_found") {
+    res.status(404).json({ error: "Habit not found" });
+    return;
+  }
+  if (result.kind === "invalid") {
+    res.status(400).json({ error: "The habit has an invalid or incomplete journey definition or cadence" });
+    return;
+  }
+  await getHabitJourneyHandler(req, res);
 });
 
 router.get("/habits/:habitId/adaptation", async (req, res): Promise<void> => {
@@ -298,7 +582,7 @@ router.get("/habits/:habitId/adaptation", async (req, res): Promise<void> => {
   }).from(checkinsTable)
     .where(eq(checkinsTable.habitId, habit.id))
     .orderBy(desc(checkinsTable.date));
-  const [journeyDays, latestRevisionRows, dailyHistory] = await Promise.all([
+  const [savedJourneyDays, latestRevisionRows, dailyHistory] = await Promise.all([
     db.select({
     date: habitDaysTable.date,
     scheduled: habitDaysTable.scheduled,
@@ -320,6 +604,11 @@ router.get("/habits/:habitId/adaptation", async (req, res): Promise<void> => {
       note: habitDailyExecutionsTable.note,
     }).from(habitDailyExecutionsTable).where(eq(habitDailyExecutionsTable.habitId, habit.id)),
   ]);
+  const journeyDays = habit.journeyStartDate != null && habit.journeyLength != null
+    ? savedJourneyDays.filter((day) => isWithinJourneyWindow(
+      day.date, habit.journeyStartDate!, habit.journeyLength!,
+    ))
+    : savedJourneyDays;
   const today = todayInTimezone(user.timezone);
   const scheduledDates = new Set(journeyDays.filter((day) => day.scheduled).map((day) => day.date));
   const scheduledCheckins = journeyDays.length
@@ -557,11 +846,24 @@ router.patch("/habits/:habitId", async (req, res): Promise<void> => {
       }
     }
 
-    if (changes.rewardId !== undefined && changes.rewardId !== null) {
-      const [reward] = await tx.select({ id: rewardsTable.id }).from(rewardsTable)
-        .where(and(eq(rewardsTable.id, changes.rewardId), eq(rewardsTable.userId, req.userId!)))
-        .for("update");
-      if (!reward) return { kind: "invalid", error: "Reward not found for this user" } as const;
+    const rewardIdsToLock = [...new Set<number>(
+      [before.rewardId, changes.rewardId].filter((id): id is number => id != null),
+    )].sort((left, right) => left - right);
+    let nextRewardExists = changes.rewardId == null;
+    for (const rewardId of rewardIdsToLock) {
+      const [reward] = await tx.select({ id: rewardsTable.id }).from(rewardsTable).where(and(
+        eq(rewardsTable.id, rewardId),
+        eq(rewardsTable.userId, req.userId!),
+      )).for("update");
+      if (rewardId === changes.rewardId) nextRewardExists = reward != null;
+    }
+    if (!nextRewardExists) return { kind: "invalid", error: "Reward not found for this user" } as const;
+    if (
+      before.rewardId != null
+      && changes.rewardId !== undefined
+      && changes.rewardId !== before.rewardId
+    ) {
+      await preserveJourneyRewardGate(tx, req.userId!, before, today);
     }
 
     const planFields = [
@@ -664,8 +966,9 @@ router.patch("/habits/:habitId", async (req, res): Promise<void> => {
         cueTime: habit.cueTime,
         cue: habit.cue,
         startAction: habit.startAction,
-      });
+      }, journeyStartDate);
     }
+    await preserveJourneyRewardGate(tx, req.userId!, habit, today);
     return { kind: "ok", habit } as const;
   });
 
@@ -685,19 +988,28 @@ router.patch("/habits/:habitId", async (req, res): Promise<void> => {
 });
 
 router.delete("/habits/:habitId", async (req, res): Promise<void> => {
-  await ensureUser(req.userId!);
+  const user = await ensureUser(req.userId!);
   const params = DeleteHabitParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
     return;
   }
 
-  const [habit] = await db
-    .delete(habitsTable)
-    .where(and(eq(habitsTable.id, params.data.habitId), eq(habitsTable.userId, req.userId!)))
-    .returning();
+  const deleted = await db.transaction(async (tx) => {
+    const [before] = await tx.select().from(habitsTable).where(and(
+      eq(habitsTable.id, params.data.habitId),
+      eq(habitsTable.userId, req.userId!),
+    )).for("update");
+    if (!before) return null;
+    await preserveJourneyRewardGate(tx, req.userId!, before, todayInTimezone(user.timezone));
+    const [habit] = await tx.delete(habitsTable).where(and(
+      eq(habitsTable.id, params.data.habitId),
+      eq(habitsTable.userId, req.userId!),
+    )).returning();
+    return habit ?? null;
+  });
 
-  if (!habit) {
+  if (!deleted) {
     res.status(404).json({ error: "Habit not found" });
     return;
   }

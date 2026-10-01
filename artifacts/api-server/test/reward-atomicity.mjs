@@ -92,6 +92,7 @@ const ddl = [
     minimum_floor double precision,
     journey_start_date date,
     journey_length integer,
+    journey_completed_at timestamptz,
     reward_id integer,
     difficulty ${quote("habit_difficulty")} NOT NULL,
     goal_type ${quote("habit_goal_type")} NOT NULL,
@@ -105,6 +106,19 @@ const ddl = [
     last_broken_streak integer,
     streak_broken_at date,
     milestones jsonb NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now()
+  )`,
+  `CREATE TABLE ${quote("rewards")} (
+    id serial PRIMARY KEY,
+    user_id text NOT NULL REFERENCES ${quote("users")}(id) ON DELETE CASCADE,
+    habit_id integer REFERENCES ${quote("habits")}(id) ON DELETE SET NULL,
+    title text NOT NULL,
+    emoji text NOT NULL,
+    coin_cost integer NOT NULL,
+    is_redeemed boolean NOT NULL DEFAULT false,
+    redeemed_at timestamptz,
+    journey_required boolean NOT NULL DEFAULT false,
+    journey_unlocked_at timestamptz,
     created_at timestamptz NOT NULL DEFAULT now()
   )`,
   `CREATE TABLE ${quote("habit_days")} (
@@ -205,6 +219,7 @@ const ddl = [
     target_completed boolean NOT NULL DEFAULT false,
     reward_granted boolean NOT NULL DEFAULT false,
     coins_earned integer NOT NULL DEFAULT 0,
+    xp_earned integer,
     created_at timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT checkins_habit_date_unique UNIQUE (habit_id, date)
   )`,
@@ -251,6 +266,12 @@ async function cleanup() {
 
 async function prepare() {
   for (const statement of ddl) await adminPool.query(statement);
+  await adminPool.query(
+    `ALTER TABLE ${quote("habit_days")} DROP CONSTRAINT IF EXISTS habit_days_habit_day_unique`,
+  );
+  await adminPool.query(
+    `ALTER TABLE ${quote("habit_days")} DROP CONSTRAINT IF EXISTS habit_days_habit_day_unique`,
+  );
   tempDir = await mkdtemp(join(apiDir, ".reward-test-"));
   const testEntry = join(tempDir, "reward-test-entry.ts");
   const serviceBundle = join(tempDir, "reward-test-entry.mjs");
@@ -264,6 +285,7 @@ async function prepare() {
       export { grantRewards } from ${JSON.stringify(join(apiDir, "src/lib/gamificationService.ts"))};
       export { default as habitsRouter } from ${JSON.stringify(join(apiDir, "src/routes/habits.ts"))};
       export { default as checkinsRouter } from ${JSON.stringify(join(apiDir, "src/routes/checkins.ts"))};
+      export { default as rewardsRouter } from ${JSON.stringify(join(apiDir, "src/routes/rewards.ts"))};
       export { default as dailyRouter } from ${JSON.stringify(join(apiDir, "src/routes/daily.ts"))};
       export {
         getDailyHabitState, changeDailyHabitExecution, saveDailyHabitReflection,
@@ -361,7 +383,7 @@ async function reset() {
     `TRUNCATE ${quote("user_journey_milestones")}, ${quote("journey_milestones")},
      ${quote("coin_transactions")}, ${quote("habit_daily_action_keys")}, ${quote("habit_daily_executions")},
      ${quote("habit_plan_revisions")}, ${quote("habit_days")},
-     ${quote("checkins")}, ${quote("habits")},
+      ${quote("checkins")}, ${quote("rewards")}, ${quote("habits")},
      ${quote("users")} RESTART IDENTITY CASCADE`,
   );
 }
@@ -404,6 +426,24 @@ function addDays(date, days) {
 const dailyNow = new Date();
 dailyNow.setUTCHours(12, 0, 0, 0);
 const dailyToday = dailyNow.toISOString().slice(0, 10);
+
+async function startJourneyApi(userId) {
+  const app = express();
+  app.use(express.json());
+  app.use(service.habitsRouter, service.rewardsRouter);
+  const server = app.listen(0, "127.0.0.1");
+  await new Promise((resolve) => server.once("listening", resolve));
+  const baseUrl = `http://127.0.0.1:${server.address().port}`;
+  return {
+    request: (path, method = "GET", body) => fetch(`${baseUrl}${path}`, {
+      method,
+      headers: { "content-type": "application/json", "x-test-user": userId },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    }),
+    close: () => new Promise((resolve, reject) =>
+      server.close((error) => error ? reject(error) : resolve())),
+  };
+}
 
 async function seedDailyJourney(habitId, startDate, {
   length = 22,
@@ -509,16 +549,45 @@ async function seedCheckin({
   completed = true,
   rewardGranted = false,
   coinsEarned = 0,
+  xpEarned = null,
+  difficulty = null,
   value = 10,
 }) {
   return adminPool.query(
     `INSERT INTO ${quote("checkins")} (
        habit_id, user_id, date, completed, value, target_snapshot,
-       minimum_snapshot, target_completed, reward_granted, coins_earned
-     ) VALUES ($1, $2, $3, $4, $5, 10, 3, $4, $6, $7)
+       minimum_snapshot, target_completed, reward_granted, coins_earned, xp_earned, difficulty
+     ) VALUES ($1, $2, $3, $4, $5, 10, 3, $4, $6, $7, $8, $9)
      RETURNING id`,
-    [habitId, userId, date, completed, value, rewardGranted, coinsEarned],
+    [habitId, userId, date, completed, value, rewardGranted, coinsEarned, xpEarned, difficulty],
   ).then((result) => result.rows[0].id);
+}
+
+async function seedReward({ userId = "reward-test-user", habitId = null, coinCost = 20 } = {}) {
+  return adminPool.query(
+    `INSERT INTO ${quote("rewards")} (user_id, habit_id, title, emoji, coin_cost)
+     VALUES ($1, $2, 'Reward', '🎁', $3) RETURNING id`,
+    [userId, habitId, coinCost],
+  ).then((result) => result.rows[0].id);
+}
+
+async function seedExecution({
+  habitId,
+  date,
+  dayNumber = 1,
+  status = "pending",
+  actualValue = null,
+  actualSeconds = null,
+  missedReason = null,
+}) {
+  await adminPool.query(
+    `INSERT INTO ${quote("habit_daily_executions")} (
+       habit_id, date, day_number, title, target_value, minimum_value, goal_type,
+       execution_type, unit, status, actual_value, actual_seconds, missed_reason
+     ) VALUES ($1, $2, $3, 'Walk', 10, 3, 'build', 'duration', 'minutes',
+               $4, $5, $6, $7)`,
+    [habitId, date, dayNumber, status, actualValue, actualSeconds, missedReason],
+  );
 }
 
 function input(date = "2026-06-01", value = 10) {
@@ -661,7 +730,7 @@ test("duplicate retry is idempotent, incomplete check-ins can succeed later, and
     await reset();
     const userId = await seedUser();
     const habitId = await seedHabit({ userId });
-    const date = "2026-06-01";
+    const date = dailyToday;
     await adminPool.query(
       `UPDATE ${quote("habits")} SET journey_start_date = $2, journey_length = 22 WHERE id = $1`,
       [habitId, date],
@@ -963,46 +1032,56 @@ test("recordCheckin evaluates against the date-specific day plan", async () => {
   assert.equal(result.goalTypeSnapshot, "build");
 });
 
-test("journey check-ins reject dates outside bounds and rest days without effects; Monday continues a weekday streak", async () => {
+test("journey bounds and rest days reject check-ins; legacy weekday streaks still continue", async () => {
   await reset();
   const userId = await seedUser();
   const habitId = await seedHabit({ userId, cadence: "weekdays" });
   await adminPool.query(
     `UPDATE ${quote("habits")}
-     SET journey_start_date = '2026-06-05', journey_length = 22
+     SET journey_start_date = $2, journey_length = 22
      WHERE id = $1`,
-    [habitId],
+    [habitId, dailyToday],
   );
   await adminPool.query(
     `INSERT INTO ${quote("habit_days")}
        (habit_id, day_number, date, scheduled, target_value, minimum_value, goal_type, plan_revision)
-     VALUES
-       ($1, 1, '2026-06-05', true, 10, 3, 'build', 1),
-       ($1, 2, '2026-06-06', false, 10, 3, 'build', 1),
-       ($1, 3, '2026-06-07', false, 10, 3, 'build', 1),
-       ($1, 4, '2026-06-08', true, 10, 3, 'build', 1)`,
-    [habitId],
+     VALUES ($1, 1, $2, false, 10, 3, 'build', 1)`,
+    [habitId, dailyToday],
   );
 
   const untouched = await snapshot(userId, habitId);
-  await assert.rejects(service.recordCheckin(userId, habitId, input("2026-06-04")), /outside the habit's 22-day journey/);
-  await assert.rejects(service.recordCheckin(userId, habitId, input("2026-06-27")), /outside the habit's 22-day journey/);
+  await assert.rejects(
+    service.recordCheckin(userId, habitId, input(addDays(dailyToday, -1))),
+    /outside the habit's 22-day journey/,
+  );
+  await assert.rejects(
+    service.recordCheckin(userId, habitId, input(addDays(dailyToday, 22))),
+    /Future journey dates cannot be completed early/,
+  );
+  await assert.rejects(service.recordCheckin(userId, habitId, input(dailyToday)), /rest day/);
   assert.deepEqual(await snapshot(userId, habitId), untouched);
 
-  const friday = await service.recordCheckin(userId, habitId, input("2026-06-05"));
-  assert.equal(friday.newStreak, 1);
-  const afterFriday = await snapshot(userId, habitId);
-  await assert.rejects(service.recordCheckin(userId, habitId, input("2026-06-06")), /rest day/);
-  assert.deepEqual(await snapshot(userId, habitId), afterFriday);
-  await assert.rejects(service.recordCheckin(userId, habitId, input("2026-06-07")), /rest day/);
-  assert.deepEqual(await snapshot(userId, habitId), afterFriday);
-
-  const monday = await service.recordCheckin(userId, habitId, input("2026-06-08"));
-  assert.equal(monday.newStreak, 2);
-  const [habit] = await rows("habits");
+  const todayWeekday = new Date(`${dailyToday}T00:00:00.000Z`).getUTCDay();
+  const cadence = [0, 6].includes(todayWeekday) ? "daily" : "weekdays";
+  let previousScheduledDate = addDays(dailyToday, -1);
+  while (cadence === "weekdays"
+    && [0, 6].includes(new Date(`${previousScheduledDate}T00:00:00.000Z`).getUTCDay())) {
+    previousScheduledDate = addDays(previousScheduledDate, -1);
+  }
+  const legacyHabitId = await seedHabit({
+    userId,
+    cadence,
+    currentStreak: 1,
+    lastCheckinDate: previousScheduledDate,
+  });
+  const todayCheckin = await service.recordCheckin(userId, legacyHabitId, input(dailyToday));
+  assert.equal(todayCheckin.newStreak, 2);
+  const { rows: [habit] } = await adminPool.query(
+    `SELECT * FROM ${quote("habits")} WHERE id = $1`, [legacyHabitId],
+  );
   assert.equal(habit.current_streak, 2);
-  assert.equal(habit.last_checkin_date.toISOString?.().slice(0, 10) ?? String(habit.last_checkin_date).slice(0, 10), "2026-06-08");
-  assert.equal((await rows("coin_transactions")).filter((entry) => entry.reason === "checkin").length, 2);
+  assert.equal(habit.last_checkin_date.toISOString?.().slice(0, 10) ?? String(habit.last_checkin_date).slice(0, 10), dailyToday);
+  assert.equal((await rows("coin_transactions")).filter((entry) => entry.reason === "checkin").length, 1);
 });
 
 test("plan revision persists only on future unrecorded dates", async () => {
@@ -1478,12 +1557,7 @@ test("a completed weekday calendar journey reaches day 22 independently of its s
   );
   assert.ok(scheduledDays.length <= 16 && scheduledDays.length >= 15);
   for (const { date } of scheduledDays) {
-    const result = await service.recordCheckin(userId, habitId, {
-      date: new Date(`${date}T00:00:00.000Z`),
-      completed: true,
-      value: 6,
-    });
-    assert.equal(result.completed, true);
+    await seedCheckin({ habitId, userId, date, completed: true, value: 6 });
   }
 
   const [beforeOverview] = await rows("users");
@@ -1501,4 +1575,801 @@ test("a completed weekday calendar journey reaches day 22 independently of its s
   assert.equal(afterOverview.xp, beforeOverview.xp);
   assert.equal(afterOverview.coins, beforeOverview.coins);
   assert.equal((await rows("coin_transactions")).length, transactionsBeforeOverview);
+});
+
+test("journey GET commits final eligibility once, preserves pending-today missed counts, and never pays completion rewards", async () => {
+  await reset();
+  const userId = await seedUser({ coins: 100 });
+  const habitId = await seedHabit({ userId });
+  const rewardId = await seedReward({ userId, coinCost: 15 });
+  await adminPool.query(`UPDATE ${quote("habits")} SET reward_id = $2 WHERE id = $1`, [habitId, rewardId]);
+  const startDate = addDays(dailyToday, -21);
+  await seedDailyJourney(habitId, startDate);
+
+  // A second, unfinished 22-day journey may point at the same reward without
+  // blocking the first journey's valid unlock.
+  const unfinishedHabitId = await seedHabit({ userId });
+  await adminPool.query(`UPDATE ${quote("habits")} SET reward_id = $2 WHERE id = $1`, [unfinishedHabitId, rewardId]);
+  await seedDailyJourney(unfinishedHabitId, addDays(dailyToday, -22));
+
+  const api = await startJourneyApi(userId);
+  try {
+    const beforeResponse = await api.request(`/habits/${habitId}/journey`);
+    assert.equal(beforeResponse.status, 200);
+    const before = await beforeResponse.json();
+    assert.equal(before.today.slice(0, 10), dailyToday, "date-only today may serialize as an ISO timestamp");
+    assert.equal(before.timezone, "UTC");
+    assert.equal(before.status, "active");
+    assert.equal(before.currentDay, 22);
+    assert.deepEqual(before.consistency, { successfulDays: 0, eligibleDays: 22 });
+    assert.equal(before.missedDays, 21, "pending scheduled today is not counted as missed");
+    assert.equal(before.days.find((day) => day.date.slice(0, 10) === dailyToday).status, "pending");
+    assert.equal(before.rewardUnlocked, false);
+    assert.equal(before.finalEligibility.unmetReason, "final_scheduled_day_not_successful");
+
+    const blocked = await api.request(`/rewards/${rewardId}/redeem`, "POST");
+    assert.equal(blocked.status, 400);
+    const [beforeCompletion] = await rows("users");
+    const beforeTransactions = await rows("coin_transactions");
+    assert.equal(beforeCompletion.coins, 100);
+    assert.equal(beforeCompletion.xp, 0);
+
+    const recorded = await service.recordCheckin(userId, habitId, {
+      date: new Date(`${dailyToday}T00:00:00.000Z`),
+      completed: true,
+      value: 5,
+    });
+    assert.equal(recorded.xpEarned, 10);
+    assert.equal(recorded.coinsEarned, 5);
+    const [afterCheckin] = await rows("users");
+    assert.equal(afterCheckin.xp, 10);
+    assert.equal(afterCheckin.coins, 105);
+
+    const [firstResponse, retryResponse] = await Promise.all([
+      api.request(`/habits/${habitId}/journey`),
+      api.request(`/habits/${habitId}/journey`),
+    ]);
+    assert.equal(firstResponse.status, 200);
+    assert.equal(retryResponse.status, 200);
+    const [first, retry] = await Promise.all([firstResponse.json(), retryResponse.json()]);
+    assert.equal(first.status, "completed");
+    assert.equal(first.finalEligibility.eligible, true);
+    assert.equal(first.finalEligibility.finalDateSuccessful, true);
+    assert.equal(first.successful, 1, "22 successful sessions are not required");
+    assert.equal(first.consistency.successfulDays, 1);
+    assert.equal(first.missedDays, 21);
+    assert.equal(first.rewardUnlocked, true);
+    assert.equal(first.earnings.xp, 10);
+    assert.equal(first.earnings.coins, 5);
+    assert.equal(first.earnings.xpComplete, true);
+    assert.equal(first.earnings.coinHistoryMayBeIncomplete, false);
+    assert.equal(first.completedAt, retry.completedAt, "completedAt is committed once");
+    const sharedResponse = await api.request(`/habits/${unfinishedHabitId}/journey`);
+    assert.equal(sharedResponse.status, 200);
+    const sharedJourney = await sharedResponse.json();
+    assert.equal(sharedJourney.status, "expired");
+    assert.equal(sharedJourney.rewardUnlocked, true,
+      "a shared reward reports unlocked when another selected journey qualifies");
+    const [afterJourneyRead] = await rows("users");
+    assert.equal(afterJourneyRead.xp, 10);
+    assert.equal(afterJourneyRead.coins, 105);
+    assert.equal((await rows("coin_transactions")).length, beforeTransactions.length + 1,
+      "journey lifecycle reads add no wallet or ledger rewards");
+
+    const redeemed = await api.request(`/rewards/${rewardId}/redeem`, "POST");
+    assert.equal(redeemed.status, 200);
+    assert.equal((await redeemed.json()).coinsRemaining, 90);
+    const duplicateRedeem = await api.request(`/rewards/${rewardId}/redeem`, "POST");
+    assert.equal(duplicateRedeem.status, 400);
+
+    const unlinkedRewardId = await seedReward({ userId, coinCost: 5 });
+    const oldReward = await api.request(`/rewards/${unlinkedRewardId}/redeem`, "POST");
+    assert.equal(oldReward.status, 200, "unlinked legacy rewards keep their old redemption behavior");
+
+    const otherUser = await seedUser({ id: "journey-other-user", coins: 100 });
+    const otherApi = await startJourneyApi(otherUser);
+    try {
+      assert.equal((await otherApi.request(`/habits/${habitId}/journey`)).status, 404);
+      assert.equal((await otherApi.request(`/rewards/${rewardId}/redeem`, "POST")).status, 404);
+    } finally {
+      await otherApi.close();
+    }
+  } finally {
+    await api.close();
+  }
+});
+
+test("last scheduled weekday success completes a calendar journey whose day 22 is rest", async () => {
+  await reset();
+  const userId = await seedUser();
+  const habitId = await seedHabit({ userId });
+  let offset = 22;
+  let startDate;
+  let endDate;
+  do {
+    startDate = addDays(dailyToday, -offset);
+    endDate = addDays(startDate, 21);
+    offset += 1;
+  } while (![0, 6].includes(new Date(`${endDate}T00:00:00.000Z`).getUTCDay()));
+  await seedDailyJourney(habitId, startDate, { cadence: "weekdays" });
+  const { rows: scheduledDays } = await adminPool.query(
+    `SELECT date::text AS date FROM ${quote("habit_days")}
+     WHERE habit_id = $1 AND scheduled ORDER BY date`,
+    [habitId],
+  );
+  const finalScheduledDate = scheduledDays.at(-1).date;
+  assert.notEqual(finalScheduledDate, endDate);
+  await seedCheckin({ habitId, userId, date: finalScheduledDate, completed: true, value: 5 });
+  const api = await startJourneyApi(userId);
+  try {
+    const response = await api.request(`/habits/${habitId}/journey`);
+    assert.equal(response.status, 200);
+    const journey = await response.json();
+    assert.equal(journey.currentDay, 22);
+    assert.equal(journey.status, "completed");
+    assert.equal(journey.finalEligibility.finalScheduledDate.slice(0, 10), finalScheduledDate);
+    assert.equal(journey.finalEligibility.finalDateSuccessful, true);
+    assert.equal(journey.days.at(-1).status, "rest");
+  } finally {
+    await api.close();
+  }
+});
+
+test("journey check-ins cannot execute future dates early", async () => {
+  await reset();
+  const userId = await seedUser({ coins: 20 });
+  const habitId = await seedHabit({ userId });
+  await seedDailyJourney(habitId, dailyToday);
+  await assert.rejects(
+    service.recordCheckin(userId, habitId, {
+      date: new Date(`${addDays(dailyToday, 1)}T00:00:00.000Z`),
+      completed: true,
+      value: 5,
+    }),
+    /Future journey dates cannot be completed early/,
+  );
+  assert.equal((await rows("checkins")).length, 0);
+  assert.equal((await rows("coin_transactions")).length, 0);
+  const [user] = await rows("users");
+  assert.equal(user.xp, 0);
+  assert.equal(user.coins, 20);
+});
+
+test("starting a journey from a legacy habit preserves history, reuses today's snapshot, and awards nothing", async () => {
+  await reset();
+  const userId = await seedUser({ xp: 17, coins: 42 });
+  const habitId = await seedHabit({ userId, cadence: "weekdays" });
+  const rewardId = await seedReward({ userId });
+  await adminPool.query(`UPDATE ${quote("habits")} SET reward_id = $2 WHERE id = $1`, [habitId, rewardId]);
+
+  const yesterday = addDays(dailyToday, -1);
+  await seedCheckin({ habitId, userId, date: yesterday, value: 7 });
+  await adminPool.query(
+    `INSERT INTO ${quote("habit_days")}
+       (habit_id, day_number, date, scheduled, title, unit, execution_type,
+        target_value, minimum_value, goal_type, plan_revision)
+     VALUES
+       ($1, 1, $2, true, 'Legacy history', 'minutes', 'duration', 41, 11, 'build', 1),
+       ($1, 1, $3, false, 'Saved today', 'minutes', 'duration', 99, 20, 'build', 1)`,
+    [habitId, yesterday, dailyToday],
+  );
+  const [oldCheckinBefore] = await adminPool.query(
+    `SELECT * FROM ${quote("checkins")} WHERE habit_id = $1 AND date = $2`, [habitId, yesterday],
+  ).then((result) => result.rows);
+  const [oldDayBefore] = await adminPool.query(
+    `SELECT * FROM ${quote("habit_days")} WHERE habit_id = $1 AND date = $2`, [habitId, yesterday],
+  ).then((result) => result.rows);
+  const api = await startJourneyApi(userId);
+  try {
+    const response = await api.request(`/habits/${habitId}/journey`, "POST");
+    assert.equal(response.status, 200);
+    const journey = await response.json();
+    assert.equal(journey.startDate.slice(0, 10), dailyToday);
+    assert.equal(journey.length, 22);
+    assert.equal(journey.currentDay, 1);
+    assert.equal(journey.status, "active");
+    assert.equal(journey.days.length, 22);
+    assert.deepEqual(journey.days.map(({ dayNumber }) => dayNumber), Array.from({ length: 22 }, (_, i) => i + 1));
+    assert.equal(journey.days[0].date.slice(0, 10), dailyToday);
+    assert.equal(journey.days[0].scheduled, false);
+    assert.equal(journey.days[0].targetValue, 99, "the existing today snapshot remains authoritative");
+    assert.ok(journey.days.slice(1).every((day) => day.targetValue === 10));
+    for (const day of journey.days.slice(1)) {
+      const weekday = new Date(`${day.date.slice(0, 10)}T00:00:00.000Z`).getUTCDay();
+      assert.equal(day.scheduled, weekday >= 1 && weekday <= 5);
+    }
+    assert.equal(journey.successful, 0, "past check-ins are not retroactive journey obligations");
+    assert.equal(journey.earnings.xp, 0);
+    assert.equal(journey.earnings.coins, 0);
+
+    const [oldCheckinAfter] = await adminPool.query(
+      `SELECT * FROM ${quote("checkins")} WHERE habit_id = $1 AND date = $2`, [habitId, yesterday],
+    ).then((result) => result.rows);
+    const [oldDayAfter] = await adminPool.query(
+      `SELECT * FROM ${quote("habit_days")} WHERE habit_id = $1 AND date = $2`, [habitId, yesterday],
+    ).then((result) => result.rows);
+    assert.deepEqual(oldCheckinAfter, oldCheckinBefore);
+    assert.deepEqual(oldDayAfter, oldDayBefore);
+    const allDays = await adminPool.query(
+      `SELECT * FROM ${quote("habit_days")} WHERE habit_id = $1 ORDER BY date`, [habitId],
+    ).then((result) => result.rows);
+    assert.equal(allDays.length, 23, "preserved history plus exactly 22 journey calendar nodes");
+    const [reward] = await adminPool.query(
+      `SELECT journey_required, journey_unlocked_at FROM ${quote("rewards")} WHERE id = $1`, [rewardId],
+    ).then((result) => result.rows);
+    assert.equal(reward.journey_required, true);
+    assert.equal(reward.journey_unlocked_at, null);
+    const [user] = await rows("users");
+    assert.equal(user.xp, 17);
+    assert.equal(user.coins, 42);
+    assert.equal((await rows("coin_transactions")).length, 0);
+  } finally {
+    await api.close();
+  }
+});
+
+test("starting a legacy journey is owner-checked and parallel retries create only one calendar plan", async () => {
+  await reset();
+  const userId = await seedUser();
+  const otherUserId = await seedUser({ id: "journey-start-other-user" });
+  const habitId = await seedHabit({ userId });
+  const untouchedHabitId = await seedHabit({ userId });
+  await seedDailyJourney(untouchedHabitId, addDays(dailyToday, -5));
+  const api = await startJourneyApi(userId);
+  const otherApi = await startJourneyApi(otherUserId);
+  try {
+    assert.equal((await otherApi.request(`/habits/${habitId}/journey`, "POST")).status, 404);
+    const [notStarted] = await adminPool.query(
+      `SELECT journey_start_date FROM ${quote("habits")} WHERE id = $1`, [habitId],
+    ).then((result) => result.rows);
+    assert.equal(notStarted.journey_start_date, null);
+
+    const [first, retry] = await Promise.all([
+      api.request(`/habits/${habitId}/journey`, "POST"),
+      api.request(`/habits/${habitId}/journey`, "POST"),
+    ]);
+    assert.equal(first.status, 200);
+    assert.equal(retry.status, 200);
+    const [journey, retryJourney] = await Promise.all([first.json(), retry.json()]);
+    assert.deepEqual(retryJourney, journey, "idempotent retries return the same enriched journey");
+    assert.equal(journey.startDate.slice(0, 10), dailyToday);
+    assert.equal(journey.currentDay, 1);
+    assert.equal(journey.days.length, 22);
+    assert.equal(journey.days[0].dayNumber, 1);
+    const [journeyRows, revisions, untouched] = await Promise.all([
+      adminPool.query(`SELECT * FROM ${quote("habit_days")} WHERE habit_id = $1`, [habitId]),
+      adminPool.query(`SELECT * FROM ${quote("habit_plan_revisions")} WHERE habit_id = $1`, [habitId]),
+      adminPool.query(`SELECT journey_start_date FROM ${quote("habits")} WHERE id = $1`, [untouchedHabitId]),
+    ]);
+    assert.equal(journeyRows.rows.length, 22);
+    assert.equal(revisions.rows.length, 1);
+    assert.equal(
+      untouched.rows[0].journey_start_date.toISOString().slice(0, 10),
+      addDays(dailyToday, -5),
+    );
+    const [user] = await rows("users");
+    assert.equal(user.xp, 0);
+    assert.equal(user.coins, 0);
+    assert.equal((await rows("coin_transactions")).length, 0);
+  } finally {
+    await Promise.all([api.close(), otherApi.close()]);
+  }
+});
+
+test("reverse-linked reward creation requires the associated journey before redemption", async () => {
+  await reset();
+  const userId = await seedUser({ coins: 100 });
+  const habitId = await seedHabit({ userId });
+  await seedDailyJourney(habitId, dailyToday);
+  const api = await startJourneyApi(userId);
+  try {
+    const response = await api.request("/rewards", "POST", {
+      habitId,
+      title: "Reverse-linked reward",
+      emoji: "🎁",
+      coinCost: 20,
+    });
+    assert.equal(response.status, 201);
+    const created = await response.json();
+    const [reward] = await adminPool.query(
+      `SELECT habit_id, journey_required, journey_unlocked_at FROM ${quote("rewards")} WHERE id = $1`,
+      [created.id],
+    ).then((result) => result.rows);
+    assert.equal(reward.habit_id, habitId);
+    assert.equal(reward.journey_required, true);
+    assert.equal(reward.journey_unlocked_at, null);
+
+    const preview = await api.request(`/habits/${habitId}/journey`);
+    assert.equal(preview.status, 200);
+    const journey = await preview.json();
+    assert.equal(journey.selectedReward.id, created.id,
+      "reverse-linked historical reward remains visible when there is no forward selection");
+    assert.equal(journey.rewardUnlocked, false);
+    assert.equal((await api.request(`/rewards/${created.id}/redeem`, "POST")).status, 400);
+    const [user] = await rows("users");
+    assert.equal(user.coins, 100);
+    assert.equal((await rows("coin_transactions")).length, 0);
+  } finally {
+    await api.close();
+  }
+});
+
+test("reverse-linked reward gate is established when a legacy journey starts and survives habit deletion", async () => {
+  await reset();
+  const userId = await seedUser({ coins: 100 });
+  const habitId = await seedHabit({ userId });
+  const rewardId = await seedReward({ userId, habitId, coinCost: 20 });
+  const api = await startJourneyApi(userId);
+  try {
+    const started = await api.request(`/habits/${habitId}/journey`, "POST");
+    assert.equal(started.status, 200);
+    const [afterStart] = await adminPool.query(
+      `SELECT journey_required, journey_unlocked_at FROM ${quote("rewards")} WHERE id = $1`,
+      [rewardId],
+    ).then((result) => result.rows);
+    assert.equal(afterStart.journey_required, true);
+    assert.equal(afterStart.journey_unlocked_at, null);
+
+    assert.equal((await api.request(`/habits/${habitId}`, "DELETE")).status, 204);
+    const [afterDelete] = await adminPool.query(
+      `SELECT habit_id, journey_required, journey_unlocked_at FROM ${quote("rewards")} WHERE id = $1`,
+      [rewardId],
+    ).then((result) => result.rows);
+    assert.equal(afterDelete.habit_id, null, "the reverse FK is nulled after preserving its gate");
+    assert.equal(afterDelete.journey_required, true);
+    assert.equal(afterDelete.journey_unlocked_at, null);
+    assert.equal((await api.request(`/rewards/${rewardId}/redeem`, "POST")).status, 400);
+    const [user] = await rows("users");
+    assert.equal(user.coins, 100);
+  } finally {
+    await api.close();
+  }
+});
+
+test("reverse-linked completed journeys unlock shared rewards while forward selection stays preview priority", async () => {
+  await reset();
+  const userId = await seedUser({ coins: 100 });
+  const qualifyingReverseHabitId = await seedHabit({ userId });
+  const reverseLinkedHabitId = await seedHabit({ userId });
+  const previewHabitId = await seedHabit({ userId });
+  const forwardPreviewRewardId = await seedReward({ userId, coinCost: 10 });
+  const reversePreviewRewardId = await seedReward({ userId, habitId: previewHabitId, coinCost: 10 });
+  const sharedRewardId = await seedReward({
+    userId,
+    habitId: qualifyingReverseHabitId,
+    coinCost: 20,
+  });
+  await seedDailyJourney(qualifyingReverseHabitId, addDays(dailyToday, -21));
+  await seedCheckin({
+    habitId: qualifyingReverseHabitId,
+    userId,
+    date: dailyToday,
+    completed: true,
+    value: 5,
+  });
+  await seedDailyJourney(reverseLinkedHabitId, dailyToday);
+  await seedDailyJourney(previewHabitId, dailyToday);
+  await adminPool.query(
+    `UPDATE ${quote("habits")} SET reward_id = $2 WHERE id = $1`,
+    [qualifyingReverseHabitId, sharedRewardId],
+  );
+  await adminPool.query(
+    `UPDATE ${quote("habits")} SET reward_id = $2 WHERE id = $1`,
+    [reverseLinkedHabitId, sharedRewardId],
+  );
+  await adminPool.query(
+    `UPDATE ${quote("habits")} SET reward_id = $2 WHERE id = $1`,
+    [previewHabitId, forwardPreviewRewardId],
+  );
+  const api = await startJourneyApi(userId);
+  try {
+    const previewResponse = await api.request(`/habits/${previewHabitId}/journey`);
+    assert.equal(previewResponse.status, 200);
+    const preview = await previewResponse.json();
+    assert.equal(preview.selectedReward.id, forwardPreviewRewardId,
+      "the explicit forward selection retains preview priority over reverse-only associations");
+    assert.notEqual(preview.selectedReward.id, reversePreviewRewardId);
+
+    const sharedJourneyResponse = await api.request(`/habits/${reverseLinkedHabitId}/journey`);
+    assert.equal(sharedJourneyResponse.status, 200);
+    const sharedJourney = await sharedJourneyResponse.json();
+    assert.equal(sharedJourney.selectedReward.id, sharedRewardId);
+    assert.equal(sharedJourney.rewardUnlocked, true,
+      "an associated completed reverse-linked journey unlocks the shared reward");
+    const qualifyingJourneyResponse = await api.request(`/habits/${qualifyingReverseHabitId}/journey`);
+    assert.equal(qualifyingJourneyResponse.status, 200);
+    const qualifyingJourney = await qualifyingJourneyResponse.json();
+    assert.equal(qualifyingJourney.selectedReward.id, sharedRewardId,
+      "reverse-only associations remain visible when no forward reward is chosen");
+    assert.equal(qualifyingJourney.finalEligibility.eligible, true);
+    assert.equal(qualifyingJourney.rewardUnlocked, true);
+    const [sharedReward] = await adminPool.query(
+      `SELECT journey_required, journey_unlocked_at FROM ${quote("rewards")} WHERE id = $1`,
+      [sharedRewardId],
+    ).then((result) => result.rows);
+    assert.equal(sharedReward.journey_required, true);
+    assert.ok(sharedReward.journey_unlocked_at instanceof Date);
+    assert.equal((await api.request(`/rewards/${sharedRewardId}/redeem`, "POST")).status, 200,
+      "a qualifying forward-linked alternate unlocks the shared reverse-linked reward");
+    const [user] = await rows("users");
+    assert.equal(user.coins, 80);
+  } finally {
+    await api.close();
+  }
+});
+
+test("cross-owner reverse associations cannot establish or bypass another owner's reward gate", async () => {
+  await reset();
+  const rewardOwner = await seedUser({ id: "reverse-reward-owner", coins: 100 });
+  const habitOwner = await seedUser({ id: "reverse-habit-owner", coins: 100 });
+  const foreignHabitId = await seedHabit({ userId: habitOwner });
+  const rewardId = await seedReward({ userId: rewardOwner, habitId: foreignHabitId, coinCost: 20 });
+  await seedDailyJourney(foreignHabitId, dailyToday);
+  const ownerApi = await startJourneyApi(rewardOwner);
+  const habitApi = await startJourneyApi(habitOwner);
+  try {
+    const invalidCreate = await ownerApi.request("/rewards", "POST", {
+      habitId: foreignHabitId,
+      title: "Cross-owner reverse reward",
+      emoji: "🎁",
+      coinCost: 5,
+    });
+    assert.equal(invalidCreate.status, 404);
+
+    const journeyResponse = await habitApi.request(`/habits/${foreignHabitId}/journey`);
+    assert.equal(journeyResponse.status, 200);
+    const [reward] = await adminPool.query(
+      `SELECT journey_required, journey_unlocked_at FROM ${quote("rewards")} WHERE id = $1`,
+      [rewardId],
+    ).then((result) => result.rows);
+    assert.equal(reward.journey_required, false,
+      "another owner's reverse-linked reward is not associated with this habit");
+    assert.equal(reward.journey_unlocked_at, null);
+    assert.equal((await habitApi.request(`/rewards/${rewardId}/redeem`, "POST")).status, 404);
+    assert.equal((await ownerApi.request(`/rewards/${rewardId}/redeem`, "POST")).status, 200,
+      "the reward owner retains legacy redemption behavior for an invalid cross-owner association");
+    const users = await rows("users");
+    assert.equal(users.find((user) => user.id === rewardOwner).coins, 80);
+    assert.equal(users.find((user) => user.id === habitOwner).coins, 100);
+  } finally {
+    await Promise.all([ownerApi.close(), habitApi.close()]);
+  }
+});
+
+test("today is counted missed only with explicit missed execution evidence", async () => {
+  await reset();
+  const userId = await seedUser();
+  const habitId = await seedHabit({ userId });
+  await seedDailyJourney(habitId, dailyToday);
+  const api = await startJourneyApi(userId);
+  try {
+    const pendingResponse = await api.request(`/habits/${habitId}/journey`);
+    const pending = await pendingResponse.json();
+    assert.equal(pending.consistency.eligibleDays, 1);
+    assert.equal(pending.missedDays, 0);
+
+    await service.recordCheckin(userId, habitId, {
+      date: new Date(`${dailyToday}T00:00:00.000Z`),
+      completed: false,
+      missedReason: "no_time",
+    });
+    const missedResponse = await api.request(`/habits/${habitId}/journey`);
+    const missed = await missedResponse.json();
+    assert.equal(missed.consistency.eligibleDays, 1);
+    assert.equal(missed.missedDays, 1);
+    assert.equal(missed.days[0].status, "missed");
+    assert.equal(missed.days[0].actualValue, null);
+    assert.equal(missed.days[0].missedReason, "no_time");
+  } finally {
+    await api.close();
+  }
+});
+
+test("historical unknown XP stays nullable/partial and never backfills from difficulty or wallet", async () => {
+  await reset();
+  const userId = await seedUser({ xp: 17, coins: 23 });
+  const habitId = await seedHabit({ userId });
+  const startDate = addDays(dailyToday, -21);
+  await seedDailyJourney(habitId, startDate);
+  await seedCheckin({
+    habitId,
+    userId,
+    date: addDays(startDate, 2),
+    completed: true,
+    difficulty: "hard",
+  });
+  const api = await startJourneyApi(userId);
+  try {
+    const response = await api.request(`/habits/${habitId}/journey`);
+    assert.equal(response.status, 200);
+    const journey = await response.json();
+    assert.deepEqual(journey.earnings, {
+      xp: 0,
+      coins: 0,
+      xpComplete: false,
+      unknownCheckins: 1,
+      coinHistoryMayBeIncomplete: true,
+    });
+    const [user] = await rows("users");
+    assert.equal(user.xp, 17);
+    assert.equal(user.coins, 23);
+    assert.equal((await rows("coin_transactions")).length, 0);
+  } finally {
+    await api.close();
+  }
+});
+
+test("elapsed incomplete journey expires and selected reward remains locked; another owner cannot link a habit", async () => {
+  await reset();
+  const userId = await seedUser({ coins: 100 });
+  const otherUser = await seedUser({ id: "journey-owner-2", coins: 100 });
+  const habitId = await seedHabit({ userId });
+  const otherHabit = await seedHabit({ userId: otherUser });
+  const rewardId = await seedReward({ userId, coinCost: 15 });
+  await adminPool.query(`UPDATE ${quote("habits")} SET reward_id = $2 WHERE id = $1`, [habitId, rewardId]);
+  await seedDailyJourney(habitId, addDays(dailyToday, -22));
+
+  const api = await startJourneyApi(userId);
+  try {
+    const response = await api.request(`/habits/${habitId}/journey`);
+    assert.equal(response.status, 200);
+    const journey = await response.json();
+    assert.equal(journey.status, "expired");
+    assert.equal(journey.rewardUnlocked, false);
+    assert.equal(journey.finalEligibility.eligible, false);
+    assert.equal((await api.request(`/rewards/${rewardId}/redeem`, "POST")).status, 400);
+
+    const wrongHabitLink = await api.request("/rewards", "POST", {
+      habitId: otherHabit, title: "Cross-owner link", emoji: "🎁", coinCost: 5,
+    });
+    assert.equal(wrongHabitLink.status, 404);
+    const [owner] = await rows("users");
+    assert.equal(owner.coins, 100, "expired reward gate does not spend coins");
+    assert.equal((await rows("coin_transactions")).length, 0);
+    assert.ok(otherHabit > 0);
+  } finally {
+    await api.close();
+  }
+});
+
+test("historical journey check-ins cannot create or alter completion/actuals but allow reflection-only retries", async () => {
+  await reset();
+  const userId = await seedUser();
+  const habitId = await seedHabit({ userId });
+  const startDate = addDays(dailyToday, -21);
+  await seedDailyJourney(habitId, startDate);
+  const historicalDate = addDays(startDate, 5);
+  await seedCheckin({
+    habitId,
+    userId,
+    date: historicalDate,
+    completed: false,
+    value: 1,
+  });
+
+  await assert.rejects(
+    service.recordCheckin(userId, habitId, {
+      ...input(historicalDate, 5),
+      completed: true,
+    }),
+    /Past journey check-ins cannot be created or change completion\/actual values/,
+  );
+  await assert.rejects(
+    service.recordCheckin(userId, habitId, {
+      date: new Date(`${addDays(startDate, 6)}T00:00:00.000Z`),
+      completed: true,
+      value: 5,
+    }),
+    /Past journey check-ins cannot be created or change completion\/actual values/,
+  );
+
+  const retry = await service.recordCheckin(userId, habitId, {
+    ...input(historicalDate, 1),
+    completed: false,
+  });
+  assert.equal(retry.completed, false);
+  const reflection = await service.recordCheckin(userId, habitId, {
+    date: new Date(`${historicalDate}T00:00:00.000Z`),
+    note: "Reflection only",
+    moodRating: 4,
+    difficulty: "hard",
+  });
+  assert.equal(reflection.completed, false);
+  const [checkin] = await rows("checkins");
+  assert.equal(checkin.value, 1);
+  assert.equal(checkin.completed, false);
+  assert.equal(checkin.note, "Reflection only");
+  assert.equal(checkin.mood_rating, 4);
+  assert.equal(checkin.difficulty, "hard");
+  assert.equal(checkin.xp_earned, null);
+  const [user] = await rows("users");
+  assert.equal(user.xp, 0);
+  assert.equal(user.coins, 0);
+  assert.equal((await rows("coin_transactions")).length, 0);
+});
+
+test("journey reward gate survives unlink, reassignment, and habit deletion; another finished selection can unlock it", async () => {
+  await reset();
+  const userId = await seedUser({ coins: 100 });
+  const unfinishedHabitId = await seedHabit({ userId });
+  const firstRewardId = await seedReward({ userId, coinCost: 15 });
+  const secondRewardId = await seedReward({ userId, coinCost: 15 });
+  await adminPool.query(
+    `UPDATE ${quote("habits")} SET reward_id = $2 WHERE id = $1`,
+    [unfinishedHabitId, firstRewardId],
+  );
+  await seedDailyJourney(unfinishedHabitId, dailyToday);
+
+  const api = await startJourneyApi(userId);
+  try {
+    const unlink = await api.request(`/habits/${unfinishedHabitId}`, "PATCH", { rewardId: null });
+    assert.equal(unlink.status, 200);
+    let rewards = await rows("rewards");
+    assert.equal(rewards[0].journey_required, true);
+    assert.equal(rewards[0].journey_unlocked_at, null);
+    assert.equal((await api.request(`/rewards/${firstRewardId}/redeem`, "POST")).status, 400);
+
+    const reattach = await api.request(`/habits/${unfinishedHabitId}`, "PATCH", {
+      rewardId: firstRewardId,
+    });
+    assert.equal(reattach.status, 200);
+    const change = await api.request(`/habits/${unfinishedHabitId}`, "PATCH", {
+      rewardId: secondRewardId,
+    });
+    assert.equal(change.status, 200);
+    const removeHabit = await api.request(`/habits/${unfinishedHabitId}`, "DELETE");
+    assert.equal(removeHabit.status, 204);
+    rewards = await rows("rewards");
+    assert.equal(rewards[0].journey_required, true);
+    assert.equal(rewards[0].journey_unlocked_at, null);
+    assert.equal(rewards[1].journey_required, true);
+    assert.equal(rewards[1].journey_unlocked_at, null);
+    assert.equal((await api.request(`/rewards/${firstRewardId}/redeem`, "POST")).status, 400);
+    assert.equal((await api.request(`/rewards/${secondRewardId}/redeem`, "POST")).status, 400);
+
+    const qualifyingHabitId = await seedHabit({ userId });
+    await adminPool.query(
+      `UPDATE ${quote("habits")} SET reward_id = $2 WHERE id = $1`,
+      [qualifyingHabitId, firstRewardId],
+    );
+    const startDate = addDays(dailyToday, -21);
+    await seedDailyJourney(qualifyingHabitId, startDate);
+    const registerSelection = await api.request(`/habits/${qualifyingHabitId}`, "PATCH", {
+      rewardId: firstRewardId,
+    });
+    assert.equal(registerSelection.status, 200);
+    await service.recordCheckin(userId, qualifyingHabitId, {
+      date: new Date(`${dailyToday}T00:00:00.000Z`),
+      completed: true,
+      value: 5,
+    });
+    const journeyResponse = await api.request(`/habits/${qualifyingHabitId}/journey`);
+    assert.equal(journeyResponse.status, 200);
+    const journey = await journeyResponse.json();
+    assert.equal(journey.finalEligibility.eligible, true);
+    rewards = await rows("rewards");
+    assert.ok(rewards[0].journey_unlocked_at instanceof Date);
+    assert.equal(rewards[1].journey_unlocked_at, null);
+
+    const unlockViaOtherJourney = await api.request(`/rewards/${firstRewardId}/redeem`, "POST");
+    assert.equal(unlockViaOtherJourney.status, 200);
+    assert.equal((await api.request(`/rewards/${secondRewardId}/redeem`, "POST")).status, 400,
+      "deleting an incomplete selected journey does not unlock its own reward");
+  } finally {
+    await api.close();
+  }
+});
+
+test("journey reward migration backfills only owner-matched, unredeemed defined selections and is repeatable", async () => {
+  await reset();
+  const userId = await seedUser();
+  const otherUser = await seedUser({ id: "journey-migration-other" });
+  const definedHabitId = await seedHabit({ userId });
+  const legacyHabitId = await seedHabit({ userId });
+  const foreignRewardHabitId = await seedHabit({ userId: otherUser });
+  const forwardOwnerMismatchHabitId = await seedHabit({ userId });
+  const definedRewardId = await seedReward({ userId });
+  const reverseDefinedRewardId = await seedReward({ userId, habitId: definedHabitId });
+  const redeemedRewardId = await seedReward({ userId });
+  const foreignReverseRewardId = await seedReward({ userId, habitId: foreignRewardHabitId });
+  const foreignForwardRewardId = await seedReward({ userId: otherUser });
+  await seedDailyJourney(definedHabitId, dailyToday);
+  await adminPool.query(
+    `UPDATE ${quote("habits")} SET reward_id = $2 WHERE id = $1`,
+    [definedHabitId, definedRewardId],
+  );
+  await adminPool.query(
+    `UPDATE ${quote("habits")} SET reward_id = $2 WHERE id = $1`,
+    [legacyHabitId, redeemedRewardId],
+  );
+  await adminPool.query(
+    `UPDATE ${quote("habits")} SET reward_id = $2 WHERE id = $1`,
+    [forwardOwnerMismatchHabitId, foreignForwardRewardId],
+  );
+  await seedDailyJourney(foreignRewardHabitId, dailyToday);
+  await seedDailyJourney(forwardOwnerMismatchHabitId, dailyToday);
+  await adminPool.query(`UPDATE ${quote("rewards")} SET is_redeemed = true WHERE id = $1`, [redeemedRewardId]);
+  const backfill = `UPDATE ${quote("rewards")} r
+    SET journey_required = true
+    FROM ${quote("habits")} h
+    WHERE (h.reward_id = r.id OR r.habit_id = h.id) AND h.user_id = r.user_id
+      AND h.journey_start_date IS NOT NULL AND h.journey_length = 22
+      AND r.is_redeemed = false AND r.journey_required = false`;
+  await adminPool.query(backfill);
+  await adminPool.query(backfill);
+  const rewardRows = await rows("rewards");
+  assert.equal(rewardRows[0].journey_required, true);
+  assert.equal(rewardRows[0].journey_unlocked_at, null);
+  assert.equal(rewardRows[1].journey_required, true, "reverse-only owner-matched associations are backfilled");
+  assert.equal(rewardRows[2].journey_required, false, "already redeemed rewards stay unchanged");
+  assert.equal(rewardRows[3].journey_required, false, "cross-owner reverse associations do not backfill");
+  assert.equal(rewardRows[4].journey_required, false, "cross-owner forward associations do not backfill");
+  assert.ok(legacyHabitId > 0);
+});
+
+test("real check-ins override stale execution status; elapsed execution-only activity is missed with unknown actuals null", async () => {
+  await reset();
+  const userId = await seedUser();
+  const habitId = await seedHabit({ userId });
+  const startDate = addDays(dailyToday, -21);
+  await seedDailyJourney(habitId, startDate);
+  const elapsedExecutionStatuses = [
+    "in_progress", "paused", "minimum_reached", "target_reached", "pending_reflection", "completed",
+  ];
+  for (let index = 0; index < elapsedExecutionStatuses.length; index++) {
+    await seedExecution({
+      habitId,
+      date: addDays(startDate, index + 1),
+      dayNumber: index + 2,
+      status: elapsedExecutionStatuses[index],
+      actualSeconds: 300,
+    });
+  }
+  await seedExecution({
+    habitId,
+    date: dailyToday,
+    dayNumber: 22,
+    status: "completed",
+    actualSeconds: 900,
+  });
+  const api = await startJourneyApi(userId);
+  try {
+    const firstResponse = await api.request(`/habits/${habitId}/journey`);
+    assert.equal(firstResponse.status, 200);
+    const first = await firstResponse.json();
+    for (let index = 0; index < elapsedExecutionStatuses.length; index++) {
+      const day = first.days.find((item) => item.date.slice(0, 10) === addDays(startDate, index + 1));
+      assert.equal(day.status, "missed", `${elapsedExecutionStatuses[index]} cannot imply elapsed success`);
+      assert.equal(day.actualValue, null);
+    }
+    assert.equal(first.days.at(-1).status, "pending",
+      "an execution marked completed without a real check-in is not a success");
+    assert.equal(first.days.at(-1).actualValue, null);
+    assert.equal(first.missedDays, 21, "timer/execution state alone does not make today missed or successful");
+
+    await adminPool.query(
+      `UPDATE ${quote("habit_daily_executions")}
+       SET status = 'missed', missed_reason = 'no_time'
+       WHERE habit_id = $1 AND date = $2`,
+      [habitId, dailyToday],
+    );
+    const missedResponse = await api.request(`/habits/${habitId}/journey`);
+    const missed = await missedResponse.json();
+    assert.equal(missed.days.at(-1).status, "missed", "explicit missed execution today remains missed");
+    assert.equal(missed.missedDays, 22);
+
+    await service.recordCheckin(userId, habitId, {
+      date: new Date(`${dailyToday}T00:00:00.000Z`),
+      completed: true,
+      value: 5,
+    });
+    const successfulResponse = await api.request(`/habits/${habitId}/journey`);
+    const successful = await successfulResponse.json();
+    assert.equal(successful.days.at(-1).status, "completed",
+      "a real successful check-in takes precedence over stale missed execution state");
+    assert.equal(successful.days.at(-1).actualValue, 5);
+    assert.equal(successful.missedDays, 21);
+  } finally {
+    await api.close();
+  }
 });

@@ -31,6 +31,7 @@ const table = `export const habitsTable = Object.fromEntries(
    "minimumFloor", "baselineValue", "busyDayValue", "journeyStartDate", "journeyLength",
    "cueType", "cueTime", "cue", "startAction", "friction", "title", "rewardId"]
     .map(key => [key, key]));
+export const usersTable = Object.fromEntries(["id", "timezone"].map(key => [key, key]));
 export const checkinsTable = Object.fromEntries(["id", "habitId", "date"].map(key => [key, key]));
 export const timeEntriesTable = Object.fromEntries(
   ["date", "durationMinutes", "userId", "category"].map(key => [key, key]));

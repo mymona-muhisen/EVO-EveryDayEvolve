@@ -55,6 +55,7 @@ export const checkinsTable = pgTable(
     // instead have coinsEarned > 0; never backfill/regrant those rewards.
     rewardGranted: boolean("reward_granted").notNull().default(false),
     coinsEarned: integer("coins_earned").notNull().default(0),
+    xpEarned: integer("xp_earned"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

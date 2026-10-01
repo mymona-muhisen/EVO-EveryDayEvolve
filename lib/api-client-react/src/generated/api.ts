@@ -851,6 +851,81 @@ export function useGetHabitJourney<TData = Awaited<ReturnType<typeof getHabitJou
 
 
 
+export const getStartHabitJourneyUrl = (habitId: number,) => {
+
+
+
+
+  return `/api/habits/${habitId}/journey`
+}
+
+/**
+ * Starts at today in the owner's timezone using the habit's stored plan and cadence. The operation is idempotent: an existing journey is returned unchanged. The server owns all dates and plan snapshots; no check-in rewards or journey unlocks are granted.
+ * @summary Start an existing legacy habit's 22-calendar-day journey
+ */
+export const startHabitJourney = async (habitId: number, options?: Parameters<typeof customFetch>[1]): Promise<HabitJourney> => {
+
+  return customFetch<HabitJourney>(getStartHabitJourneyUrl(habitId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getStartHabitJourneyMutationKey = () => ['startHabitJourney'] as const;
+
+export const getStartHabitJourneyMutationOptions = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof startHabitJourney>>, TError,StartHabitJourneyMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof startHabitJourney>>, TError,StartHabitJourneyMutationVariables, TContext> => {
+
+const mutationKey = getStartHabitJourneyMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof startHabitJourney>>, StartHabitJourneyMutationVariables> = (props) => {
+          const {habitId} = props ?? {};
+
+          return  startHabitJourney(habitId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type StartHabitJourneyMutationResult = NonNullable<Awaited<ReturnType<typeof startHabitJourney>>>
+
+    export type StartHabitJourneyMutationError = ErrorType<Error>
+    export type StartHabitJourneyMutationVariables = {habitId: number}
+
+    /**
+ * @summary Start an existing legacy habit's 22-calendar-day journey
+ */
+export const useStartHabitJourney = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof startHabitJourney>>, TError,StartHabitJourneyMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof startHabitJourney>>,
+        TError,
+        StartHabitJourneyMutationVariables,
+        TContext
+      > => {
+      return useMutation(getStartHabitJourneyMutationOptions(options));
+    }
+
 export const getGetDailyHabitDayUrl = (habitId: number,
     date: string,) => {
 

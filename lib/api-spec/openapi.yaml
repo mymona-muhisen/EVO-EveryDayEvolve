@@ -204,6 +204,35 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
+    post:
+      operationId: startHabitJourney
+      tags: [habits]
+      summary: Start an existing legacy habit's 22-calendar-day journey
+      description: >
+        Starts at today in the owner's timezone using the habit's stored plan and cadence.
+        The operation is idempotent: an existing journey is returned unchanged. The server
+        owns all dates and plan snapshots; no check-in rewards or journey unlocks are granted.
+      parameters:
+        - name: habitId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Started journey or the existing journey, unchanged
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/HabitJourney" }
+        "400":
+          description: The existing journey definition is incomplete or invalid
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
 
   /habits/{habitId}/daily/{date}:
     get:
@@ -1429,7 +1458,7 @@ components:
 
     Checkin:
       type: object
-      required: [id, habitId, date, completed, value, note, moodRating, difficulty, missedReason, targetSnapshot, minimumSnapshot, successLimitSnapshot, goalTypeSnapshot, targetCompleted, coinsEarned, createdAt]
+      required: [id, habitId, date, completed, value, note, moodRating, difficulty, missedReason, targetSnapshot, minimumSnapshot, successLimitSnapshot, goalTypeSnapshot, targetCompleted, coinsEarned, xpEarned, createdAt]
       properties:
         id: { type: integer }
         habitId: { type: integer }
@@ -1446,6 +1475,7 @@ components:
         goalTypeSnapshot: { type: ["string", "null"], enum: [build, quit, null] }
         targetCompleted: { type: boolean }
         coinsEarned: { type: integer }
+        xpEarned: { type: ["integer", "null"], description: Exact XP persisted atomically with newly granted check-in rewards; null means historical earnings are unknown }
         createdAt: { type: string, format: date-time }
     CheckinInput:
       type: object
@@ -1542,7 +1572,7 @@ components:
         source: { type: string, enum: [ai, deterministic] }
     HabitJourney:
       type: object
-      required: [habitId, startDate, length, total, completed, successful, currentDay, days]
+      required: [habitId, startDate, length, total, completed, successful, currentDay, today, timezone, status, completedAt, consistency, missedDays, restDays, selectedReward, rewardUnlocked, finalEligibility, earnings, days]
       properties:
         habitId: { type: integer }
         startDate: { type: ["string", "null"], format: date }
@@ -1551,12 +1581,57 @@ components:
         completed: { type: integer }
         successful: { type: integer }
         currentDay: { type: integer }
+        today: { type: string, format: date, description: Authoritative local calendar date in the user's saved timezone }
+        timezone: { type: string, description: Authoritative IANA timezone used to resolve today }
+        status: { type: string, enum: [not_started, active, completed, expired] }
+        completedAt: { type: ["string", "null"], format: date-time, description: Set once when final eligibility is met; never an XP or coin award }
+        consistency:
+          type: object
+          required: [successfulDays, eligibleDays]
+          properties:
+            successfulDays: { type: integer, description: Real successful check-ins on elapsed scheduled dates only }
+            eligibleDays: { type: integer, description: Elapsed scheduled dates only; rest and future dates are excluded }
+        missedDays: { type: integer, description: Elapsed scheduled dates without a successful check-in }
+        restDays: { type: integer, description: Rest dates in the fixed calendar snapshot }
+        selectedReward:
+          oneOf:
+            - $ref: "#/components/schemas/HabitJourneyReward"
+            - type: "null"
+        rewardUnlocked: { type: boolean, description: Server-computed unlock state; selected rewards require a valid completed 22-day journey }
+        finalEligibility:
+          type: object
+          required: [eligible, calendarDayRequired, finalScheduledDate, finalDateSuccessful, unmetReason]
+          properties:
+            eligible: { type: boolean }
+            calendarDayRequired: { type: integer, enum: [22] }
+            finalScheduledDate: { type: ["string", "null"], format: date, description: Last scheduled date in the immutable 22-calendar-day snapshot; it can precede day 22 when the final date is a rest day }
+            finalDateSuccessful: { type: boolean, description: True only when the final scheduled date has a real successful check-in }
+            unmetReason: { type: ["string", "null"], enum: [journey_not_started, calendar_days_remaining, final_scheduled_day_not_successful, no_scheduled_days, null] }
+        earnings:
+          type: object
+          required: [xp, coins, xpComplete, unknownCheckins, coinHistoryMayBeIncomplete]
+          properties:
+            xp: { type: integer, description: Sum of persisted exact journey-attributed XP; unknown historical XP contributes zero and is signaled by xpComplete=false }
+            coins: { type: integer, description: Sum of persisted check-in coin earnings; not inferred from wallet balances, but legacy zero entries may be ambiguous }
+            xpComplete: { type: boolean, description: False when any successful historical check-in has unknown XP; historical XP is never estimated }
+            unknownCheckins: { type: integer, description: Successful check-ins whose historical XP payout is unknown }
+            coinHistoryMayBeIncomplete: { type: boolean, description: True when successful historical check-ins have no recorded coin amount or reward-granted evidence }
         days:
           type: array
           items: { $ref: "#/components/schemas/HabitDay" }
+    HabitJourneyReward:
+      type: object
+      required: [id, title, emoji, coinCost, isRedeemed, redeemedAt]
+      properties:
+        id: { type: integer }
+        title: { type: string }
+        emoji: { type: string }
+        coinCost: { type: integer }
+        isRedeemed: { type: boolean }
+        redeemedAt: { type: ["string", "null"], format: date-time }
     HabitDay:
       type: object
-      required: [date, dayNumber, scheduled, targetValue, minimumValue, busyDayValue, successLimitValue, goalType, checkin]
+      required: [date, dayNumber, scheduled, targetValue, minimumValue, busyDayValue, successLimitValue, goalType, checkin, status, actualValue, actualSeconds, difficulty, missedReason, recoveryEnabled, recoveryUsed, recoveryLimit, recoveryStatus]
       properties:
         date: { type: string, format: date }
         dayNumber: { type: integer }
@@ -1573,6 +1648,15 @@ components:
         cueTime: { type: ["string", "null"] }
         cue: { type: ["string", "null"] }
         startAction: { type: ["string", "null"] }
+        status: { type: string, enum: [rest, future, pending, in_progress, paused, minimum_reached, target_reached, pending_reflection, completed, missed, recovery_available, recovery_active, recovered] }
+        actualValue: { type: ["number", "null"], description: Self-reported or execution-recorded plan-unit quantity; timer duration alone is not activity proof }
+        actualSeconds: { type: ["integer", "null"], description: Server-accounted active timer seconds, not independent proof of completed activity }
+        difficulty: { type: ["string", "null"], enum: [easy, normal, hard, very_hard, null] }
+        missedReason: { type: ["string", "null"], enum: [too_difficult, no_time, forgot, lost_motivation, unexpected, other, null] }
+        recoveryEnabled: { type: boolean, description: Recovery Lite remains disabled }
+        recoveryUsed: { type: integer }
+        recoveryLimit: { type: integer }
+        recoveryStatus: { type: ["string", "null"], enum: [recovery_available, recovery_active, recovered, null] }
         checkin: { oneOf: [{ $ref: "#/components/schemas/Checkin" }, { type: "null" }] }
     CheckinResult:
       allOf:

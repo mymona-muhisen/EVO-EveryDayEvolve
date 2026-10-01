@@ -1,7 +1,7 @@
 import { and, eq, gt } from "drizzle-orm";
 import { db, checkinsTable, habitDaysTable } from "@workspace/db";
 import type { HabitPlanJson } from "@workspace/db";
-import { isScheduledDate } from "./habitJourney";
+import { isScheduledDate, journeyDayNumber } from "./habitJourney";
 
 type HabitTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
@@ -27,6 +27,7 @@ export async function reviseFutureUnrecordedDays(
     cue: string | null;
     startAction: string | null;
   },
+  journeyStartDate?: string | null,
 ): Promise<string[]> {
   const futureDays = await tx.select().from(habitDaysTable).where(and(
     eq(habitDaysTable.habitId, habitId),
@@ -52,7 +53,12 @@ export async function reviseFutureUnrecordedDays(
       cueTime: plan.cueTime,
       cue: plan.cue,
       startAction: plan.startAction,
-      scheduled: isScheduledDate(day.date, day.dayNumber, plan.cadence, plan.customDays),
+      scheduled: isScheduledDate(
+        day.date,
+        journeyStartDate == null ? day.dayNumber : journeyDayNumber(day.date, journeyStartDate),
+        plan.cadence,
+        plan.customDays,
+      ),
       planRevision: revision,
     }).where(eq(habitDaysTable.id, day.id));
     revised.push(day.date);

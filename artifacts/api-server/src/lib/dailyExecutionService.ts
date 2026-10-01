@@ -26,7 +26,9 @@ import {
 import type { z } from "zod";
 import { recordCheckinInTransaction, CheckinConflictError } from "./checkinService";
 import { effectiveMinimum } from "./aiRules";
-import { addCalendarDays, isScheduledDate, resolveExecutionType } from "./habitJourney";
+import {
+  addCalendarDays, isScheduledDate, isWithinJourneyWindow, journeyDayNumber, resolveExecutionType,
+} from "./habitJourney";
 import { todayInTimezone, toDateOnly } from "./dates";
 import {
   DailyExecutionTransitionError,
@@ -142,7 +144,7 @@ async function planForDate(
     const unit = day.unit ?? revisionPlan?.unit ?? habit.unit;
     return {
       title: day.title ?? revisionPlan?.title ?? habit.title,
-      dayNumber: day.dayNumber,
+      dayNumber: journeyDayNumber(date, start),
       scheduled: day.scheduled,
       planRevision: day.planRevision,
       targetValue: day.targetValue,
@@ -325,7 +327,10 @@ async function consistencyStats(
       date: habitDaysTable.date,
       scheduled: habitDaysTable.scheduled,
     }).from(habitDaysTable).where(eq(habitDaysTable.habitId, habit.id));
-    const elapsedScheduled = days.filter((day) => day.scheduled && day.date <= today);
+    const journeyDays = days.filter((day) => isWithinJourneyWindow(
+      day.date, habit.journeyStartDate!, habit.journeyLength!,
+    ));
+    const elapsedScheduled = journeyDays.filter((day) => day.scheduled && day.date <= today);
     return {
       eligibleDays: elapsedScheduled.length,
       successfulDays: elapsedScheduled.filter((day) => checkinsByDate.get(day.date)?.completed).length,
@@ -388,7 +393,9 @@ async function stateInTransaction(
   return GetDailyHabitDayResponse.parse({
     habitId: habit.id,
     date,
-    dayNumber: execution?.dayNumber ?? plan.dayNumber,
+    dayNumber: habit.journeyStartDate != null
+      ? journeyDayNumber(date, habit.journeyStartDate)
+      : execution?.dayNumber ?? plan.dayNumber,
     scheduled: execution?.scheduled ?? plan.scheduled,
     eligible: (execution?.scheduled ?? plan.scheduled) && date <= today,
     planRevision: execution?.planRevision ?? plan.planRevision,
@@ -815,10 +822,13 @@ export async function getDailyOverview(
     const item = await db.transaction(async (tx) => {
       const habit = await lockUserAndHabit(tx, userId, selectedHabit.id);
       if (habit.journeyStartDate && habit.journeyLength) {
-        const expiredDays = await tx.select().from(habitDaysTable).where(and(
+        const savedDays = await tx.select().from(habitDaysTable).where(and(
           eq(habitDaysTable.habitId, habit.id),
           eq(habitDaysTable.scheduled, true),
           lte(habitDaysTable.date, addCalendarDays(today, -1)),
+        ));
+        const expiredDays = savedDays.filter((day) => isWithinJourneyWindow(
+          day.date, habit.journeyStartDate!, habit.journeyLength!,
         ));
         for (const day of expiredDays) {
           const [revision] = await tx.select({ plan: habitPlanRevisionsTable.plan })
@@ -830,7 +840,7 @@ export async function getDailyOverview(
           const unit = day.unit ?? revisionPlan?.unit ?? habit.unit;
           const dayPlan: PlanSnapshot = {
             title: day.title ?? revisionPlan?.title ?? habit.title,
-            dayNumber: day.dayNumber,
+            dayNumber: journeyDayNumber(day.date, habit.journeyStartDate!),
             scheduled: day.scheduled,
             planRevision: day.planRevision,
             targetValue: day.targetValue,

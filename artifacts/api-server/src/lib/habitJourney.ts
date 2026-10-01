@@ -48,6 +48,16 @@ export function addCalendarDays(dateOnly: string, amount: number): string {
   return date.toISOString().slice(0, 10);
 }
 
+export function isWithinJourneyWindow(date: string, startDate: string, length = HABIT_JOURNEY_LENGTH): boolean {
+  return date >= startDate && date <= addCalendarDays(startDate, length - 1);
+}
+
+export function journeyDayNumber(date: string, startDate: string): number {
+  return Math.floor(
+    (Date.parse(`${date}T00:00:00.000Z`) - Date.parse(`${startDate}T00:00:00.000Z`)) / 86_400_000,
+  ) + 1;
+}
+
 export function makeJourneyDays(habitId: number, startDate: string, length: number, plan: DayPlan) {
   return Array.from({ length }, (_, index) => ({
     habitId,

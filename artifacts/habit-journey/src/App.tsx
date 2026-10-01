@@ -14,6 +14,8 @@ import { HomePage } from '@/pages/home';
 import { HabitsPage, HabitDetailPage } from '@/pages/habits';
 import { TimePage, MemoriesPage } from '@/pages/life';
 import { RewardsPage, JourneyPage } from '@/pages/rewards-journey';
+import { HabitJourneyPage } from '@/pages/habit-journey';
+import { HabitJourneyCompletePage } from '@/pages/habit-journey-complete';
 import { GroupsPage, GroupDetailPage } from '@/pages/groups';
 
 const clerkPubKey = publishableKeyFromHost(
@@ -106,6 +108,8 @@ function Routes(){
     <Route path="/onboarding">{()=><Protected onboarding>{user=><Onboarding user={user}/>}</Protected>}</Route>
     <Route path="/home">{()=><Protected>{user=><HomePage user={user}/>}</Protected>}</Route>
     <Route path="/habits">{()=><Protected>{()=><HabitsPage/>}</Protected>}</Route>
+    <Route path="/habits/:habitId/journey/complete">{()=><Protected>{()=><HabitJourneyCompletePage/>}</Protected>}</Route>
+    <Route path="/habits/:habitId/journey">{()=><Protected>{()=><HabitJourneyPage/>}</Protected>}</Route>
     <Route path="/habits/:habitId">{()=><Protected>{user=><HabitDetailPage user={user}/>}</Protected>}</Route>
     <Route path="/time">{()=><Protected>{user=><TimePage user={user}/>}</Protected>}</Route>
     <Route path="/memories">{()=><Protected>{()=><MemoriesPage/>}</Protected>}</Route>

@@ -1,4 +1,5 @@
 import { useGetHabitJourney, useListRewards, getGetHabitJourneyQueryKey, type Habit } from '@workspace/api-client-react';
+import { Link } from 'wouter';
 import { Gift } from 'lucide-react';
 
 export function JourneyLine({ habit, today }: { habit: Habit; today: string }) {
@@ -11,6 +12,7 @@ export function JourneyLine({ habit, today }: { habit: Habit; today: string }) {
   return <div className="min-w-0 text-sm space-y-1.5" data-testid={`journey-line-${habit.id}`}>
     <div className="flex flex-wrap justify-between gap-x-3"><b>اليوم {d.currentDay} من {d.length}</b><span className="muted">تبقّى {remaining} يومًا</span></div>
     <div className="muted">{d.successful} ناجحة من {elapsedScheduled} أيام مجدولة مضت</div>
+    <Link href={`/habits/${habit.id}/journey`} className="underline font-bold">خريطة الرحلة</Link>
     {reward && <div className="flex items-start gap-2 min-w-0"><Gift size={15} className="text-[#b87755] mt-1 shrink-0" /><span className="min-w-0 break-words">مكافأتك: {reward.title} · {reward.isRedeemed ? 'حصلت عليها' : `${reward.coinCost} عملة`}</span></div>}
   </div>;
 }
