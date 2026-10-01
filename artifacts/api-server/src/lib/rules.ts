@@ -21,8 +21,43 @@ const XP_BY_DIFFICULTY: Record<Difficulty, number> = {
 
 const WEEKLY_STREAK_BONUS = 10;
 
-export function xpToNextLevel(level: number): number {
+export function getXpForNextLevel(level: number): number {
   return 100 + (level - 1) * 20;
+}
+
+/** Backwards-compatible name used by existing API responses. */
+export function xpToNextLevel(level: number): number {
+  return getXpForNextLevel(level);
+}
+
+/** Returns the current level for a lifetime XP total using applyXp's thresholds. */
+export function getLevelFromXP(totalXp: number): number {
+  let level = 1;
+  let remainingXp = Math.max(0, totalXp);
+  while (remainingXp >= getXpForNextLevel(level)) {
+    remainingXp -= getXpForNextLevel(level);
+    level += 1;
+  }
+  return level;
+}
+
+/** Lifetime-equivalent XP for the stored level and within-level XP pair. */
+export function getTotalXp(level: number, xp: number): number {
+  let totalXp = Math.max(0, xp);
+  for (let previousLevel = 1; previousLevel < level; previousLevel += 1) {
+    totalXp += getXpForNextLevel(previousLevel);
+  }
+  return totalXp;
+}
+
+/** Progress calculated with the same per-level threshold consumed by applyXp. */
+export function getLevelProgress(
+  level: number,
+  xp: number,
+): { nextLevelXp: number; progressPercent: number } {
+  const nextLevelXp = getXpForNextLevel(level);
+  const progressPercent = Math.min(100, Math.max(0, (xp / nextLevelXp) * 100));
+  return { nextLevelXp, progressPercent };
 }
 
 export function xpForDifficulty(difficulty: Difficulty): number {
@@ -44,8 +79,8 @@ export function applyXp(
   let level = currentLevel;
   let xp = currentXp + xpGained;
   let leveledUp = false;
-  while (xp >= xpToNextLevel(level)) {
-    xp -= xpToNextLevel(level);
+  while (xp >= getXpForNextLevel(level)) {
+    xp -= getXpForNextLevel(level);
     level += 1;
     leveledUp = true;
   }

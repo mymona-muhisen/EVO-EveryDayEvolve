@@ -22,6 +22,7 @@ export * from './aiRelapseRecoveryResult';
 export * from './categoryMinutes';
 export * from './characterItem';
 export * from './characterItemSlot';
+export * from './characterProgressEntry';
 export * from './checkin';
 export * from './checkinDifficulty';
 export * from './checkinGoalTypeSnapshot';

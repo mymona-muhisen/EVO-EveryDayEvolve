@@ -3742,6 +3742,80 @@ export const useEquipCharacterItem = <TError = ErrorType<Error>,
       return useMutation(getEquipCharacterItemMutationOptions(options));
     }
 
+export const getUnequipCharacterItemUrl = (itemId: number,) => {
+
+
+
+
+  return `/api/character/items/${itemId}/unequip`
+}
+
+/**
+ * @summary Unequip an owned character item
+ */
+export const unequipCharacterItem = async (itemId: number, options?: Parameters<typeof customFetch>[1]): Promise<CharacterItem> => {
+
+  return customFetch<CharacterItem>(getUnequipCharacterItemUrl(itemId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getUnequipCharacterItemMutationKey = () => ['unequipCharacterItem'] as const;
+
+export const getUnequipCharacterItemMutationOptions = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof unequipCharacterItem>>, TError,UnequipCharacterItemMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof unequipCharacterItem>>, TError,UnequipCharacterItemMutationVariables, TContext> => {
+
+const mutationKey = getUnequipCharacterItemMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof unequipCharacterItem>>, UnequipCharacterItemMutationVariables> = (props) => {
+          const {itemId} = props ?? {};
+
+          return  unequipCharacterItem(itemId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UnequipCharacterItemMutationResult = NonNullable<Awaited<ReturnType<typeof unequipCharacterItem>>>
+
+    export type UnequipCharacterItemMutationError = ErrorType<Error>
+    export type UnequipCharacterItemMutationVariables = {itemId: number}
+
+    /**
+ * @summary Unequip an owned character item
+ */
+export const useUnequipCharacterItem = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof unequipCharacterItem>>, TError,UnequipCharacterItemMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof unequipCharacterItem>>,
+        TError,
+        UnequipCharacterItemMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUnequipCharacterItemMutationOptions(options));
+    }
+
 export const getListDecorationCatalogUrl = () => {
 
 

@@ -6,21 +6,21 @@ import { seedDecorationCatalog } from "./decorationCatalog";
 // onConflictDoNothing (unique on name / levelRequired) — safe to run on
 // every server startup.
 const CHARACTER_ITEMS = [
-  { name: "قميص المسافر", slot: "outfit", emoji: "👕", coinCost: 0 },
-  { name: "سترة الرحالة", slot: "outfit", emoji: "🧥", coinCost: 40 },
-  { name: "بدلة المغامر", slot: "outfit", emoji: "🥾", coinCost: 90 },
-  { name: "قبعة الصيف", slot: "hat", emoji: "👒", coinCost: 20 },
-  { name: "قبعة الاستكشاف", slot: "hat", emoji: "🧢", coinCost: 35 },
-  { name: "تاج الإنجاز", slot: "hat", emoji: "👑", coinCost: 150 },
-  { name: "نظارة شمسية", slot: "accessory", emoji: "🕶️", coinCost: 25 },
-  { name: "حقيبة الظهر", slot: "accessory", emoji: "🎒", coinCost: 45 },
-  { name: "وشاح النجوم", slot: "accessory", emoji: "🧣", coinCost: 60 },
-  { name: "قطة رفيقة", slot: "pet", emoji: "🐱", coinCost: 50 },
-  { name: "طائر مرافق", slot: "pet", emoji: "🦜", coinCost: 70 },
-  { name: "تنين صغير", slot: "pet", emoji: "🐉", coinCost: 200 },
-  { name: "غروب الشمس", slot: "background", emoji: "🌅", coinCost: 30 },
-  { name: "غابة هادئة", slot: "background", emoji: "🌲", coinCost: 55 },
-  { name: "سماء مرصعة بالنجوم", slot: "background", emoji: "🌌", coinCost: 100 },
+  { name: "قميص المسافر", slot: "outfit", emoji: "👕", coinCost: 0, levelRequired: 0 },
+  { name: "سترة الرحالة", slot: "outfit", emoji: "🧥", coinCost: 40, levelRequired: 0 },
+  { name: "بدلة المغامر", slot: "outfit", emoji: "🥾", coinCost: 90, levelRequired: 0 },
+  { name: "قبعة الصيف", slot: "hat", emoji: "👒", coinCost: 20, levelRequired: 0 },
+  { name: "قبعة الاستكشاف", slot: "hat", emoji: "🧢", coinCost: 35, levelRequired: 0 },
+  { name: "تاج الإنجاز", slot: "hat", emoji: "👑", coinCost: 150, levelRequired: 0 },
+  { name: "نظارة شمسية", slot: "accessory", emoji: "🕶️", coinCost: 25, levelRequired: 0 },
+  { name: "حقيبة الظهر", slot: "accessory", emoji: "🎒", coinCost: 45, levelRequired: 0 },
+  { name: "وشاح النجوم", slot: "accessory", emoji: "🧣", coinCost: 60, levelRequired: 0 },
+  { name: "قطة رفيقة", slot: "pet", emoji: "🐱", coinCost: 50, levelRequired: 0 },
+  { name: "طائر مرافق", slot: "pet", emoji: "🦜", coinCost: 70, levelRequired: 0 },
+  { name: "تنين صغير", slot: "pet", emoji: "🐉", coinCost: 200, levelRequired: 0 },
+  { name: "غروب الشمس", slot: "background", emoji: "🌅", coinCost: 30, levelRequired: 0 },
+  { name: "غابة هادئة", slot: "background", emoji: "🌲", coinCost: 55, levelRequired: 0 },
+  { name: "سماء مرصعة بالنجوم", slot: "background", emoji: "🌌", coinCost: 100, levelRequired: 0 },
 ] as const;
 
 const JOURNEY_MILESTONES = [

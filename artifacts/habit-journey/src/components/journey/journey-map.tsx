@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { HabitJourney } from '@workspace/api-client-react';
+import { CharacterAvatar } from '@/components/character/character-avatar';
+import { useGlobalCharacter } from '@/hooks/use-character';
 import { ISLAND_FILE_TO_ID, SLOT_POS } from '@/lib/decor';
 import { ISLANDS, MAP_HEIGHT, MILESTONES, base, calendarDay, classifyDay, nodeLabel, nodePos, propVisible, STATE_SYMBOL, successCount, type NodeState } from '@/lib/journey-map';
 
@@ -14,6 +16,7 @@ function useReducedMotion() {
 
 export function JourneyMap({ journey, selected, onSelect, placements = [], fullscreen = false }: { journey: HabitJourney; selected: number; onSelect: (day: number) => void; fullscreen?: boolean; placements?: { decorationId: number; islandId: string; slot: number; assetFile: string; name: string }[] }) {
   const reduced = useReducedMotion();
+  const character = useGlobalCharacter();
   const cur = calendarDay(journey), today = journey.today.slice(0, 10);
   const prev = useRef(cur); const [walk, setWalk] = useState<'north' | 'south' | null>(null);
   useEffect(() => { if (prev.current !== cur) { setWalk(cur > prev.current ? 'north' : 'south'); prev.current = cur; const t = setTimeout(() => setWalk(null), 1600); return () => clearTimeout(t); } return undefined; }, [cur]);
@@ -26,6 +29,7 @@ export function JourneyMap({ journey, selected, onSelect, placements = [], fulls
     const el = viewport.current;
     if (!el) return;
     let active = true;
+    const controls = el.closest('[data-journey-layout]')?.querySelector<HTMLElement>('[data-journey-controls]');
     const center = () => {
       if (!active) return;
       const node = el.querySelector<HTMLButtonElement>(`#jnode-${cur}`);
@@ -35,7 +39,9 @@ export function JourneyMap({ journey, selected, onSelect, placements = [], fulls
     };
     const fit = () => {
       if (!active) return;
-      const footerSpace = fullscreen ? 16 : window.innerWidth < 1024 ? 96 : 24;
+      // The mobile toolbar follows the map, so reserve its actual wrapped
+      // height as well as the fixed navigation and the grid's 24px gap.
+      const footerSpace = fullscreen ? 16 : window.innerWidth < 1024 ? 96 + (controls?.getBoundingClientRect().height ?? 0) + 24 : 24;
       if (el.getBoundingClientRect().top > window.innerHeight - footerSpace - 220) {
         el.scrollIntoView({ block: 'start', behavior: 'auto' });
       }
@@ -45,10 +51,24 @@ export function JourneyMap({ journey, selected, onSelect, placements = [], fulls
     };
     const size = new ResizeObserver(center);
     size.observe(el);
+    const controlSize = new ResizeObserver(fit);
+    if (controls) controlSize.observe(controls);
     const frame = requestAnimationFrame(fit);
+    let historyFrame: number | null = null;
+    const afterHistoryRestore = () => {
+      // Closing fullscreen traverses its temporary history entry. Browser
+      // scroll restoration happens after popstate and can undo initial fit.
+      if (historyFrame !== null) cancelAnimationFrame(historyFrame);
+      historyFrame = requestAnimationFrame(() => { historyFrame = null; fit(); });
+    };
     window.addEventListener('resize', fit);
+    window.addEventListener('popstate', afterHistoryRestore);
     document.fonts.ready.then(fit);
-    return () => { active = false; size.disconnect(); cancelAnimationFrame(frame); window.removeEventListener('resize', fit); };
+    return () => {
+      active = false; size.disconnect(); controlSize.disconnect(); cancelAnimationFrame(frame);
+      if (historyFrame !== null) cancelAnimationFrame(historyFrame);
+      window.removeEventListener('resize', fit); window.removeEventListener('popstate', afterHistoryRestore);
+    };
   }, [journey.habitId, cur, cp.y, fullscreen]);
   const charSrc = reduced ? base('character-idle-still.webp') : walk ? base(`character-walk-${walk}.gif`) : base('character-idle.gif');
   return <div ref={viewport} style={{ overflowAnchor: 'none', scrollBehavior: 'auto' }} className={`mx-auto w-full overflow-y-auto ${fullscreen ? 'max-w-[800px]' : 'max-w-[560px] max-h-[65dvh]'} overflow-x-hidden rounded-[28px]`} role="region" aria-label="خريطة الرحلة، مرّر عموديًا لاستكشاف الأيام" tabIndex={0}>
@@ -67,7 +87,8 @@ export function JourneyMap({ journey, selected, onSelect, placements = [], fulls
         <span className="text-base leading-none">{d.dayNumber}</span><span className="text-[11px] leading-none" aria-hidden="true">{STATE_SYMBOL[s]}</span>
       </button>; })}
     <div className="absolute pointer-events-none" aria-label={`الشخصية عند اليوم ${cur}`} style={{ left: `${cp.x}%`, top: cp.y, transform: 'translate(-50%,-100%)', transition: reduced ? 'none' : 'left 1.4s ease, top 1.4s ease', marginTop: -26 }}>
-      <img src={charSrc} alt="شخصيتك" style={{ height: 56, width: 'auto', imageRendering: 'pixelated' }} data-testid="journey-character" />
+      {character.data ? <CharacterAvatar items={character.data.equippedItems} src={charSrc} height={56} testId="journey-character" /> : character.isError ? <span role="alert" className="text-[10px] whitespace-nowrap">تعذّر تحميل الشخصية</span> : <div className="skeleton h-14 w-12" aria-label="تحميل الشخصية" />}
+      {character.levelUp && <span role="status" className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 paper px-2 py-1 rounded-lg text-[10px] whitespace-nowrap pop motion-reduce:animate-none">المستوى {character.levelUp}!</span>}
     </div>
   </div></div>;
 }

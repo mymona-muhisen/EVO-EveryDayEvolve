@@ -6,10 +6,23 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { CharacterItem } from './characterItem';
+import type { CharacterProgressEntry } from './characterProgressEntry';
 
 export interface MyCharacter {
   level: number;
   xp: number;
   xpToNextLevel: number;
+  /** @minimum 0 */
+  totalXp: number;
+  /** @minimum 1 */
+  nextLevelXp: number;
+  /**
+     * @minimum 0
+     * @maximum 100
+     */
+  progressPercent: number;
+  /** @minimum 0 */
+  walletCoins: number;
   equippedItems: CharacterItem[];
+  recentProgress: CharacterProgressEntry[];
 }

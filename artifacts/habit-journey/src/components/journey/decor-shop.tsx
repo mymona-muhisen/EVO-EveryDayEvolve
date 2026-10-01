@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { useListDecorationCatalog, usePurchaseDecorationItem, useGetHabitDecorations, usePlaceHabitDecoration, useRemoveHabitDecoration, useGetWallet, getListDecorationCatalogQueryKey, getGetHabitDecorationsQueryKey, getGetWalletQueryKey, getGetCurrentUserQueryKey, getListWalletTransactionsQueryKey } from '@workspace/api-client-react';
+import { useListDecorationCatalog, usePurchaseDecorationItem, useGetHabitDecorations, usePlaceHabitDecoration, useRemoveHabitDecoration, useGetWallet, getListDecorationCatalogQueryKey, getGetHabitDecorationsQueryKey, getGetWalletQueryKey, getGetCurrentUserQueryKey, getListWalletTransactionsQueryKey, getGetMyCharacterQueryKey, getGetDashboardTodayQueryKey } from '@workspace/api-client-react';
 import { toast } from 'sonner';
 import { Coins, Check, Lock } from 'lucide-react';
 import { Loading, ErrorBlock } from '@/components/journey-ui';
@@ -18,7 +18,7 @@ export function DecorShop({ habitId }: { habitId: number }) {
   const [slot, setSlot] = useState<number | null>(null), [shown, setShown] = useState(PAGE), [conflict, setConflict] = useState(false);
   useEffect(() => { setItem(null); setSlot(null); setConfirm(null); setConflict(false); }, [habitId]);
   const buy = usePurchaseDecorationItem(), place = usePlaceHabitDecoration(), remove = useRemoveHabitDecoration();
-  const refreshMoney = () => { qc.invalidateQueries({ queryKey: getListDecorationCatalogQueryKey() }); qc.invalidateQueries({ queryKey: getGetWalletQueryKey() }); qc.invalidateQueries({ queryKey: getGetCurrentUserQueryKey() }); qc.invalidateQueries({ queryKey: getListWalletTransactionsQueryKey() }); };
+  const refreshMoney = () => { qc.invalidateQueries({ queryKey: getListDecorationCatalogQueryKey() }); qc.invalidateQueries({ queryKey: getGetWalletQueryKey() }); qc.invalidateQueries({ queryKey: getGetCurrentUserQueryKey() }); qc.invalidateQueries({ queryKey: getListWalletTransactionsQueryKey() }); qc.invalidateQueries({ queryKey: getGetMyCharacterQueryKey() }); qc.invalidateQueries({ queryKey: getGetDashboardTodayQueryKey() }); };
   const refreshPlace = () => qc.invalidateQueries({ queryKey: getGetHabitDecorationsQueryKey(habitId) });
   const coins = wallet.data?.coins ?? 0;
   const placements = deco.data?.placements ?? [];

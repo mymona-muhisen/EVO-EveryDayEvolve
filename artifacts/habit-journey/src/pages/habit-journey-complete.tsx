@@ -3,9 +3,12 @@ import { Link, useParams } from 'wouter';
 import { useGetHabit, useGetHabitJourney, getGetHabitJourneyQueryKey, getGetHabitQueryKey } from '@workspace/api-client-react';
 import { PageHead, Empty, Loading, ErrorBlock } from '@/components/journey-ui';
 import { base, canShowUnlocked } from '@/lib/journey-map';
+import { CharacterAvatar } from '@/components/character/character-avatar';
+import { useGlobalCharacter } from '@/hooks/use-character';
 
 export function HabitJourneyCompletePage() {
   const { habitId } = useParams<{ habitId: string }>(), id = Number(habitId);
+  const character = useGlobalCharacter();
   const habit = useGetHabit(id, { query: { enabled: !!id, queryKey: getGetHabitQueryKey(id) } });
   const j = useGetHabitJourney(id, { query: { enabled: !!id, queryKey: getGetHabitJourneyQueryKey(id), refetchOnMount: 'always' } });
   const [celebrate, setCelebrate] = useState(false);
@@ -32,8 +35,7 @@ export function HabitJourneyCompletePage() {
     <div className="relative h-48 mb-4" aria-label="شخصيتك في نهاية الرحلة">
       <img src={base('island-adventure.webp')} alt="" className="absolute bottom-0 left-1/2 -translate-x-1/2 h-40" />
       <div className="absolute top-6 left-1/2 -translate-x-1/2">
-        <img src={base('character-idle.gif')} alt="شخصيتك" className="h-16 w-auto motion-reduce:hidden" style={{ imageRendering: 'pixelated' }} />
-        <img src={base('character-idle-still.webp')} alt="شخصيتك" className="h-16 w-auto hidden motion-reduce:block" style={{ imageRendering: 'pixelated' }} />
+        {character.data ? <CharacterAvatar items={character.data.equippedItems} height={64} testId="completion-character" /> : character.isError ? <span role="alert" className="text-xs">تعذّر تحميل الشخصية</span> : <div className="skeleton w-14 h-16" />}
       </div>
     </div>
     <PageHead overline="وصلت" title="اكتملت رحلتك" desc={habit.data?.title} />

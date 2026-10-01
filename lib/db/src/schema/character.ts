@@ -25,6 +25,7 @@ export const characterItemsTable = pgTable("character_items", {
   slot: characterItemSlotEnum("slot").notNull(),
   emoji: text("emoji").notNull(),
   coinCost: integer("coin_cost").notNull(),
+  levelRequired: integer("level_required").notNull().default(0),
 });
 
 export const userCharacterItemsTable = pgTable(

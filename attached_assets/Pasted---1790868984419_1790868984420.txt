@@ -1,0 +1,1574 @@
+وهنا أريد أن نكون دقيقين جدًا: الشخصية ليست لعبة منفصلة عن العادة. كل شيء فيها يجب أن يعود إلى الحلقة الأساسية:
+
+ألتزم → أتقدم → أكسب → أطور شخصيتي → أرى ما بنيته → أرغب بالاستمرار
+
+06 — Character + XP + Coins + Shop
+1. الهدف
+
+المستخدم لا يحقق العادة ويحصل على:
+
+✅ Done
+
+وينتهي الأمر.
+
+بل بعد الإكمال:
+
+Complete Habit
+      ↓
++ XP
++ Coins
+      ↓
+Character progresses
+      ↓
+New item becomes affordable/unlocked
+      ↓
+User customizes Character
+      ↓
+Character appears on Journey
+2. الفرق بين XP وCoins
+
+يجب فصل الاثنين تمامًا.
+
+XP — Experience
+
+يمثل تطور المستخدم داخل النظام.
+
+يُستخدم لـ:
+
+Level
+Milestones
+إظهار التطور
+فتح بعض المحتويات مستقبلًا
+
+ولا ينفقه المستخدم.
+
+مثلاً:
+
+Level 4
+340 / 500 XP
+
+Coins 🪙
+
+عملة افتراضية قابلة للإنفاق.
+
+تُستخدم لـ:
+
+Clothes
+Hats
+Accessories
+
+مثلاً:
+
+🪙 120 Coins
+
+3. لماذا نحتاج الاثنين؟
+
+لأنهما يحققان نوعين مختلفين من التحفيز:
+
+XP
+
+"أنا أتطور."
+
+Coins
+
+"أنا أستطيع الحصول على شيء."
+
+وهذا يجعل الشخصية أكثر حيوية.
+
+4. من أين يحصل المستخدم على XP وCoins؟
+
+في V1 الأساس هو:
+
+Successful Habit Completion
+
+مثلاً:
+
+Complete minimum → +10 XP / +5 Coins
+
+أو:
+
+Complete target → +20 XP / +10 Coins
+
+لكن نحدد قاعدة ثابتة ولا نتركها للـAI.
+
+5. هل Minimum يعطي Reward؟
+
+نعم، لأن فلسفتنا:
+
+Minimum = successful day
+
+لكن لا نريد أن تكون الجائزة نفسها للـTarget وMinimum بالضرورة.
+
+مثلاً:
+
+Minimum
+
++10 XP
++5 Coins
+
+Full Target
+
++20 XP
++10 Coins
+
+وهذا يعطي حافزًا للهدف الأكبر دون معاقبة المستخدم عند الاكتفاء بالحد الأدنى.
+
+6. ماذا عن Reduce Habit؟
+
+مثلاً:
+
+الحد اليومي Social Media < 160 min
+
+إذا نجح المستخدم:
+
++XP
++Coins
+
+ويحسب الإنجاز بنفس منطق الـHabit Engine.
+
+7. ما الذي لا يعطي Coins؟
+
+في V1، لا نريد تضخيم الاقتصاد.
+
+لا نعطي العملات على:
+
+فتح التطبيق
+مشاهدة Dashboard
+كل AI message
+كل Refresh
+مجرد Login
+
+لأن المستخدم سيبدأ بفتح الموقع فقط لجمع Coins.
+
+8. الشخصية نفسها
+
+لدينا:
+
+Base Character
+
+شخصية افتراضية.
+
+ثم طبقات:
+
+Base
+ ↓
+Skin / Face
+ ↓
+Hair
+ ↓
+Top
+ ↓
+Bottom
+ ↓
+Hat
+ ↓
+Accessory
+ ↓
+Special effect
+
+لكن في V1 نطبق فقط العناصر المتوفرة والمفيدة.
+
+9. لا نبني Character Creator معقدًا
+
+في الهاكاثون:
+
+لا نحتاج:
+
+50 لون بشرة × 30 شعر × 20 جسم...
+
+يكفي:
+
+Character base واحد أو عدة bases بسيطة
+3 Tops
+2 Hats
+2 Accessories
+1 Special item
+10. شاشة Character
+
+أريدها أن تكون جذابة، وليست Inventory فقط.
+
+مثلاً:
+
+         My Character
+
+            🧍
+         /      \
+      Outfit   Hat
+
+   Level 4
+   ███████░░░
+
+   🪙 120 Coins
+
+[ Customize ]
+
+وفي الأسفل:
+
+Recent progress
+
++20 XP
++10 Coins
+Day 7 completed
+
+11. Character على الخريطة
+
+نفس الشخصية تظهر داخل Journey.
+
+إذا اشترى المستخدم:
+
+🎩 Hat
+
+لا تتغير الشخصية في Character page فقط.
+
+بل:
+
+نفس العنصر يظهر على الخريطة.
+
+وهذه نقطة مهمة جدًا للـImmersion.
+
+12. Character على Profile
+
+Profile يعرض:
+
+الشخصية الحالية
+
+ثم:
+
+Level 4
+
+340 XP
+
+120 Coins
+
+Active Journey
+
+وبذلك الشخصية تصبح هوية المستخدم داخل المنتج.
+
+13. Character Evolution
+
+لا أريد أن تتغير الشخصية تلقائيًا إلى شخصية مختلفة عند Level 2 أو 3 في V1.
+
+الأفضل:
+
+التطور = العناصر + مستوى + visual feedback
+
+لاحقًا يمكن Level 10 مثلًا يفتح Style خاصًا.
+
+14. XP Level System
+
+نحتاج نظام بسيط.
+
+مثلاً:
+
+Level 1 → 0 XP
+Level 2 → 100 XP
+Level 3 → 250 XP
+Level 4 → 450 XP
+Level 5 → 700 XP
+
+الأرقام مجرد مثال.
+
+الأفضل أن يكون لدينا Formula واحدة أو جدول Config بدل hard-code في كل مكان.
+
+مثلاً:
+
+getLevelFromXP(xp)
+getXpForNextLevel(level)
+15. Level Progress
+
+مثلاً:
+
+Level 4
+
+340 / 450 XP
+
+████████░░
+
+وعند الوصول:
+
+🎉 Level Up!
+
+16. Level Up Celebration
+
+بعد إكمال Habit:
+
+إذا وصل المستخدم لمستوى جديد:
+
+LEVEL UP! ✨
+
+You reached Level 5
+
++ New item unlocked
+
+ثم:
+
+View item
+
+أو:
+
+Continue journey
+
+17. XP لا ينقص
+
+بمجرد اكتسابه:
+
+XP lifetime
+
+لا نخسره بسبب الانتكاسة.
+
+هذا مهم لأن:
+
+failure is feedback
+
+وليس:
+
+loss of everything.
+
+18. Coins أيضًا لا تُسحب بسبب missed day
+
+لا:
+
+-20 coins because you missed.
+
+بل المستخدم فقط لا يحصل على reward ذلك اليوم.
+
+19. Shop
+
+الـShop ليس Marketplace كبيرًا.
+
+هو:
+
+Character Shop
+
+مثلاً:
+
+Featured
+
+🎩 Explorer Hat
+🪙 40
+
+👕 Blue Hoodie
+🪙 60
+
+🎒 Adventure Bag
+🪙 80
+20. Shop Categories
+
+V1:
+
+All
+Tops
+Hats
+Accessories
+
+ولا نحتاج فلترة كثيرة.
+
+21. Item Card
+
+كل عنصر يعرض:
+
+[ Preview ]
+
+Explorer Hat
+
+🪙 40
+
+[ Buy ]
+
+إذا لا يملك Coins:
+
+Need 12 more
+
+بدل زر معطل فقط.
+
+22. شراء عنصر
+
+Flow:
+
+Click Buy
+   ↓
+Preview
+   ↓
+"Buy for 40 coins?"
+   ↓
+Confirm
+   ↓
+-40 coins
+   ↓
+Item added to inventory
+   ↓
+Equip?
+23. تأكيد الشراء
+
+Modal:
+
+Explorer Hat
+
+سيكلفك 40 Coin.
+
+رصيدك بعد الشراء:
+80 Coins
+
+Buttons:
+
+شراء
+
+إلغاء
+
+24. حماية الشراء
+
+الـBackend يتحقق:
+
+coins >= item.price
+
+ثم transaction:
+
+subtract coins
+add inventory item
+
+كل ذلك server-side.
+
+لا نثق بالسعر القادم من Frontend.
+
+25. Duplicate Items
+
+إذا اشترى المستخدم نفس العنصر:
+
+لا يستطيع شراؤه مرة ثانية.
+
+يعرض:
+
+Owned
+
+ثم:
+
+Equip
+
+26. Equip Flow
+
+بعد الشراء:
+
+Equip now?
+
+زر:
+
+Equip
+
+ثم الشخصية تتحدث فورًا.
+
+27. Unequip
+
+في Character:
+
+العنصر الحالي
+
+زر:
+
+Remove
+
+والشخصية تعود للـdefault layer.
+
+28. Inventory
+
+صفحة Character يمكن أن تحتوي Tabs:
+
+Character
+Wardrobe
+Inventory
+
+أو في V1 أبسط:
+
+Customize
+
+ثم تصنيف العناصر.
+
+لا نحتاج صفحة Inventory مستقلة إذا لم تكن ضرورية.
+
+29. Locked Items
+
+بعض العناصر يمكن أن تعتمد على:
+
+Coins
+
+🪙 80
+
+أو:
+
+Level
+
+🔒 Level 5 required
+
+لكن في V1 أفضّل أن تكون أغلب العناصر تعتمد على Coins فقط، حتى لا نعقد النظام.
+
+30. Milestone Item
+
+يمكن أن يكون عنصر واحد خاص:
+
+🎒 Journey Explorer Bag
+
+ويفتح بعد:
+
+Complete Day 10
+
+وهنا يظهر أن التقدم نفسه يفتح محتوى.
+
+لكن هذه ميزة Bonus.
+
+31. Limited Items
+
+الفكرة التي أحببتِها سابقًا:
+
+كل فترة يوجد لباس محدود.
+
+لكن في الهاكاثون:
+
+لا نحتاج Countdown حقيقي.
+
+يمكن أن يكون لدينا:
+
+✨ Limited
+
+بعض العناصر.
+
+أما نظام انتهاء العرض تلقائيًا فيؤجل.
+
+32. Character Rewards من أنواع مختلفة
+
+هناك:
+
+Earned
+
+من XP / Coins.
+
+Unlocked
+
+من Milestone.
+
+Purchased
+
+عن طريق Coins.
+
+وهذا يكفي.
+
+33. Economy Balance
+
+لا نريد أن يصبح المستخدم غنيًا جدًا بسرعة.
+
+مثلاً:
+
+Minimum completion → 5 Coins
+Target completion → 10 Coins
+
+وبالتالي العنصر:
+
+Hat = 40
+
+يحتاج عدة أيام.
+
+هذا يجعل:
+
+"أريد هذا العنصر"
+
+حافزًا للعودة.
+
+لكن لا نستخدم أرقامًا تسبب ضغطًا أو loss anxiety.
+
+34. Coin Ledger
+
+يجب ألا تكون:
+
+user.coins = user.coins + 10
+
+فقط.
+
+الأفضل وجود:
+
+coin_transactions
+
++10
+habit_completion
+habit_day_7
+
+أو:
+
+-40
+item_purchase
+explorer_hat
+
+ثم يمكن مراجعة الرصيد.
+
+35. XP Ledger
+
+نفس الأمر يمكن تطبيقه على XP إذا كانت البنية تسمح.
+
+مثلاً:
+
+xp_transactions
+
+لكن إذا كانت الـ5 أيام ضيقة، يمكن الاحتفاظ بـtotalXP مع مصدر موثوق في العمليات الأساسية.
+
+36. Character Data Model
+
+مثلاً:
+
+characters
+- id
+- user_id
+- base_character
+- created_at
+
+والـinventory:
+
+user_inventory
+- id
+- user_id
+- item_id
+- purchased_at
+- equipped
+37. Item Model
+character_items
+- id
+- key
+- name
+- type
+- price
+- asset_url
+- unlock_type
+- unlock_value
+
+مثلاً:
+
+unlock_type = COINS
+unlock_value = 40
+
+أو:
+
+unlock_type = MILESTONE
+unlock_value = 10
+38. Character Rendering
+
+إذا كانت الأصول منفصلة layers، يمكن تركيب الشخصية:
+
+Base
++
+Hair
++
+Top
++
+Hat
++
+Accessory
+
+ويجب أن تكون كل Layer بنفس:
+
+dimensions
+anchor
+coordinate system
+
+حتى لا تتحرك العناصر عند تركيبها.
+
+39. إذا الشخصية الحالية Asset واحدة
+
+لا مشكلة.
+
+يمكن البدء:
+
+base_character + complete outfit assets
+
+لكن صمم الـdata model بحيث يمكن لاحقًا فصل layers.
+
+40. Character Animation
+
+في الخريطة:
+
+Idle
+
+حركة بسيطة.
+
+Walk
+
+عند الانتقال بين المحطات.
+
+Celebration
+
+بعد إكمال اليوم.
+
+لا نحتاج Sprite Animation معقد إذا لم يكن جاهزًا.
+
+CSS:
+
+transform
+translate
+scale
+
+قد يكون كافيًا.
+
+41. Character + Journey
+
+هذه العلاقة:
+
+User Character
+       ↓
+Active Journey
+       ↓
+Position = current day
+
+لكن الشخصية عالمية للمستخدم.
+
+وليست شخصية جديدة لكل Habit.
+
+42. إذا كان المستخدم لديه 3 عادات
+
+مثلاً:
+
+Reading Journey
+→ character appears
+
+Exercise Journey
+→ same character + same outfit
+
+Less Social Media Journey
+→ same character + same outfit
+
+لكن موقع الشخصية يتغير حسب الرحلة التي يشاهدها.
+
+43. Coins Shared Across Journeys
+
+أيضًا:
+
+Coins = User wallet
+
+وليست:
+
+Reading coins
+Exercise coins
+
+يعني المستخدم يجمع العملات من كل رحلاته ويمكنه صرفها على الشخصية العامة.
+
+44. XP Shared Across Journeys
+
+نفس الشيء:
+
+XP = User progression
+
+وليس لكل Habit مستوى منفصل.
+
+كل Habit لديها:
+
+Journey progress
+
+لكن User لديه:
+
+Overall Level
+
+وهذا يربط المشروع كله معًا.
+
+45. مثال
+
+المستخدم عنده:
+
+📚 Reading — Day 8
+🏃 Exercise — Day 4
+
+أنجز القراءة:
+
++10 Coins
++20 XP
+
+رصيد الشخصية:
+
+120 → 130 Coins
+
+المستوى:
+
+Level 4
+
+ولا يهم من أي Journey جاءت العملات.
+
+46. Dashboard Character Widget
+
+في Dashboard:
+
+       🧍
+
+Level 4
+████████░░
+
+🪙 130
+
+Current journey:
+📚 Reading
+Day 8 / 22
+
+ثم:
+
+Customize
+
+47. Character Page
+
+الصفحة:
+
+          My Character
+
+             🧍
+
+       Level 4
+       340 / 450 XP
+
+       🪙 130
+
+   [ Wardrobe ]
+
+Tops
+[ ] [ ] [ ]
+
+Hats
+[ ] [ ] [ ]
+
+Accessories
+[ ] [ ] [ ]
+
+ويجب أن تكون الشخصية كبيرة وواضحة.
+
+48. Shop Page
+Character Shop
+
+🪙 130
+
+Featured
+────────────
+
+🎩 Explorer Hat      40
+👕 Hoodie             60
+🎒 Adventure Bag      80
+49. Character Feedback
+
+بعد شراء item:
+
+Your character just got a little more you.
+
+بعد Level Up:
+
+You've leveled up.
+
+بعد Habit Completion:
+
+Your character moved forward.
+
+نحافظ على شخصية المنتج.
+
+50. أين يدخل AI؟
+
+مهم:
+
+AI لا يدير الـeconomy.
+
+ولا نقول للـAI:
+
+"كم Coins يجب أن نعطي؟"
+
+هذه قواعد التطبيق.
+
+AI يمكن فقط:
+
+Personalized commentary
+
+مثلاً:
+
+لاحظت أنك مستمر في القراءة منذ أسبوع. شخصيتك بدأت تعكس تقدمك.
+
+لكن حتى هذا اختياري.
+
+51. لا نستدعي AI عند كل Reward
+
+لا:
+
+Complete
+→ Gemini
+→ "Congratulations..."
+
+هذا إهدار.
+
+نستخدم نصوصًا ثابتة أو templates.
+
+AI فقط عندما يكون هناك Context حقيقي.
+
+52. Reward Calculation
+
+نحتاج ملف config:
+
+const rewards = {
+  minimumCompletion: {
+    xp: 10,
+    coins: 5
+  },
+  targetCompletion: {
+    xp: 20,
+    coins: 10
+  }
+}
+
+ولا نكتب الأرقام في عدة components.
+
+53. Idempotency
+
+إذا ضغط المستخدم Complete مرتين:
+
+ممنوع:
+
++20 XP
++10 Coins
++20 XP
++10 Coins
+
+يجب أن تكون عملية completion idempotent.
+
+54. Transaction Safety
+
+الشراء أيضًا:
+
+إذا ضغط:
+
+Buy
+
+مرتين بسرعة:
+
+لا نخصم مرتين.
+
+Backend يتحقق transactionally.
+
+55. Error States
+شراء بدون Coins
+
+لديك 28 Coins
+تحتاج 40.
+
+زر:
+
+استمر في رحلتك
+
+Failed purchase
+
+لم نتمكن من شراء العنصر.
+
+Try again
+
+Equip failure
+
+لا نغير الواجهة إلى Equipped قبل نجاح الطلب.
+
+56. Empty State
+
+إذا ليس لديه أي items:
+
+Your wardrobe is waiting.
+
+Complete habits to earn coins and customize your character.
+
+57. الـFirst Unlock
+
+أقترح أن يكون هناك شيء مجاني منذ البداية.
+
+مثلاً:
+
+Default outfit
+
+ثم أول عنصر:
+
+🧢 Basic cap — 10 Coins
+
+حتى يرى المستخدم الـreward loop مبكرًا.
+
+58. تجربة كاملة
+
+المستخدم يبدأ:
+
+Day 1
+
+ينجز الـminimum.
+
+يحصل:
+
++5 Coins
+
+يوم 2:
+
++5
+
+يوم 3:
+
++5
+
+يصل:
+
+15 Coins
+
+ويكتشف:
+
+🧢 Cap — 10
+
+يشتريه.
+
+الشخصية ترتديه.
+
+وعندما يدخل Journey:
+
+نفس الـCap يظهر على الشخصية.
+
+هنا يفهم المستخدم فورًا:
+
+My actions change my character.
+
+59. Acceptance Criteria
+
+الميزة تعتبر مكتملة عندما:
+
+ لكل User Character واحدة.
+ Character تظهر في Profile.
+ Character تظهر داخل Journey.
+ الشخصية الحالية محفوظة.
+ XP منفصل عن Coins.
+ XP يتراكم.
+ Level يحسب deterministic.
+ Coins تتراكم.
+ Coins لا تُمنح أكثر من مرة لنفس completion.
+ Minimum completion يعطي reward.
+ Full target يمكن أن يعطي reward إضافيًا.
+ Coins يمكن صرفها.
+ Shop يعرض items.
+ المستخدم يستطيع شراء item.
+ لا يمكن شراء item مرتين.
+ المستخدم يستطيع Equip/Unequip.
+ الشخصية تتحدث فورًا.
+ التغيير يظهر على Journey.
+ الرصيد محفوظ بعد refresh.
+ الرصيد محفوظ بعد logout/login.
+ شراء العنصر server-side.
+ لا يمكن التلاعب بالسعر/الرصيد من frontend.
+ Mobile RTL يعمل.
+ animations خفيفة.
+ لا حاجة إلى AI لإدارة الاقتصاد.
+60. Prompt جاهز لـReplit
+Implement Feature 06:
+CHARACTER + XP + COINS + SHOP
+
+IMPORTANT:
+Do not redesign unrelated features.
+Do not remove existing Journey, Habit Engine, AI Coach, Reward, or authentication functionality.
+Inspect the current implementation first.
+Reuse existing character assets and components if available.
+If character/map assets already exist in the project, use them instead of creating replacements.
+
+==================================================
+1. PRODUCT GOAL
+==================================================
+
+The character system should reinforce the habit loop:
+
+Complete habit
+→ earn XP + Coins
+→ progress character
+→ unlock/buy items
+→ customize character
+→ same character appears on Journey
+
+The character is NOT a separate game.
+
+==================================================
+2. XP VS COINS
+==================================================
+
+XP:
+- represents overall user progression
+- used for level calculation
+- cannot be spent
+- persists across journeys
+
+Coins:
+- virtual currency
+- shared across all user journeys
+- earned through successful habit completion
+- spent on character items
+
+Do not reset XP or Coins when a journey ends.
+
+A missed habit does NOT remove XP or Coins.
+It only means no reward is earned for that missed completion.
+
+==================================================
+3. COMPLETION REWARDS
+==================================================
+
+Use deterministic config.
+
+Example:
+
+Minimum successful completion:
++10 XP
++5 Coins
+
+Full target completion:
++20 XP
++10 Coins
+
+Adjust values if the existing project already defines a consistent reward system.
+
+Do not hard-code reward values in multiple frontend components.
+
+Centralize reward configuration.
+
+The backend must be the authority for granting rewards.
+
+==================================================
+4. IDEMPOTENCY
+==================================================
+
+Completing the same habit day twice must NOT:
+- award XP twice
+- award coins twice
+- advance the journey twice
+
+Implement server-side idempotency / completion checks.
+
+==================================================
+5. CHARACTER
+==================================================
+
+Use one global character per user.
+
+The same character appears:
+- Profile
+- Dashboard widget
+- Journey map
+
+Character customization is global.
+
+If user has multiple journeys:
+- use same character/outfit
+- character position changes depending on the journey currently viewed
+
+Do NOT create a separate character per habit.
+
+==================================================
+6. CHARACTER CUSTOMIZATION
+==================================================
+
+Support current available assets.
+
+Preferred layer structure:
+
+Base
+Hair
+Top
+Bottom
+Hat
+Accessory
+Special
+
+If current assets are not separated into layers, support the existing asset structure without blocking V1.
+
+Keep V1 small:
+- a few tops
+- a few hats
+- a few accessories
+
+Do not create a huge character creator.
+
+==================================================
+7. CHARACTER PAGE
+==================================================
+
+Create/update Character page.
+
+Show:
+
+- large character preview
+- Level
+- XP progress
+- Coin balance
+- Customize controls
+
+Example:
+
+My Character
+
+Level 4
+340 / 450 XP
+
+Coins: 120
+
+[ Customize ]
+
+Wardrobe:
+Tops
+Hats
+Accessories
+
+Character preview updates immediately after equip.
+
+==================================================
+8. XP LEVEL SYSTEM
+==================================================
+
+Create deterministic functions:
+
+getLevelFromXP(xp)
+getXpForNextLevel(level)
+getLevelProgress(xp)
+
+Use one centralized configuration or formula.
+
+Do not calculate level separately in different components.
+
+When user reaches a new level:
+- show small celebration
+- optionally unlock a milestone item
+
+XP never decreases.
+
+==================================================
+9. COIN WALLET
+==================================================
+
+Use existing wallet implementation if present.
+
+Support:
+- balance
+- earning transaction
+- spending transaction
+
+Preferred transaction sources:
+- habit_completion
+- item_purchase
+
+Store transaction metadata such as:
+- amount
+- source
+- referenceId
+- createdAt
+
+Do not allow frontend to directly set coin balance.
+
+==================================================
+10. SHOP
+==================================================
+
+Create/update Character Shop.
+
+Categories:
+- All
+- Tops
+- Hats
+- Accessories
+
+Each item:
+- preview
+- name
+- type
+- price
+- owned state
+- equipped state
+
+Example:
+
+Explorer Hat
+40 Coins
+[Buy]
+
+If insufficient:
+"Need 12 more coins"
+
+If owned:
+[Owned]
+[Equip]
+
+==================================================
+11. PURCHASE FLOW
+==================================================
+
+When user clicks Buy:
+
+Show confirmation:
+
+"Buy Explorer Hat for 40 Coins?"
+
+Show:
+Current balance
+Cost
+Balance after purchase
+
+Buttons:
+- Buy
+- Cancel
+
+Backend must verify:
+- item exists
+- user is authenticated
+- user has enough coins
+- user does not already own item
+
+Perform purchase transactionally:
+- subtract coins
+- add inventory item
+
+Do not trust client-provided price.
+
+Prevent duplicate purchases from double clicks.
+
+==================================================
+12. INVENTORY
+==================================================
+
+Use:
+user_inventory
+
+Fields where possible:
+- user_id
+- item_id
+- purchased_at
+- equipped
+
+An item can only be owned once.
+
+==================================================
+13. EQUIP / UNEQUIP
+==================================================
+
+After purchase:
+Offer:
+"Equip now?"
+
+Equip should update character state.
+
+Unequip returns to default state.
+
+Character preview should update immediately after successful server response.
+
+The same equipped state must appear:
+- Character page
+- Dashboard
+- Journey
+
+==================================================
+14. JOURNEY INTEGRATION
+==================================================
+
+Character position is determined by the current journey.
+
+Character appearance is global.
+
+Example:
+Reading Journey Day 8
+→ character at Reading Journey node 8
+
+Exercise Journey Day 4
+→ same character appearance at Exercise Journey node 4
+
+==================================================
+15. COINS SHOP LOOP
+==================================================
+
+The economy should be simple.
+
+Do not award Coins for:
+- page views
+- login
+- refresh
+- opening AI
+- viewing dashboard
+
+Primary V1 source:
+successful habit completion
+
+==================================================
+16. OPTIONAL MILESTONE UNLOCK
+==================================================
+
+If easy to implement:
+unlock one special item at a journey milestone such as Day 10.
+
+Use deterministic rules.
+
+Do not require AI.
+
+If this adds risk, leave it for later.
+
+==================================================
+17. CHARACTER ANIMATION
+==================================================
+
+Use lightweight animation:
+
+- idle
+- moving
+- celebration
+
+Do not build a game engine.
+
+If the existing character assets include animations, reuse them.
+
+Otherwise use CSS transitions/animations.
+
+==================================================
+18. DASHBOARD CHARACTER WIDGET
+==================================================
+
+Show:
+- character
+- current overall level
+- XP progress
+- coin balance
+- current active journey
+
+Provide:
+[Customize]
+
+Keep it visually compact.
+
+==================================================
+19. SHOP UX
+==================================================
+
+Shop should feel playful but simple.
+
+Use item cards.
+
+Insufficient balance should be clear.
+
+Owned items should not look purchasable.
+
+Equipped item should be visibly marked.
+
+==================================================
+20. AI
+==================================================
+
+Do NOT use AI to calculate:
+- XP
+- Coins
+- Level
+- Prices
+- ownership
+- reward amounts
+
+AI is not involved in the economy.
+
+Optional AI commentary may be used only if existing AI infrastructure already supports contextual coaching, but it is NOT required.
+
+==================================================
+21. SECURITY
+==================================================
+
+Server-side authority for:
+- coin rewards
+- XP rewards
+- purchases
+- ownership
+- equip state
+- level source if persisted
+
+Do not trust client-provided:
+- price
+- coin amount
+- XP amount
+- inventory ownership
+
+==================================================
+22. UI STATES
+==================================================
+
+Implement:
+- character loading
+- character loaded
+- no items
+- item owned
+- item equipped
+- insufficient coins
+- purchase confirmation
+- purchase success
+- purchase failure
+- equip success
+- equip failure
+- level up
+- reward animation
+
+==================================================
+23. RESPONSIVE
+==================================================
+
+Test:
+- 375px
+- 390px
+- 414px
+- tablet
+- desktop
+
+Character must remain large and readable on mobile.
+
+Use Arabic RTL throughout.
+
+==================================================
+24. TESTING
+==================================================
+
+Test:
+
+1. Complete minimum.
+2. Verify XP reward.
+3. Verify coin reward.
+4. Complete target.
+5. Verify additional reward if configured.
+6. Complete same day twice.
+7. Verify no duplicate rewards.
+8. Refresh.
+9. Verify XP/Coins persist.
+10. Logout/login.
+11. Verify XP/Coins persist.
+12. Buy an item.
+13. Verify coin deduction.
+14. Verify inventory ownership.
+15. Try to buy same item again.
+16. Verify duplicate purchase blocked.
+17. Equip item.
+18. Verify character updates.
+19. Open Journey.
+20. Verify same character appearance.
+21. Change Journey.
+22. Verify same character appearance at different journey positions.
+23. Try purchasing with insufficient coins.
+24. Try submitting manipulated item price from client.
+25. Verify backend rejects manipulation.
+26. Test Level Up.
+27. Test Arabic RTL/mobile.
+
+==================================================
+25. ACCEPTANCE CRITERIA
+==================================================
+
+Feature is DONE when:
+
+- [ ] One global character exists per user.
+- [ ] Character appears on Journey.
+- [ ] Character customization persists.
+- [ ] XP works.
+- [ ] Levels work.
+- [ ] Coins work.
+- [ ] Habit completion awards rewards once.
+- [ ] Shop works.
+- [ ] Purchase is secure.
+- [ ] Duplicate purchases are prevented.
+- [ ] Equip works.
+- [ ] Character updates immediately.
+- [ ] Character appearance is consistent across pages.
+- [ ] XP/coins persist through refresh/login.
+- [ ] Mobile RTL works.
+- [ ] Existing features are not broken.
+
+Before coding:
+1. Inspect existing character components and assets.
+2. Inspect existing XP logic.
+3. Inspect existing coin/wallet logic.
+4. Inspect existing shop/inventory implementation.
+5. Inspect current Journey character rendering.
+6. Report reusable files/components.
+7. Then implement only the required changes.

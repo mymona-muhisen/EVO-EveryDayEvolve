@@ -1726,6 +1726,8 @@ export interface CharacterItem {
   slot: CharacterItemSlot;
   emoji: string;
   coinCost: number;
+  /** @minimum 0 */
+  levelRequired?: number;
   owned: boolean;
   equipped: boolean;
 }
@@ -1792,11 +1794,37 @@ export interface HabitDecorationPlacementInput {
   slot: number;
 }
 
+export interface CharacterProgressEntry {
+  date: string;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  xpEarned: number | null;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  coinsEarned: number | null;
+}
+
 export interface MyCharacter {
   level: number;
   xp: number;
   xpToNextLevel: number;
+  /** @minimum 0 */
+  totalXp: number;
+  /** @minimum 1 */
+  nextLevelXp: number;
+  /**
+     * @minimum 0
+     * @maximum 100
+     */
+  progressPercent: number;
+  /** @minimum 0 */
+  walletCoins: number;
   equippedItems: CharacterItem[];
+  recentProgress: CharacterProgressEntry[];
 }
 
 export interface JourneyMilestone {

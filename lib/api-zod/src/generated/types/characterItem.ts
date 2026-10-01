@@ -13,6 +13,8 @@ export interface CharacterItem {
   slot: CharacterItemSlot;
   emoji: string;
   coinCost: number;
+  /** @minimum 0 */
+  levelRequired?: number;
   owned: boolean;
   equipped: boolean;
 }

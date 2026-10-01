@@ -1787,12 +1787,18 @@ export const ListWalletTransactionsResponse = zod.array(ListWalletTransactionsRe
 /**
  * @summary List all character items with owned/equipped/affordable state
  */
+export const listCharacterCatalogResponseLevelRequiredDefault = 0;
+export const listCharacterCatalogResponseLevelRequiredMin = 0;
+
+
+
 export const ListCharacterCatalogResponseItem = zod.object({
   "id": zod.number().int(),
   "name": zod.string(),
   "slot": zod.enum(['outfit', 'hat', 'accessory', 'pet', 'background']),
   "emoji": zod.string(),
   "coinCost": zod.number().int(),
+  "levelRequired": zod.number().int().min(listCharacterCatalogResponseLevelRequiredMin).default(listCharacterCatalogResponseLevelRequiredDefault),
   "owned": zod.boolean(),
   "equipped": zod.boolean()
 })
@@ -1802,18 +1808,45 @@ export const ListCharacterCatalogResponse = zod.array(ListCharacterCatalogRespon
 /**
  * @summary Get current level/XP and equipped loadout
  */
+export const getMyCharacterResponseTotalXpMin = 0;
+
+
+export const getMyCharacterResponseProgressPercentMin = 0;
+export const getMyCharacterResponseProgressPercentMax = 100;
+
+export const getMyCharacterResponseWalletCoinsMin = 0;
+
+export const getMyCharacterResponseEquippedItemsItemLevelRequiredDefault = 0;
+export const getMyCharacterResponseEquippedItemsItemLevelRequiredMin = 0;
+
+export const getMyCharacterResponseRecentProgressItemXpEarnedMin = 0;
+
+export const getMyCharacterResponseRecentProgressItemCoinsEarnedMin = 0;
+
+
+
 export const GetMyCharacterResponse = zod.object({
   "level": zod.number().int(),
   "xp": zod.number().int(),
   "xpToNextLevel": zod.number().int(),
+  "totalXp": zod.number().int().min(getMyCharacterResponseTotalXpMin),
+  "nextLevelXp": zod.number().int().min(1),
+  "progressPercent": zod.number().min(getMyCharacterResponseProgressPercentMin).max(getMyCharacterResponseProgressPercentMax),
+  "walletCoins": zod.number().int().min(getMyCharacterResponseWalletCoinsMin),
   "equippedItems": zod.array(zod.object({
   "id": zod.number().int(),
   "name": zod.string(),
   "slot": zod.enum(['outfit', 'hat', 'accessory', 'pet', 'background']),
   "emoji": zod.string(),
   "coinCost": zod.number().int(),
+  "levelRequired": zod.number().int().min(getMyCharacterResponseEquippedItemsItemLevelRequiredMin).default(getMyCharacterResponseEquippedItemsItemLevelRequiredDefault),
   "owned": zod.boolean(),
   "equipped": zod.boolean()
+})),
+  "recentProgress": zod.array(zod.object({
+  "date": zod.coerce.date(),
+  "xpEarned": zod.number().int().min(getMyCharacterResponseRecentProgressItemXpEarnedMin).nullable(),
+  "coinsEarned": zod.number().int().min(getMyCharacterResponseRecentProgressItemCoinsEarnedMin).nullable()
 }))
 })
 
@@ -1825,12 +1858,18 @@ export const PurchaseCharacterItemParams = zod.object({
   "itemId": zod.coerce.number().int()
 })
 
+export const purchaseCharacterItemResponseLevelRequiredDefault = 0;
+export const purchaseCharacterItemResponseLevelRequiredMin = 0;
+
+
+
 export const PurchaseCharacterItemResponse = zod.object({
   "id": zod.number().int(),
   "name": zod.string(),
   "slot": zod.enum(['outfit', 'hat', 'accessory', 'pet', 'background']),
   "emoji": zod.string(),
   "coinCost": zod.number().int(),
+  "levelRequired": zod.number().int().min(purchaseCharacterItemResponseLevelRequiredMin).default(purchaseCharacterItemResponseLevelRequiredDefault),
   "owned": zod.boolean(),
   "equipped": zod.boolean()
 })
@@ -1843,12 +1882,42 @@ export const EquipCharacterItemParams = zod.object({
   "itemId": zod.coerce.number().int()
 })
 
+export const equipCharacterItemResponseLevelRequiredDefault = 0;
+export const equipCharacterItemResponseLevelRequiredMin = 0;
+
+
+
 export const EquipCharacterItemResponse = zod.object({
   "id": zod.number().int(),
   "name": zod.string(),
   "slot": zod.enum(['outfit', 'hat', 'accessory', 'pet', 'background']),
   "emoji": zod.string(),
   "coinCost": zod.number().int(),
+  "levelRequired": zod.number().int().min(equipCharacterItemResponseLevelRequiredMin).default(equipCharacterItemResponseLevelRequiredDefault),
+  "owned": zod.boolean(),
+  "equipped": zod.boolean()
+})
+
+
+/**
+ * @summary Unequip an owned character item
+ */
+export const UnequipCharacterItemParams = zod.object({
+  "itemId": zod.coerce.number().int()
+})
+
+export const unequipCharacterItemResponseLevelRequiredDefault = 0;
+export const unequipCharacterItemResponseLevelRequiredMin = 0;
+
+
+
+export const UnequipCharacterItemResponse = zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "slot": zod.enum(['outfit', 'hat', 'accessory', 'pet', 'background']),
+  "emoji": zod.string(),
+  "coinCost": zod.number().int(),
+  "levelRequired": zod.number().int().min(unequipCharacterItemResponseLevelRequiredMin).default(unequipCharacterItemResponseLevelRequiredDefault),
   "owned": zod.boolean(),
   "equipped": zod.boolean()
 })

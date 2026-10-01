@@ -5,7 +5,7 @@ import { dayKey } from '@/lib/daily';
 import {
   useGetDailyHabitDay, useGetDailyOverview, useChangeDailyHabitExecution, useSaveDailyHabitReflection, useRecordDailyAdaptationDecision,
   getGetDailyHabitDayQueryKey, getGetDailyOverviewQueryKey, getGetDashboardTodayQueryKey, getListHabitsQueryKey, getGetHabitJourneyQueryKey, getGetHabitQueryKey, getGetDashboardCalendarQueryKey,
-  getListHabitCheckinsQueryKey, getGetWalletQueryKey, getGetJourneyProgressQueryKey, getGetHabitAdaptationQueryKey, getListRewardsQueryKey, getGetCurrentUserQueryKey, getGetMyCharacterQueryKey,
+   getListHabitCheckinsQueryKey, getGetWalletQueryKey, getGetJourneyProgressQueryKey, getGetHabitAdaptationQueryKey, getListRewardsQueryKey, getGetCurrentUserQueryKey, getGetMyCharacterQueryKey, getListWalletTransactionsQueryKey,
   type DailyHabitState, type DailyHabitReflectionInput,
 } from '@workspace/api-client-react';
 
@@ -35,7 +35,7 @@ export function useRefreshAfterDaily(habitId: number) {
   const qc = useQueryClient();
   return () => {
     invalidateDailyAll(qc, habitId);
-    [getGetDailyOverviewQueryKey(), getGetDashboardTodayQueryKey(), getListHabitsQueryKey(), getGetHabitJourneyQueryKey(habitId), getListHabitCheckinsQueryKey({ habitId }), getGetWalletQueryKey(), getGetJourneyProgressQueryKey(), getGetHabitAdaptationQueryKey(habitId), getListRewardsQueryKey(), getGetCurrentUserQueryKey(), getGetMyCharacterQueryKey()]
+    [getGetDailyOverviewQueryKey(), getGetDashboardTodayQueryKey(), getListHabitsQueryKey(), getGetHabitJourneyQueryKey(habitId), getListHabitCheckinsQueryKey({ habitId }), getGetWalletQueryKey(), getGetJourneyProgressQueryKey(), getGetHabitAdaptationQueryKey(habitId), getListRewardsQueryKey(), getGetCurrentUserQueryKey(), getGetMyCharacterQueryKey(), getListWalletTransactionsQueryKey()]
       .forEach(k => qc.invalidateQueries({ queryKey: k }));
     qc.invalidateQueries({ queryKey: getGetHabitQueryKey(habitId) });
     qc.invalidateQueries({ predicate: q => typeof q.queryKey[0] === 'string' && (q.queryKey[0] as string).startsWith(`/api/habits/${habitId}/daily/`) });

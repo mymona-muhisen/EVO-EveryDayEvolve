@@ -33,6 +33,10 @@ _Populate as you build — non-obvious choices a reader couldn't infer from the 
 - «رحلتي» is the entry point to the same 22-calendar-day map shown for each habit, not a separate XP journey. Keep wardrobe, levels, and the character shop available separately.
 - Uploaded `components/` assets are purchasable island decorations, placed above the islands. They must not appear as automatic success-count unlocks. Buying an item preserves ownership when its placement is removed or moved.
 - The map supports an immersive fullscreen view with an exit control and a working in-app fallback when native browser fullscreen is unavailable.
+- One global character appearance belongs to each user and is reused on the character page, dashboard, profile/settings, and all habit journeys. Journey position is habit-specific; wardrobe ownership, equipped slots, XP, and coins are global.
+- Keep the established difficulty-based rewards (easy 10 XP/5 coins, medium 20/10, hard 30/15 plus existing streak/milestone bonuses). Minimum and target are rewarded once; no additional target reward is configured. Do not reconcile or repay historical records.
+- XP is not currency. Preserve existing within-level XP storage and level thresholds; expose cumulative equivalent XP for the lifetime progress display without migrating historical balances.
+- Character wardrobe and island decorations are separate inventories using the same wallet. Preserve both catalogs and existing purchases; all currency writers must refresh every displayed wallet/progression surface.
 
 ## User preferences
 

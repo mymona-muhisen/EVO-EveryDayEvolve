@@ -59,13 +59,13 @@ export function HabitJourneyPage() {
       return <><div className="flex flex-wrap gap-2 mb-4" aria-label="تقدّم الرحلة">
         <span className="badge">{d.status === 'not_started' ? 'الرحلة لم تبدأ بعد' : `اليوم ${calendarDay(d)} من 22`}</span>
         <span className="badge">الاتساق: {d.consistency.successfulDays} نجاح من {d.consistency.eligibleDays} أيام مجدولة</span>
-      </div><div className={`grid ${full ? 'lg:grid-cols-[minmax(0,1fr)_320px]' : 'lg:grid-cols-[minmax(0,560px)_1fr]'} gap-6 items-start`}>
+      </div><div data-journey-layout className={`grid ${full ? 'lg:grid-cols-[minmax(0,1fr)_320px]' : 'lg:grid-cols-[minmax(0,560px)_1fr]'} gap-6 items-start`}>
         <div className={`min-w-0 ${full ? 'lg:sticky lg:top-4' : ''}`}>
           {cel && <div role="status" className="paper rounded-2xl p-3 mb-3 pop flex gap-3 items-center"><img src={base('component-pikura-star-20750.gif')} alt="" className="h-10 motion-reduce:hidden" />{(MILESTONES as readonly number[]).includes(calendarDay(d)) ? 'أكملت يوم هذه المحطة. خطوة جديدة في رحلتك.' : 'خطوة اليوم محفوظة. أثر جديد على جزيرتك.'}</div>}
           <JourneyMap journey={d} selected={cur} onSelect={setSel} placements={deco.data?.placements} fullscreen={full} />
         </div>
         <div className="space-y-4 lg:sticky lg:top-4 min-w-0">
-          <div className="flex flex-wrap gap-2 items-center"><button className="btn" onClick={focus} data-testid="button-focus-current"><Crosshair size={16} />اذهب إلى اليوم {calendarDay(d)}</button>{!full && <button ref={fsBtn} className="btn btn-light" onClick={() => setFull(true)} data-testid="button-fullscreen"><Maximize2 size={16} />ملء الشاشة</button>}<Link href="/character" className="btn btn-light">الشخصية والمتجر</Link><span className="badge">{d.successful} ناجحة · {d.restDays} راحة · {d.missedDays} فائتة</span></div>
+          <div data-journey-controls className="flex flex-wrap gap-2 items-center"><button className="btn" onClick={focus} data-testid="button-focus-current"><Crosshair size={16} />اذهب إلى اليوم {calendarDay(d)}</button>{!full && <button ref={fsBtn} className="btn btn-light" onClick={() => setFull(true)} data-testid="button-fullscreen"><Maximize2 size={16} />ملء الشاشة</button>}<Link href="/character" className="btn btn-light">الشخصية والمتجر</Link><span className="badge">{d.successful} ناجحة · {d.restDays} راحة · {d.missedDays} فائتة</span></div>
           {d.status === 'expired' && <p className="panel rounded-xl p-3 text-sm">انتهت الرحلة دون إكمال، وتبقى خريطتك محفوظة كما هي.</p>}
           {d.status === 'completed' && <Link href={`/habits/${id}/journey/complete`} className="btn btn-coral">ملخص إكمال الرحلة</Link>}
           <NodeDetails habit={habit.data} journey={d} day={day} /><DecorShop habitId={id} />

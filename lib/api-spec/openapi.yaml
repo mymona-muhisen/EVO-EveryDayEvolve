@@ -931,7 +931,17 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/CharacterItem" }
         "400":
-          description: Insufficient coins or already owned
+          description: Invalid request, insufficient coins, insufficient level, or invalid item price
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: Item not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "409":
+          description: Item already owned
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
@@ -953,7 +963,39 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/CharacterItem" }
         "400":
-          description: Item not owned
+          description: Invalid request or item not owned
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: Item not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /character/items/{itemId}/unequip:
+    post:
+      operationId: unequipCharacterItem
+      tags: [character]
+      summary: Unequip an owned character item
+      parameters:
+        - name: itemId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Unequipped
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CharacterItem" }
+        "400":
+          description: Invalid request or item not owned
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: Item not found
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
@@ -2137,6 +2179,7 @@ components:
         slot: { type: string, enum: [outfit, hat, accessory, pet, background] }
         emoji: { type: string }
         coinCost: { type: integer }
+        levelRequired: { type: integer, minimum: 0, default: 0 }
         owned: { type: boolean }
         equipped: { type: boolean }
     DecorationItem:
@@ -2188,14 +2231,28 @@ components:
         slot: { type: integer, minimum: 0, maximum: 5 }
     MyCharacter:
       type: object
-      required: [level, xp, xpToNextLevel, equippedItems]
+      required: [level, xp, xpToNextLevel, totalXp, nextLevelXp, progressPercent, walletCoins, equippedItems, recentProgress]
       properties:
         level: { type: integer }
         xp: { type: integer }
         xpToNextLevel: { type: integer }
+        totalXp: { type: integer, minimum: 0 }
+        nextLevelXp: { type: integer, minimum: 1 }
+        progressPercent: { type: number, minimum: 0, maximum: 100 }
+        walletCoins: { type: integer, minimum: 0 }
         equippedItems:
           type: array
           items: { $ref: "#/components/schemas/CharacterItem" }
+        recentProgress:
+          type: array
+          items: { $ref: "#/components/schemas/CharacterProgressEntry" }
+    CharacterProgressEntry:
+      type: object
+      required: [date, xpEarned, coinsEarned]
+      properties:
+        date: { type: string, format: date }
+        xpEarned: { type: ["integer", "null"], minimum: 0 }
+        coinsEarned: { type: ["integer", "null"], minimum: 0 }
 
     JourneyMilestone:
       type: object
