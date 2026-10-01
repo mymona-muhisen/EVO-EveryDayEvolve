@@ -9,6 +9,7 @@ import { effectiveMinimum, evaluateHabitCheckin } from "./aiRules";
 import { addCalendarDays } from "./habitJourney";
 
 export class CheckinConflictError extends Error {}
+type CheckinTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 /**
  * A check-in and all its effects are one commit. Lock the user before the
@@ -20,7 +21,25 @@ export async function recordCheckin(
   habitId: number,
   input: z.infer<typeof CreateCheckinBody>,
 ) {
-  return db.transaction(async (tx) => {
+  return db.transaction((tx) => recordCheckinInTransaction(tx, userId, habitId, input));
+}
+
+/**
+ * Transaction-aware check-in entry point for workflows (such as daily habit
+ * completion) that must commit execution state and rewards together.
+ */
+export async function recordCheckinInTransaction(
+  tx: CheckinTransaction,
+  userId: string,
+  habitId: number,
+  input: z.infer<typeof CreateCheckinBody>,
+  snapshot?: {
+    targetValue: number;
+    minimumValue: number;
+    successLimitValue: number | null;
+    goalType: "build" | "quit";
+  },
+) {
     const [user] = await tx.select({ id: usersTable.id }).from(usersTable)
       .where(eq(usersTable.id, userId)).for("update");
     if (!user) throw new Error("User not found");
@@ -51,19 +70,20 @@ export async function recordCheckin(
       }
     }
     const [existing] = await tx.select().from(checkinsTable)
-      .where(and(eq(checkinsTable.habitId, habit.id), eq(checkinsTable.date, date)));
+      .where(and(eq(checkinsTable.habitId, habit.id), eq(checkinsTable.date, date)))
+      .for("update");
     // Omitted fields in a value-only retry are not reflection clears.
     const effectiveValue = value !== undefined ? value : existing?.value ?? null;
     const effectiveNote = note !== undefined ? note : existing?.note ?? null;
     const effectiveMoodRating = moodRating !== undefined ? moodRating : existing?.moodRating ?? null;
     const effectiveDifficulty = difficulty !== undefined ? difficulty : existing?.difficulty ?? null;
     const effectiveMissedReason = missedReason !== undefined ? missedReason : existing?.missedReason ?? null;
-    const targetSnapshot = existing?.targetSnapshot ?? dayPlan?.targetValue ?? habit.targetValue;
+    const targetSnapshot = existing?.targetSnapshot ?? snapshot?.targetValue ?? dayPlan?.targetValue ?? habit.targetValue;
     const minimumSnapshot = existing?.minimumSnapshot
-      ?? dayPlan?.minimumValue ?? effectiveMinimum(habit.targetValue, habit.minimumValue);
+      ?? snapshot?.minimumValue ?? dayPlan?.minimumValue ?? effectiveMinimum(habit.targetValue, habit.minimumValue);
     const successLimitSnapshot = existing?.successLimitSnapshot
-      ?? dayPlan?.successLimitValue ?? habit.successLimitValue;
-    const goalTypeSnapshot = existing?.goalTypeSnapshot ?? dayPlan?.goalType ?? habit.goalType;
+      ?? snapshot?.successLimitValue ?? dayPlan?.successLimitValue ?? habit.successLimitValue;
+    const goalTypeSnapshot = existing?.goalTypeSnapshot ?? snapshot?.goalType ?? dayPlan?.goalType ?? habit.goalType;
     const { completed, targetCompleted } = evaluateHabitCheckin({
       goalType: goalTypeSnapshot,
       targetValue: targetSnapshot,
@@ -167,10 +187,15 @@ export async function recordCheckin(
 
     // Validate before COMMIT; a response-schema failure must not persist a
     // reward while reporting failure to the client.
-    return CreateCheckinResponse.parse({
+    const response = CreateCheckinResponse.parse({
       ...checkin,
       newStreak,
       habit: updatedHabit,
     });
-  });
+    return {
+      ...response,
+      rewardDelta: shouldReward
+        ? { xp: xpForDifficulty(habit.difficulty), coins: coinsEarned }
+        : { xp: 0, coins: 0 },
+    };
 }

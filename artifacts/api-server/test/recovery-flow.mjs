@@ -11,6 +11,7 @@ const webDir = resolve(apiDir, "../habit-journey");
 const temp = await mkdtemp(join(apiDir, ".recovery-test-"));
 const state = {
   rows: [],
+  tables: new Map(),
   writes: 0,
   textCalls: 0,
   viewer: "alice",
@@ -25,23 +26,73 @@ const state = {
 globalThis.__recoveryTest = state;
 
 const table = `export const habitsTable = Object.fromEntries(
-  ["id", "userId", "createdAt", "isActive"].map(key => [key, key]));
-export const checkinsTable = {};
+  ["id", "userId", "createdAt", "isActive", "targetValue", "minimumValue",
+   "successLimitValue", "goalType", "unit", "executionType", "cadence", "customDays",
+   "minimumFloor", "baselineValue", "busyDayValue", "journeyStartDate", "journeyLength",
+   "cueType", "cueTime", "cue", "startAction", "friction", "title", "rewardId"]
+    .map(key => [key, key]));
+export const checkinsTable = Object.fromEntries(["id", "habitId", "date"].map(key => [key, key]));
+export const timeEntriesTable = Object.fromEntries(
+  ["date", "durationMinutes", "userId", "category"].map(key => [key, key]));
+export const habitDaysTable = Object.fromEntries(
+  ["id", "habitId", "date", "dayNumber", "scheduled", "planRevision"].map(key => [key, key]));
+export const habitPlanRevisionsTable = Object.fromEntries(["habitId", "revision"].map(key => [key, key]));
+export const habitDailyExecutionsTable = Object.fromEntries(["habitId"].map(key => [key, key]));
+export const rewardsTable = Object.fromEntries(["id", "userId"].map(key => [key, key]));
 export const db = {
-  select: () => ({ from: () => ({ where: async predicate =>
-    globalThis.__recoveryTest.rows.filter(predicate) }) }),
-  update: () => ({ set: changes => ({ where: predicate => ({ returning: async () => {
+  select: () => ({ from: table => {
     const s = globalThis.__recoveryTest;
-    const row = s.rows.find(predicate);
-    if (!row) return [];
-    s.writes++;
-    Object.assign(row, changes);
-    return [{ ...row }];
-  } }) }) }),
+    let rows = table === habitsTable ? s.rows : s.tables.get(table) || [];
+    const query = {
+      where(predicate) { rows = rows.filter(predicate); return query; },
+      for() { return query; },
+      orderBy() { return query; },
+      limit(count) { rows = rows.slice(0, count); return query; },
+      then(resolve, reject) { return Promise.resolve(rows).then(resolve, reject); },
+    };
+    return query;
+  } }),
+  insert: table => ({ values: async value => {
+    const s = globalThis.__recoveryTest;
+    const rows = s.tables.get(table) || [];
+    rows.push(value);
+    s.tables.set(table, rows);
+    return [value];
+  } }),
+  update: table => ({ set: changes => ({ where: predicate => {
+    const s = globalThis.__recoveryTest;
+    const rows = table === habitsTable ? s.rows : s.tables.get(table) || [];
+    const row = rows.find(predicate);
+    const updated = row ? (s.writes++, Object.assign(row, changes), [{ ...row }]) : [];
+    return {
+      returning: async () => updated,
+      then(resolve, reject) { return Promise.resolve(updated).then(resolve, reject); },
+    };
+  } }) }),
+  transaction: callback => callback(db),
 };`;
 const uiMocks = `
 const s = globalThis.__recoveryTest;
 export const useGetHabit = () => ({ data: s.view, isLoading: false, isError: false });
+export const useGetDashboardToday = () => ({ data: { date: "2026-09-30" }, isLoading: false, isError: false });
+export const useGetHabitAdaptation = () => {
+  const habit = s.view;
+  const changed = habit?.targetValue !== 10;
+  const currentMinimum = habit?.minimumValue ?? habit?.targetValue ?? 10;
+  return { data: habit ? {
+    targetValue: changed ? habit.targetValue : 5,
+    minimumValue: changed ? currentMinimum : 5,
+    newSuccessLimitValue: null,
+    expectedTargetValue: habit.targetValue,
+    expectedMinimumValue: currentMinimum,
+    expectedSuccessLimitValue: habit.successLimitValue ?? null,
+    suggestion: !changed,
+    coachMessage: "خطوة أصغر تناسب إيقاعك.",
+    actions: { cue: null, startAction: null, busyDayValue: null },
+  } : undefined, isLoading: false, isError: false };
+};
+export const useGetHabitJourney = () => ({ data: undefined, isLoading: false, isError: false });
+export const useListRewards = () => ({ data: [], isLoading: false, isError: false });
 export const useListHabitCheckins = () => ({ data: [] });
 export const useListTimeEntries = () => ({ data: [] });
 export const useAiRelapseRecovery = () => ({ isPending: false, mutate: (_, callbacks) => {
@@ -56,15 +107,33 @@ export const useUpdateHabit = () => ({ isPending: false, mutate: (input, callbac
     method: "PATCH", headers: { "content-type": "application/json", "x-test-user": s.viewer },
     body: JSON.stringify(input.data),
   }).then(async r => { if (r.ok) callbacks.onSuccess(await r.json()); else callbacks.onError(); }));
+}, mutateAsync: input => {
+  const pending = fetch(s.base + "/habits/" + input.habitId, {
+    method: "PATCH", headers: { "content-type": "application/json", "x-test-user": s.viewer },
+    body: JSON.stringify(input.data),
+  }).then(async r => {
+    if (!r.ok) {
+      const error = new Error("Habit update failed");
+      error.status = r.status;
+      throw error;
+    }
+    return r.json();
+  });
+  s.pending.push(pending);
+  return pending;
 } });
 const idle = () => ({ isPending: false, mutate() {} });
 export const useCreateCheckin = idle, useRecoverStreak = idle, useAiCheckinFeedback = idle,
   useCreateTimeEntry = idle, useCreateHabit = idle, useDeleteHabit = idle,
-  useAiBreakdownGoal = idle, useListHabits = idle;
+  useAiBreakdownGoal = idle, useListHabits = idle, useUpdateCheckinReflection = idle;
 export const getGetHabitQueryKey = id => ["habit", id];
+export const getGetHabitJourneyQueryKey = id => ["journey", id];
+export const getGetHabitAdaptationQueryKey = id => ["adaptation", id];
 export const getListHabitsQueryKey = () => ["habits"];
 export const getGetDashboardTodayQueryKey = () => ["dashboard"];
+export const getGetDashboardCalendarQueryKey = () => ["calendar"];
 export const getListHabitCheckinsQueryKey = () => ["checkins"];
+export const getListRewardsQueryKey = () => ["rewards"];
 export const getGetWalletQueryKey = () => ["wallet"];
 export const getListTimeEntriesQueryKey = () => ["times"];`;
 
@@ -72,7 +141,10 @@ const stubs = {
   "@workspace/db": table,
   "drizzle-orm": `export const eq = (key, value) => row => row[key] === value;
 export const and = (...predicates) => row => predicates.every(predicate => predicate(row));
-export const gte = () => () => true;
+export const gte = (key, value) => row => row[key] >= value;
+export const lte = (key, value) => row => row[key] <= value;
+export const inArray = (key, values) => row => values.includes(row[key]);
+export const gt = (key, value) => row => row[key] > value;
 export const desc = () => undefined;`,
   "../middlewares/requireAuth": `export const requireAuth = (req, res, next) => {
   if (!req.headers["x-test-user"]) return res.status(401).json({error:"Unauthorized"});
@@ -85,7 +157,9 @@ export const desc = () => undefined;`,
 };
 export const breakdownGoalMessages = async () => ({stepTexts:[],coachMessage:""});
 export const dailyInsightMessage = async () => "";
-export const checkinFeedbackMessage = async () => "";`,
+export const checkinFeedbackMessage = async () => "";
+export const habitAdaptationMessages = async () => ({ explanation: "", suggestion: "" });
+export const habitBuilderText = async () => null;`,
   react: `export const useState = initial => {
   const s = globalThis.__recoveryTest, i = s.hookIndex++;
   if (!(i in s.hooks)) s.hooks[i] = initial;
@@ -109,6 +183,10 @@ ErrorBlock = "mock", AddButton = "mock";
 export const categories = {health:"الصحة"};
 export const dateToday = () => "2026-09-30";
 export const arDate = value => value;`,
+  "@/components/daily/day-panel": `export const DailyDayPanel = "mock";`,
+  "@/components/daily/consistency": `export const ConsistencyLine = "mock";`,
+  "@/hooks/use-daily": `export const useDailyOverview = () => ({ data: undefined, isLoading: false, isError: false });`,
+  "@/components/habit-plan-form": `export const HabitPlanForm = "mock"; export const unitName = value => String(value);`,
 };
 
 const plugin = {
@@ -126,15 +204,18 @@ const plugin = {
 function habit(id, userId, targetValue) {
   return {
     id, userId, targetValue, title: "المشي", emoji: "🌱", category: "health",
-    cadence: "daily", customDays: null, unit: "minutes", difficulty: "easy",
-    goalType: "build", isActive: true, currentStreak: 0, longestStreak: 3,
+    cadence: "daily", customDays: null, unit: "minutes", executionType: "duration",
+    minimumValue: targetValue, busyDayValue: null, baselineValue: null, successLimitValue: null,
+    cueType: null, cueTime: null, cue: null, startAction: null, friction: null,
+    minimumFloor: null, journeyStartDate: null, journeyLength: null, rewardId: null,
+    difficulty: "easy", goalType: "build", isActive: true, currentStreak: 0, longestStreak: 3,
     lastCheckinDate: null, milestones: [], createdAt: new Date(),
   };
 }
 
 function render(Page) {
   state.hookIndex = 0;
-  return Page();
+  return Page({ user: { id: state.viewer, timezone: "UTC" } });
 }
 function text(node) {
   if (node == null || typeof node === "boolean") return "";
@@ -200,24 +281,35 @@ try {
       state.view = { ...state.rows[0] };
       state.hooks = [];
       state.invalidated = [];
-      state.writes = 0;
-      button(render(HabitDetailPage), "اسأل المدرّب").props.onClick();
-      await flush();
-      assert.match(text(render(HabitDetailPage)), /هدف العودة المقترح:\s+5/);
-      button(render(HabitDetailPage), "الإبقاء على هدفي الحالي").props.onClick();
+      state.writes = state.textCalls = 0;
+      const recovery = await request(
+        "/ai/relapse-recovery",
+        "POST",
+        "alice",
+        { habitId: 1, missedDays: 1 },
+      );
+      assert.equal(recovery.status, 200);
+      const proposal = await recovery.json();
+      assert.equal(proposal.originalTargetValue, 10);
+      assert.equal(proposal.suggestedTargetValue, 5);
+      assert.equal(proposal.message, "ابدأ من جديد");
+      assert.equal(state.textCalls, 1);
+      button(render(HabitDetailPage), "انظر إلى الاقتراح").props.onClick();
+      assert.match(text(render(HabitDetailPage)), /المقترح:\s+5/);
+      button(render(HabitDetailPage), "الإبقاء على هدفي").props.onClick();
       assert.equal(state.writes, 0);
       assert.equal(state.rows[0].targetValue, 10);
-      assert.match(text(render(HabitDetailPage)), /بقي هدفك كما هو:\s+10/);
+      assert.match(text(render(HabitDetailPage)), /هدف اليوم:\s+10/);
 
-      button(render(HabitDetailPage), "اسأل المدرّب").props.onClick();
-      await flush();
-      button(render(HabitDetailPage), "تطبيق هدف العودة").props.onClick();
+      button(render(HabitDetailPage), "انظر إلى الاقتراح").props.onClick();
+      assert.match(text(render(HabitDetailPage)), /قبول\s+الاقتراح/);
+      button(render(HabitDetailPage), "قبول").props.onClick();
       await flush();
       const after = render(HabitDetailPage);
       assert.equal(state.writes, 1);
       assert.equal(state.rows[0].targetValue, 5);
-      assert.match(text(after), /هدف العادة الحالي:\s+5/);
-      assert.match(text(after), /تم تطبيق هدف العودة:\s+5/);
+      assert.match(text(after), /هدف اليوم:\s+5/);
+      assert.doesNotMatch(text(after), /انظر إلى الاقتراح/);
       assert.ok(state.invalidated.some(key => key[0] === "habits"));
       assert.ok(state.invalidated.some(key => key[0] === "dashboard"));
       assert.equal(state.view.targetValue, 5);

@@ -9,6 +9,7 @@ import type { HabitInputCadence } from './habitInputCadence';
 import type { HabitInputCategory } from './habitInputCategory';
 import type { HabitInputCueType } from './habitInputCueType';
 import type { HabitInputDifficulty } from './habitInputDifficulty';
+import type { HabitInputExecutionType } from './habitInputExecutionType';
 import type { HabitInputGoalType } from './habitInputGoalType';
 import type { HabitInputUnit } from './habitInputUnit';
 import type { HabitMilestone } from './habitMilestone';
@@ -25,6 +26,7 @@ export interface HabitInput {
      */
   customDays?: number[];
   unit: HabitInputUnit;
+  executionType?: HabitInputExecutionType;
   /** @minimum 0 */
   targetValue: number;
   /** @minimum 0 */

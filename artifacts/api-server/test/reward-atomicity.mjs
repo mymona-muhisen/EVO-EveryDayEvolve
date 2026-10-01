@@ -50,6 +50,9 @@ const ddl = [
   `CREATE TYPE ${quote("habit_difficulty")} AS ENUM ('easy', 'medium', 'hard')`,
   `CREATE TYPE ${quote("habit_goal_type")} AS ENUM ('build', 'quit')`,
   `CREATE TYPE ${quote("habit_cue_type")} AS ENUM ('time', 'routine', 'custom')`,
+  `CREATE TYPE ${quote("habit_execution_type")} AS ENUM ('duration', 'count', 'boolean', 'limit')`,
+  `CREATE TYPE ${quote("daily_execution_status")} AS ENUM ('pending', 'in_progress', 'paused', 'minimum_reached', 'target_reached', 'pending_reflection', 'completed', 'missed', 'recovery_available', 'recovery_active', 'recovered')`,
+  `CREATE TYPE ${quote("daily_adaptation_decision")} AS ENUM ('accepted', 'rejected')`,
   `CREATE TYPE ${quote("checkin_difficulty")} AS ENUM ('easy', 'normal', 'hard', 'very_hard')`,
   `CREATE TYPE ${quote("missed_reason")} AS ENUM ('too_difficult', 'no_time', 'forgot', 'lost_motivation', 'unexpected', 'other')`,
   `CREATE TYPE ${quote("coin_transaction_reason")} AS ENUM ('checkin', 'streak_bonus', 'streak_recovery', 'reward_redemption', 'item_purchase', 'challenge_bonus', 'manual')`,
@@ -75,6 +78,7 @@ const ddl = [
     cadence ${quote("habit_cadence")} NOT NULL,
     custom_days integer[],
     unit ${quote("habit_unit")} NOT NULL,
+    execution_type ${quote("habit_execution_type")},
     target_value double precision NOT NULL,
     minimum_value double precision,
     busy_day_value double precision,
@@ -92,6 +96,9 @@ const ddl = [
     difficulty ${quote("habit_difficulty")} NOT NULL,
     goal_type ${quote("habit_goal_type")} NOT NULL,
     is_active boolean NOT NULL DEFAULT true,
+    recovery_enabled boolean NOT NULL DEFAULT false,
+    recovery_used integer NOT NULL DEFAULT 0,
+    recovery_limit integer NOT NULL DEFAULT 2,
     current_streak integer NOT NULL DEFAULT 0,
     longest_streak integer NOT NULL DEFAULT 0,
     last_checkin_date date,
@@ -106,6 +113,13 @@ const ddl = [
     day_number integer NOT NULL,
     date date NOT NULL,
     scheduled boolean NOT NULL DEFAULT true,
+    title text,
+    unit ${quote("habit_unit")},
+    execution_type ${quote("habit_execution_type")},
+    cue_type ${quote("habit_cue_type")},
+    cue_time text,
+    cue text,
+    start_action text,
     target_value double precision NOT NULL,
     minimum_value double precision NOT NULL,
     busy_day_value double precision,
@@ -123,6 +137,55 @@ const ddl = [
     plan jsonb NOT NULL,
     created_at timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT habit_plan_revisions_habit_revision_unique UNIQUE (habit_id, revision)
+  )`,
+  `CREATE TABLE ${quote("habit_daily_executions")} (
+    id serial PRIMARY KEY,
+    habit_id integer NOT NULL REFERENCES ${quote("habits")}(id) ON DELETE CASCADE,
+    date date NOT NULL,
+    day_number integer NOT NULL,
+    scheduled boolean NOT NULL DEFAULT true,
+    title text NOT NULL,
+    target_value double precision NOT NULL,
+    minimum_value double precision NOT NULL,
+    busy_day_value double precision,
+    success_limit_value double precision,
+    goal_type ${quote("habit_goal_type")} NOT NULL,
+    execution_type ${quote("habit_execution_type")} NOT NULL,
+    unit ${quote("habit_unit")} NOT NULL,
+    plan_revision integer NOT NULL DEFAULT 0,
+    cue_type ${quote("habit_cue_type")},
+    cue_time text,
+    cue text,
+    start_action text,
+    status ${quote("daily_execution_status")} NOT NULL DEFAULT 'pending',
+    actual_value double precision,
+    actual_seconds integer,
+    elapsed_base_seconds integer NOT NULL DEFAULT 0,
+    segment_paused_seconds integer NOT NULL DEFAULT 0,
+    started_at timestamptz,
+    last_resumed_at timestamptz,
+    paused_at timestamptz,
+    paused_seconds integer NOT NULL DEFAULT 0,
+    finished_at timestamptz,
+    missed_reason ${quote("missed_reason")},
+    note text,
+    difficulty ${quote("checkin_difficulty")},
+    revision integer NOT NULL DEFAULT 0,
+    adaptation_decision ${quote("daily_adaptation_decision")},
+    idempotency_key text,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT habit_daily_executions_habit_date_unique UNIQUE (habit_id, date)
+  )`,
+  `CREATE TABLE ${quote("habit_daily_action_keys")} (
+    id serial PRIMARY KEY,
+    habit_id integer NOT NULL REFERENCES ${quote("habits")}(id) ON DELETE CASCADE,
+    date date NOT NULL,
+    idempotency_key text NOT NULL,
+    action text NOT NULL,
+    request_fingerprint text NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT habit_daily_action_keys_unique UNIQUE (habit_id, date, idempotency_key)
   )`,
   `CREATE TABLE ${quote("checkins")} (
     id serial PRIMARY KEY,
@@ -201,6 +264,11 @@ async function prepare() {
       export { grantRewards } from ${JSON.stringify(join(apiDir, "src/lib/gamificationService.ts"))};
       export { default as habitsRouter } from ${JSON.stringify(join(apiDir, "src/routes/habits.ts"))};
       export { default as checkinsRouter } from ${JSON.stringify(join(apiDir, "src/routes/checkins.ts"))};
+      export { default as dailyRouter } from ${JSON.stringify(join(apiDir, "src/routes/daily.ts"))};
+      export {
+        getDailyHabitState, changeDailyHabitExecution, saveDailyHabitReflection,
+        recordDailyAdaptationDecision, getDailyOverview,
+      } from ${JSON.stringify(join(apiDir, "src/lib/dailyExecutionService.ts"))};
       export { db, pool } from "@workspace/db";
     `,
   );
@@ -291,7 +359,8 @@ test.after(cleanup);
 async function reset() {
   await adminPool.query(
     `TRUNCATE ${quote("user_journey_milestones")}, ${quote("journey_milestones")},
-     ${quote("coin_transactions")}, ${quote("habit_plan_revisions")}, ${quote("habit_days")},
+     ${quote("coin_transactions")}, ${quote("habit_daily_action_keys")}, ${quote("habit_daily_executions")},
+     ${quote("habit_plan_revisions")}, ${quote("habit_days")},
      ${quote("checkins")}, ${quote("habits")},
      ${quote("users")} RESTART IDENTITY CASCADE`,
   );
@@ -324,6 +393,103 @@ async function seedHabit({
     [userId, cadence, currentStreak, longestStreak, lastCheckinDate],
   );
   return result.rows[0].id;
+}
+
+function addDays(date, days) {
+  const result = new Date(`${date}T00:00:00.000Z`);
+  result.setUTCDate(result.getUTCDate() + days);
+  return result.toISOString().slice(0, 10);
+}
+
+const dailyNow = new Date();
+dailyNow.setUTCHours(12, 0, 0, 0);
+const dailyToday = dailyNow.toISOString().slice(0, 10);
+
+async function seedDailyJourney(habitId, startDate, {
+  length = 22,
+  targetValue = 10,
+  minimumValue = 5,
+  unit = "minutes",
+  executionType = "duration",
+  goalType = "build",
+  cadence = "daily",
+} = {}) {
+  await adminPool.query(
+    `UPDATE ${quote("habits")}
+     SET journey_start_date = $2, journey_length = $3, target_value = $4,
+         minimum_value = $5, unit = $6, execution_type = $7, goal_type = $8, cadence = $9
+     WHERE id = $1`,
+    [habitId, startDate, length, targetValue, minimumValue, unit, executionType, goalType, cadence],
+  );
+  const plan = {
+    title: "Walk",
+    targetValue,
+    minimumValue,
+    busyDayValue: null,
+    successLimitValue: null,
+    goalType,
+    unit,
+    executionType,
+    cadence,
+    customDays: null,
+    cueType: null,
+    cueTime: null,
+    cue: null,
+    startAction: null,
+  };
+  await adminPool.query(
+    `INSERT INTO ${quote("habit_plan_revisions")} (habit_id, revision, effective_from, plan)
+     VALUES ($1, 1, $2, $3::jsonb)`,
+    [habitId, startDate, JSON.stringify(plan)],
+  );
+  for (let dayNumber = 1; dayNumber <= length; dayNumber++) {
+    const date = addDays(startDate, dayNumber - 1);
+    const dayOfWeek = new Date(`${date}T00:00:00.000Z`).getUTCDay();
+    const scheduled = cadence !== "weekdays" || (dayOfWeek >= 1 && dayOfWeek <= 5);
+    await adminPool.query(
+      `INSERT INTO ${quote("habit_days")}
+         (habit_id, day_number, date, scheduled, title, unit, execution_type,
+          target_value, minimum_value, goal_type, plan_revision)
+       VALUES ($1, $2, $3, $4, 'Walk', $5, $6, $7, $8, $9, 1)`,
+      [habitId, dayNumber, date, scheduled, unit, executionType,
+        targetValue, minimumValue, goalType],
+    );
+  }
+}
+
+async function applyFuturePlanRevision(habitId, targetValue = 12) {
+  const plan = {
+    title: "Walk",
+    targetValue,
+    minimumValue: 5,
+    busyDayValue: null,
+    successLimitValue: null,
+    goalType: "build",
+    unit: "minutes",
+    executionType: "duration",
+    cadence: "daily",
+    customDays: null,
+    cueType: null,
+    cueTime: null,
+    cue: null,
+    startAction: null,
+  };
+  await adminPool.query(
+    `INSERT INTO ${quote("habit_plan_revisions")} (habit_id, revision, effective_from, plan)
+     VALUES ($1, 2, $2, $3::jsonb)`,
+    [habitId, addDays(dailyToday, 1), JSON.stringify(plan)],
+  );
+  await service.db.transaction((tx) => service.reviseFutureUnrecordedDays(
+    tx,
+    habitId,
+    dailyToday,
+    2,
+    {
+      ...plan,
+      cadence: "daily",
+      customDays: null,
+    },
+  ));
 }
 
 async function seedMilestone(levelRequired = 2, rewardCoins = 25) {
@@ -1051,4 +1217,288 @@ test("dashboard uses today's immutable plan and disables scheduling outside jour
   const afterJourney = await service.getDashboardHabitsToday(userId, "2026-06-22");
   assert.equal(beforeJourney[0].scheduledToday, false);
   assert.equal(afterJourney[0].scheduledToday, false);
+});
+
+test("daily execution supports minimum success, Continue, Done, reflection, and revision CAS", async () => {
+  await reset();
+  const userId = await seedUser();
+  const habitId = await seedHabit({ userId });
+  await seedDailyJourney(habitId, dailyToday);
+  const dateInput = new Date(`${dailyToday}T00:00:00.000Z`);
+  let current = await service.getDailyHabitState(userId, habitId, dailyToday, dailyNow);
+  const change = (action, expectedRevision, now, value, idempotencyKey) =>
+    service.changeDailyHabitExecution(userId, habitId, {
+      date: dateInput,
+      action,
+      expectedRevision,
+      ...(value === undefined ? {} : { value }),
+      ...(idempotencyKey === undefined ? {} : { idempotencyKey }),
+    }, now);
+
+  current = (await change("update_progress", current.revision, dailyNow, 360, "manual-base")).execution;
+  assert.equal(current.status, "minimum_reached");
+  assert.equal(current.checkin, null, "manual progress alone does not complete or reward the day");
+  await assert.rejects(
+    change("start", 0, dailyNow),
+    (error) => error.statusCode === 409,
+    "stale execution revisions are rejected",
+  );
+
+  current = (await change("start", current.revision, dailyNow)).execution;
+  assert.equal(current.status, "in_progress");
+  current = (await change("pause", current.revision, new Date(dailyNow.getTime() + 30_000))).execution;
+  assert.equal(current.actualSeconds, 390, "six manual minutes plus thirty timer seconds are retained");
+  const finish = await change(
+    "finish",
+    current.revision,
+    new Date(dailyNow.getTime() + 30_000),
+    undefined,
+    "finish-minimum",
+  );
+  current = finish.execution;
+  assert.equal(current.status, "minimum_reached", "successful finish remains open for Continue or Done");
+  assert.equal(current.actualSeconds, 390);
+  assert.deepEqual(finish.rewardDelta, { xp: 10, coins: 5 });
+  const replay = await change(
+    "finish",
+    current.revision - 1,
+    new Date(dailyNow.getTime() + 30_000),
+    undefined,
+    "finish-minimum",
+  );
+  assert.deepEqual(replay.rewardDelta, { xp: 0, coins: 0 });
+
+  current = (await change("start", current.revision, new Date(dailyNow.getTime() + 60_000))).execution;
+  assert.equal(current.status, "in_progress", "an achieved minimum does not block the timer");
+  const continuedFinish = await change("finish", current.revision, new Date(dailyNow.getTime() + 270_000));
+  current = continuedFinish.execution;
+  assert.equal(current.actualSeconds, 600);
+  assert.equal(current.status, "target_reached", "Continue can reach the full target");
+  assert.deepEqual(continuedFinish.rewardDelta, { xp: 0, coins: 0 });
+  const [paidUser] = await rows("users");
+  assert.equal(paidUser.xp, 10, "Continue does not pay a second time");
+  assert.equal((await rows("checkins")).length, 1);
+
+  current = (await change("done", current.revision, new Date(dailyNow.getTime() + 271_000))).execution;
+  assert.equal(current.status, "pending_reflection");
+  const app = express();
+  app.use(express.json());
+  app.use(service.habitsRouter);
+  app.use(service.dailyRouter);
+  const server = app.listen(0, "127.0.0.1");
+  await new Promise((resolve) => server.once("listening", resolve));
+  try {
+    const baseUrl = `http://127.0.0.1:${server.address().port}`;
+    const reflectionResponse = await fetch(
+      `${baseUrl}/habits/${habitId}/daily/${dailyToday}/reflection`,
+      {
+        method: "PATCH",
+        headers: { "content-type": "application/json", "x-test-user": userId },
+        body: JSON.stringify({ difficulty: "hard", note: "Completed but it felt hard" }),
+      },
+    );
+    const reflectionText = await reflectionResponse.text();
+    assert.equal(reflectionResponse.status, 200, reflectionText);
+    current = JSON.parse(reflectionText).execution;
+    assert.equal(current.status, "completed");
+
+    const getResponse = await fetch(`${baseUrl}/habits/${habitId}/daily/${dailyToday}`, {
+      headers: { "x-test-user": userId },
+    });
+    assert.equal(getResponse.status, 200);
+    assert.equal((await getResponse.json()).status, "completed");
+
+    const patchResponse = await fetch(`${baseUrl}/habits/${habitId}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json", "x-test-user": userId },
+      body: JSON.stringify({
+        targetValue: 12,
+        expectedTargetValue: 10,
+        expectedMinimumValue: 5,
+      }),
+    });
+    const patchText = await patchResponse.text();
+    assert.equal(patchResponse.status, 200, patchText);
+    assert.equal(JSON.parse(patchText).targetValue, 12);
+  } finally {
+    await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  }
+
+  const updateAfterDone = await change("update_progress", current.revision, new Date(dailyNow.getTime() + 120_000), 750);
+  assert.equal(updateAfterDone.execution.status, "completed", "same-day successful updates cannot downgrade completion");
+  assert.deepEqual(updateAfterDone.rewardDelta, { xp: 0, coins: 0 });
+  const [finalUser] = await rows("users");
+  assert.equal(finalUser.xp, 10);
+  const [checkin] = await rows("checkins");
+  assert.equal(checkin.completed, true);
+  assert.equal(checkin.value, 12.5);
+  const decision = await service.recordDailyAdaptationDecision(
+    userId,
+    habitId,
+    dailyToday,
+    { decision: "accepted" },
+    new Date(dailyNow.getTime() + 130_000),
+  );
+  assert.equal(decision.adaptationDecision, "accepted", "today's real hard success can accept a CAS-applied adaptation");
+});
+
+test("expired timer elapsed time stays separate from unknown actual and missed reflection is genuine", async () => {
+  await reset();
+  const userId = await seedUser();
+  const habitId = await seedHabit({ userId });
+  const yesterday = addDays(dailyToday, -1);
+  await seedDailyJourney(habitId, yesterday);
+  const timerStart = new Date(`${yesterday}T23:58:00.000Z`);
+  await adminPool.query(
+    `INSERT INTO ${quote("habit_daily_executions")}
+       (habit_id, date, day_number, scheduled, title, target_value, minimum_value,
+        goal_type, execution_type, unit, plan_revision, status, started_at,
+        last_resumed_at, elapsed_base_seconds)
+     VALUES ($1, $2, 1, true, 'Walk', 10, 5, 'build', 'duration', 'minutes', 1,
+             'in_progress', $3, $3, 120)`,
+    [habitId, yesterday, timerStart],
+  );
+  let missed = await service.getDailyHabitState(userId, habitId, yesterday, dailyNow);
+  assert.equal(missed.status, "missed");
+  assert.equal(missed.actualSeconds, 240);
+  assert.equal(missed.actualValue, null, "timer time alone is not a self-reported actual");
+  assert.equal(missed.checkin, null);
+  assert.equal((await rows("checkins")).length, 0, "expiry does not synthesize check-ins");
+
+  const reflected = await service.saveDailyHabitReflection(
+    userId,
+    habitId,
+    yesterday,
+    { missedReason: "no_time", difficulty: "hard", note: "Unexpected delay" },
+    dailyNow,
+  );
+  assert.equal(reflected.execution.status, "missed");
+  assert.equal((await rows("checkins")).length, 0, "a missed reflection remains execution evidence only");
+  await applyFuturePlanRevision(habitId);
+  const decision = await service.recordDailyAdaptationDecision(
+    userId,
+    habitId,
+    yesterday,
+    { decision: "accepted" },
+    dailyNow,
+  );
+  assert.equal(decision.adaptationDecision, "accepted", "the newest revision is used after the future-plan CAS");
+});
+
+test("daily overview keeps mixed active journeys non-actionable instead of failing the home request", async () => {
+  await reset();
+  const userId = await seedUser();
+  const todayHabit = await seedHabit({ userId });
+  const futureHabit = await seedHabit({ userId });
+  const endedHabit = await seedHabit({ userId });
+  await seedDailyJourney(todayHabit, dailyToday);
+  await seedDailyJourney(futureHabit, addDays(dailyToday, 1));
+  await seedDailyJourney(endedHabit, addDays(dailyToday, -22));
+
+  const overview = await service.getDailyOverview(userId, dailyToday, dailyNow);
+  assert.equal(overview.habits.length, 3);
+  const byId = new Map(overview.habits.map((item) => [item.habitId, item]));
+  assert.equal(byId.get(todayHabit).scheduledToday, true);
+  assert.equal(byId.get(futureHabit).scheduledToday, false);
+  assert.equal(byId.get(futureHabit).execution.eligible, false);
+  assert.equal(byId.get(futureHabit).eligibleDays, 0);
+  assert.ok(byId.get(futureHabit).rewardMilestones.every((stage) => !stage.reached));
+  assert.equal(byId.get(endedHabit).scheduledToday, false);
+  assert.equal(byId.get(endedHabit).execution.eligible, false);
+  assert.equal(byId.get(endedHabit).eligibleDays, 22, "elapsed journey consistency remains available after the journey ends");
+  assert.equal(byId.get(endedHabit).successfulDays, 0);
+  assert.equal(byId.get(endedHabit).rewardMilestones.find((stage) => stage.days === 22).reached, true);
+});
+
+test("legacy consistency counts saved elapsed schedule evidence without filling unknown dates", async () => {
+  await reset();
+  const userId = await seedUser();
+  const habitId = await seedHabit({ userId });
+  const anchor = addDays(dailyToday, -10);
+  await adminPool.query(
+    `UPDATE ${quote("habits")} SET created_at = $2 WHERE id = $1`,
+    [habitId, new Date(`${anchor}T12:00:00.000Z`)],
+  );
+  const [legacyHabit] = await adminPool.query(
+    `SELECT journey_start_date, journey_length FROM ${quote("habits")} WHERE id = $1`,
+    [habitId],
+  ).then((result) => result.rows);
+  assert.equal(legacyHabit.journey_start_date, null);
+  assert.equal(legacyHabit.journey_length, null);
+
+  const yesterday = addDays(dailyToday, -1);
+  const olderRest = addDays(dailyToday, -6);
+  const future = addDays(dailyToday, 1);
+  const saveExecution = async (date, scheduled, status) => {
+    const dayNumber = Math.floor(
+      (Date.parse(`${date}T00:00:00.000Z`) - Date.parse(`${anchor}T00:00:00.000Z`)) / 86_400_000,
+    ) + 1;
+    await adminPool.query(
+      `INSERT INTO ${quote("habit_daily_executions")}
+         (habit_id, date, day_number, scheduled, title, target_value, minimum_value,
+          goal_type, execution_type, unit, plan_revision, status)
+       VALUES ($1, $2, $3, $4, 'Walk', 10, 3, 'build', 'duration', 'minutes', 0, $5)`,
+      [habitId, date, dayNumber, scheduled, status],
+    );
+  };
+  await saveExecution(yesterday, true, "missed");
+  await saveExecution(olderRest, false, "pending");
+  await saveExecution(future, true, "pending");
+
+  const successful = await service.recordCheckin(userId, habitId, {
+    date: new Date(`${dailyToday}T00:00:00.000Z`),
+    completed: true,
+    value: 3,
+  });
+  assert.equal(successful.completed, true);
+  const [beforeRead] = await rows("users");
+  const transactionsBeforeRead = (await rows("coin_transactions")).length;
+
+  const overview = await service.getDailyOverview(userId, dailyToday, dailyNow);
+  const item = overview.habits.find((entry) => entry.habitId === habitId);
+  assert.ok(item);
+  assert.equal(item.successfulDays, 1, "only the real completed check-in counts as successful");
+  assert.equal(item.eligibleDays, 2, "yesterday's saved schedule and today's scheduled check-in are known; unknown history, rest and future are excluded");
+  const [afterRead] = await rows("users");
+  assert.equal(afterRead.xp, beforeRead.xp);
+  assert.equal(afterRead.coins, beforeRead.coins);
+  assert.equal((await rows("coin_transactions")).length, transactionsBeforeRead);
+});
+
+test("a completed weekday calendar journey reaches day 22 independently of its scheduled success count", async () => {
+  await reset();
+  const userId = await seedUser();
+  const habitId = await seedHabit({ userId });
+  const journeyStart = addDays(dailyToday, -21);
+  await seedDailyJourney(habitId, journeyStart, { cadence: "weekdays" });
+  const { rows: scheduledDays } = await adminPool.query(
+    `SELECT date::text AS date FROM ${quote("habit_days")}
+     WHERE habit_id = $1 AND scheduled = true ORDER BY date`,
+    [habitId],
+  );
+  assert.ok(scheduledDays.length <= 16 && scheduledDays.length >= 15);
+  for (const { date } of scheduledDays) {
+    const result = await service.recordCheckin(userId, habitId, {
+      date: new Date(`${date}T00:00:00.000Z`),
+      completed: true,
+      value: 6,
+    });
+    assert.equal(result.completed, true);
+  }
+
+  const [beforeOverview] = await rows("users");
+  const transactionsBeforeOverview = (await rows("coin_transactions")).length;
+  const overview = await service.getDailyOverview(userId, dailyToday, dailyNow);
+  const item = overview.habits.find((entry) => entry.habitId === habitId);
+  assert.ok(item);
+  assert.equal(item.execution.dayNumber, 22);
+  assert.equal(item.successfulDays, scheduledDays.length);
+  assert.equal(item.eligibleDays, scheduledDays.length);
+  assert.ok(item.successfulDays <= 16);
+  assert.equal(item.rewardMilestones.find((stage) => stage.days === 22).reached, true);
+  assert.equal(item.rewardMilestones.find((stage) => stage.days === 15).reached, true);
+  const [afterOverview] = await rows("users");
+  assert.equal(afterOverview.xp, beforeOverview.xp);
+  assert.equal(afterOverview.coins, beforeOverview.coins);
+  assert.equal((await rows("coin_transactions")).length, transactionsBeforeOverview);
 });

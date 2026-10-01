@@ -1,7 +1,8 @@
 import { Router, type IRouter } from "express";
 import { eq, and, desc } from "drizzle-orm";
 import {
-  db, habitsTable, checkinsTable, habitDaysTable, habitPlanRevisionsTable, rewardsTable,
+  db, habitsTable, checkinsTable, habitDaysTable, habitPlanRevisionsTable,
+  habitDailyExecutionsTable, rewardsTable,
 } from "@workspace/db";
 import {
   ListHabitsQueryParams,
@@ -27,6 +28,7 @@ import { habitAdaptationMessages } from "../lib/aiMessages";
 import { toDateOnly, todayInTimezone } from "../lib/dates";
 import {
   addCalendarDays, HABIT_JOURNEY_LENGTH, isScheduledDate, makeJourneyDays, snapshotPlan,
+  resolveExecutionType,
 } from "../lib/habitJourney";
 import { reviseFutureUnrecordedDays } from "../lib/habitPlanService";
 
@@ -63,6 +65,12 @@ router.post("/habits", async (req, res): Promise<void> => {
     return;
   }
   const input = parsed.data;
+  const executionType = resolveExecutionType(input.unit, input.goalType, input.executionType);
+  if ((input.goalType === "quit" && executionType !== "limit")
+    || (input.goalType === "build" && executionType === "limit")) {
+    res.status(400).json({ error: "Reduce habits use limit execution; build habits cannot use limit execution" });
+    return;
+  }
   const minimumValue = input.minimumValue ?? input.targetValue;
   const minimumFloor = defaultMinimumFloor(input.goalType, input.minimumFloor);
   const successLimitValue = input.successLimitValue ?? (input.goalType === "quit" ? input.targetValue : null);
@@ -117,6 +125,7 @@ router.post("/habits", async (req, res): Promise<void> => {
     const [habit] = await tx.insert(habitsTable).values({
       userId: req.userId!,
       ...input,
+      executionType,
       minimumValue,
       minimumFloor,
       busyDayValue: input.busyDayValue ?? null,
@@ -148,8 +157,11 @@ router.post("/habits", async (req, res): Promise<void> => {
       cue: habit.cue,
       startAction: habit.startAction,
       friction: habit.friction,
+      unit: habit.unit,
+      executionType,
     });
     await tx.insert(habitDaysTable).values(makeJourneyDays(habit.id, journeyStartDate, journeyLength, {
+      title: habit.title,
       targetValue: habit.targetValue,
       minimumValue: habit.minimumValue ?? habit.targetValue,
       busyDayValue: habit.busyDayValue,
@@ -158,6 +170,12 @@ router.post("/habits", async (req, res): Promise<void> => {
       planRevision: 1,
       cadence: habit.cadence,
       customDays: habit.customDays,
+      unit: habit.unit,
+      executionType,
+      cueType: habit.cueType,
+      cueTime: habit.cueTime,
+      cue: habit.cue,
+      startAction: habit.startAction,
     }));
     await tx.insert(habitPlanRevisionsTable).values({
       habitId: habit.id, revision: 1, effectiveFrom: journeyStartDate, plan,
@@ -211,10 +229,14 @@ router.get("/habits/:habitId/journey", async (req, res): Promise<void> => {
   const days = await db.select().from(habitDaysTable)
     .where(eq(habitDaysTable.habitId, habit.id))
     .orderBy(habitDaysTable.dayNumber);
-  const checkins = days.length
-    ? await db.select().from(checkinsTable).where(eq(checkinsTable.habitId, habit.id))
-    : [];
+  const [checkins, revisions] = days.length
+    ? await Promise.all([
+      db.select().from(checkinsTable).where(eq(checkinsTable.habitId, habit.id)),
+      db.select().from(habitPlanRevisionsTable).where(eq(habitPlanRevisionsTable.habitId, habit.id)),
+    ])
+    : [[], []];
   const byDate = new Map(checkins.map((checkin) => [checkin.date, checkin]));
+  const planByRevision = new Map(revisions.map((revision) => [revision.revision, revision.plan]));
   const scheduledDays = days.filter((day) => day.scheduled);
   const today = todayInTimezone(user.timezone);
   const startDate = habit.journeyStartDate;
@@ -229,7 +251,9 @@ router.get("/habits/:habitId/journey", async (req, res): Promise<void> => {
     completed: scheduledDays.filter((day) => byDate.has(day.date)).length,
     successful: scheduledDays.filter((day) => byDate.get(day.date)?.completed).length,
     currentDay: days.length === 0 || elapsed < 1 ? 0 : Math.min(days.length, elapsed),
-    days: days.map((day) => ({
+    days: days.map((day) => {
+      const plan = planByRevision.get(day.planRevision);
+      return ({
       date: day.date,
       dayNumber: day.dayNumber,
       scheduled: day.scheduled,
@@ -238,8 +262,16 @@ router.get("/habits/:habitId/journey", async (req, res): Promise<void> => {
       busyDayValue: day.busyDayValue,
       successLimitValue: day.successLimitValue,
       goalType: day.goalType,
+      unit: day.unit ?? plan?.unit ?? habit.unit,
+      executionType: day.executionType ?? plan?.executionType
+        ?? resolveExecutionType(day.unit ?? plan?.unit ?? habit.unit, day.goalType, habit.executionType),
+      cueType: day.cueType ?? plan?.cueType ?? null,
+      cueTime: day.cueTime ?? plan?.cueTime ?? null,
+      cue: day.cue ?? plan?.cue ?? null,
+      startAction: day.startAction ?? plan?.startAction ?? null,
       checkin: byDate.get(day.date) ?? null,
-    })),
+      });
+    }),
   };
   res.json(GetHabitJourneyResponse.parse(payload));
 });
@@ -262,10 +294,11 @@ router.get("/habits/:habitId/adaptation", async (req, res): Promise<void> => {
     difficulty: checkinsTable.difficulty,
     missedReason: checkinsTable.missedReason,
     completed: checkinsTable.completed,
+    note: checkinsTable.note,
   }).from(checkinsTable)
     .where(eq(checkinsTable.habitId, habit.id))
     .orderBy(desc(checkinsTable.date));
-  const [journeyDays, latestRevisionRows] = await Promise.all([
+  const [journeyDays, latestRevisionRows, dailyHistory] = await Promise.all([
     db.select({
     date: habitDaysTable.date,
     scheduled: habitDaysTable.scheduled,
@@ -277,9 +310,19 @@ router.get("/habits/:habitId/adaptation", async (req, res): Promise<void> => {
     }).from(habitPlanRevisionsTable)
       .where(eq(habitPlanRevisionsTable.habitId, habit.id))
       .orderBy(desc(habitPlanRevisionsTable.revision)).limit(1),
+    db.select({
+      date: habitDailyExecutionsTable.date,
+      scheduled: habitDailyExecutionsTable.scheduled,
+      status: habitDailyExecutionsTable.status,
+      planRevision: habitDailyExecutionsTable.planRevision,
+      difficulty: habitDailyExecutionsTable.difficulty,
+      missedReason: habitDailyExecutionsTable.missedReason,
+      note: habitDailyExecutionsTable.note,
+    }).from(habitDailyExecutionsTable).where(eq(habitDailyExecutionsTable.habitId, habit.id)),
   ]);
+  const today = todayInTimezone(user.timezone);
   const scheduledDates = new Set(journeyDays.filter((day) => day.scheduled).map((day) => day.date));
-  const analysisHistory = journeyDays.length
+  const scheduledCheckins = journeyDays.length
     ? history.filter((row) => scheduledDates.has(row.date))
     : history.filter((row) => {
       const scheduleAnchor = habit.journeyStartDate ?? toDateOnly(habit.createdAt);
@@ -289,12 +332,41 @@ router.get("/habits/:habitId/adaptation", async (req, res): Promise<void> => {
       return offset >= 0
         && isScheduledDate(row.date, offset + 1, habit.cadence, habit.customDays);
     });
+  const recordedDates = new Set(history.map((row) => row.date));
+  const reflectedMisses = dailyHistory.filter((row) => row.scheduled
+    && row.status === "missed"
+    && row.date < today
+    && !recordedDates.has(row.date)
+    && (row.missedReason != null || row.note != null || row.difficulty != null));
+  const analysisHistory = [
+    ...scheduledCheckins,
+    ...reflectedMisses.map((row) => ({
+      date: row.date,
+      difficulty: row.difficulty,
+      missedReason: row.missedReason,
+      completed: false,
+      note: row.note,
+    })),
+  ].sort((a, b) => b.date.localeCompare(a.date));
   const latestRevisionRow = latestRevisionRows[0];
-  const numericHistory = journeyDays.length
-    ? checkinsForPlanRevision(analysisHistory, journeyDays, latestRevisionRow?.revision ?? 0)
+  const currentRevision = latestRevisionRow?.revision ?? 0;
+  const revisionScopedCheckins = journeyDays.length
+    ? checkinsForPlanRevision(scheduledCheckins, journeyDays, currentRevision)
     : latestRevisionRow
-      ? analysisHistory.filter((row) => row.date >= latestRevisionRow.effectiveFrom)
-      : analysisHistory;
+      ? scheduledCheckins.filter((row) => row.date >= latestRevisionRow.effectiveFrom)
+      : scheduledCheckins;
+  const numericHistory = [
+    ...revisionScopedCheckins,
+    ...reflectedMisses
+      .filter((row) => row.planRevision === currentRevision)
+      .map((row) => ({
+        date: row.date,
+        difficulty: row.difficulty,
+        missedReason: row.missedReason,
+        completed: false,
+        note: row.note,
+      })),
+  ].sort((a, b) => b.date.localeCompare(a.date));
   const currentMinimum = effectiveMinimum(habit.targetValue, habit.minimumValue);
   const proposal = proposeHabitAdaptation({
     targetValue: habit.targetValue,
@@ -304,11 +376,9 @@ router.get("/habits/:habitId/adaptation", async (req, res): Promise<void> => {
     successLimitValue: habit.successLimitValue,
     baselineValue: habit.baselineValue,
     minimumFloor: habit.minimumFloor,
-    checkins: analysisHistory.reverse(),
-    numericCheckins: numericHistory.reverse(),
+    checkins: [...analysisHistory].reverse(),
+    numericCheckins: [...numericHistory].reverse(),
   });
-  const today = todayInTimezone(user.timezone);
-  const recordedDates = new Set(history.map((row) => row.date));
   const missedDays = journeyDays.length
     ? journeyDays.filter((day) => day.scheduled && day.date < today && !recordedDates.has(day.date)).length
     : missedScheduledDays(
@@ -388,6 +458,24 @@ router.patch("/habits/:habitId", async (req, res): Promise<void> => {
     }
 
     const nextGoalType = changes.goalType ?? before.goalType;
+    const nextUnit = changes.unit ?? before.unit;
+    const nextExecutionType = resolveExecutionType(
+      nextUnit,
+      nextGoalType,
+      changes.executionType ?? (
+        changes.unit !== undefined || changes.goalType !== undefined
+          ? null
+          : before.executionType
+      ),
+    );
+    if ((nextGoalType === "quit" && nextExecutionType !== "limit")
+      || (nextGoalType === "build" && nextExecutionType === "limit")) {
+      return { kind: "invalid", error: "Reduce habits use limit execution; build habits cannot use limit execution" } as const;
+    }
+    if (changes.executionType === undefined
+      && (changes.unit !== undefined || changes.goalType !== undefined)) {
+      changes.executionType = nextExecutionType;
+    }
     const nextCadence = changes.cadence ?? before.cadence;
     const nextCustomDays = changes.customDays ?? before.customDays;
     if (nextCadence === "custom_days" && (!nextCustomDays || nextCustomDays.length === 0)) {
@@ -479,7 +567,7 @@ router.patch("/habits/:habitId", async (req, res): Promise<void> => {
     const planFields = [
       "targetValue", "minimumValue", "busyDayValue", "successLimitValue", "minimumFloor",
       "goalType", "cueType", "cueTime", "cue", "startAction", "friction", "baselineValue",
-      "cadence", "customDays",
+      "cadence", "customDays", "unit", "executionType", "title",
     ] as const;
     const planChanged = planFields.some((field) => changes[field] !== undefined);
     const { journeyStartDate: requestedDate, ...habitChanges } = changes;
@@ -501,6 +589,13 @@ router.patch("/habits/:habitId", async (req, res): Promise<void> => {
         busyDayValue: habit.busyDayValue,
         successLimitValue: habit.successLimitValue,
         goalType: habit.goalType,
+        title: habit.title,
+        unit: habit.unit,
+        executionType: nextExecutionType,
+        cueType: habit.cueType,
+        cueTime: habit.cueTime,
+        cue: habit.cue,
+        startAction: habit.startAction,
         planRevision: 1,
         cadence: habit.cadence,
         customDays: habit.customDays,
@@ -515,6 +610,8 @@ router.patch("/habits/:habitId", async (req, res): Promise<void> => {
         successLimitValue: habit.successLimitValue,
         minimumFloor: habit.minimumFloor,
         goalType: habit.goalType,
+        unit: habit.unit,
+        executionType: nextExecutionType,
         cueType: habit.cueType,
         cueTime: habit.cueTime,
         cue: habit.cue,
@@ -541,6 +638,8 @@ router.patch("/habits/:habitId", async (req, res): Promise<void> => {
         successLimitValue: habit.successLimitValue,
         minimumFloor: habit.minimumFloor,
         goalType: habit.goalType,
+        unit: habit.unit,
+        executionType: nextExecutionType,
         cueType: habit.cueType,
         cueTime: habit.cueTime,
         cue: habit.cue,
@@ -551,6 +650,7 @@ router.patch("/habits/:habitId", async (req, res): Promise<void> => {
         habitId: habit.id, revision, effectiveFrom, plan: revisionPlan,
       });
       await reviseFutureUnrecordedDays(tx, habit.id, today, revision, {
+        title: habit.title,
         targetValue: habit.targetValue,
         minimumValue: habit.minimumValue ?? habit.targetValue,
         busyDayValue: habit.busyDayValue,
@@ -558,6 +658,12 @@ router.patch("/habits/:habitId", async (req, res): Promise<void> => {
         goalType: habit.goalType,
         cadence: habit.cadence,
         customDays: habit.customDays,
+        unit: habit.unit,
+        executionType: nextExecutionType,
+        cueType: habit.cueType,
+        cueTime: habit.cueTime,
+        cue: habit.cue,
+        startAction: habit.startAction,
       });
     }
     return { kind: "ok", habit } as const;

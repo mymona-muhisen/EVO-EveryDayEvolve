@@ -171,8 +171,18 @@ export function proposeHabitAdaptation(input: {
   successLimitValue?: number | null;
   baselineValue?: number | null;
   minimumFloor?: number | null;
-  checkins: { difficulty: string | null; missedReason: MissedReason | null; completed: boolean }[];
-  numericCheckins?: { difficulty: string | null; missedReason: MissedReason | null; completed: boolean }[];
+  checkins: {
+    difficulty: string | null;
+    missedReason: MissedReason | null;
+    completed: boolean;
+    note?: string | null;
+  }[];
+  numericCheckins?: {
+    difficulty: string | null;
+    missedReason: MissedReason | null;
+    completed: boolean;
+    note?: string | null;
+  }[];
 }): HabitAdaptation {
   const currentTarget = input.targetValue;
   const currentMinimum = effectiveMinimum(currentTarget, input.minimumValue);

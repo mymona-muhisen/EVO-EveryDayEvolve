@@ -93,6 +93,7 @@ export const ListHabitsResponseItem = zod.object({
   "cadence": zod.enum(['daily', 'weekdays', 'weekly', 'custom_days']),
   "customDays": zod.array(zod.number().int().min(listHabitsResponseCustomDaysItemMin).max(listHabitsResponseCustomDaysItemMax)).nullable(),
   "unit": zod.enum(['minutes', 'count', 'pages', 'custom']),
+  "executionType": zod.union([zod.literal('duration'),zod.literal('count'),zod.literal('boolean'),zod.literal('limit'),zod.literal(null)]).nullish().describe('Nullable for legacy records; inferred from unit and goalType when consumed.'),
   "targetValue": zod.number(),
   "minimumValue": zod.number().nullable(),
   "busyDayValue": zod.number().nullable(),
@@ -156,6 +157,7 @@ export const CreateHabitBody = zod.object({
   "cadence": zod.enum(['daily', 'weekdays', 'weekly', 'custom_days']),
   "customDays": zod.array(zod.number().int().min(createHabitBodyCustomDaysItemMin).max(createHabitBodyCustomDaysItemMax)).optional(),
   "unit": zod.enum(['minutes', 'count', 'pages', 'custom']),
+  "executionType": zod.enum(['duration', 'count', 'boolean', 'limit']).optional(),
   "targetValue": zod.number().min(createHabitBodyTargetValueMin),
   "minimumValue": zod.number().min(createHabitBodyMinimumValueMin).optional(),
   "busyDayValue": zod.number().min(createHabitBodyBusyDayValueMin).optional(),
@@ -199,6 +201,7 @@ export const CreateHabitResponse = zod.object({
   "cadence": zod.enum(['daily', 'weekdays', 'weekly', 'custom_days']),
   "customDays": zod.array(zod.number().int().min(createHabitResponseCustomDaysItemMin).max(createHabitResponseCustomDaysItemMax)).nullable(),
   "unit": zod.enum(['minutes', 'count', 'pages', 'custom']),
+  "executionType": zod.union([zod.literal('duration'),zod.literal('count'),zod.literal('boolean'),zod.literal('limit'),zod.literal(null)]).nullish().describe('Nullable for legacy records; inferred from unit and goalType when consumed.'),
   "targetValue": zod.number(),
   "minimumValue": zod.number().nullable(),
   "busyDayValue": zod.number().nullable(),
@@ -255,6 +258,7 @@ export const GetHabitResponse = zod.object({
   "cadence": zod.enum(['daily', 'weekdays', 'weekly', 'custom_days']),
   "customDays": zod.array(zod.number().int().min(getHabitResponseCustomDaysItemMin).max(getHabitResponseCustomDaysItemMax)).nullable(),
   "unit": zod.enum(['minutes', 'count', 'pages', 'custom']),
+  "executionType": zod.union([zod.literal('duration'),zod.literal('count'),zod.literal('boolean'),zod.literal('limit'),zod.literal(null)]).nullish().describe('Nullable for legacy records; inferred from unit and goalType when consumed.'),
   "targetValue": zod.number(),
   "minimumValue": zod.number().nullable(),
   "busyDayValue": zod.number().nullable(),
@@ -321,6 +325,7 @@ export const UpdateHabitBody = zod.object({
   "cadence": zod.enum(['daily', 'weekdays', 'weekly', 'custom_days']).optional(),
   "customDays": zod.array(zod.number().int().min(updateHabitBodyCustomDaysItemMin).max(updateHabitBodyCustomDaysItemMax)).optional(),
   "unit": zod.enum(['minutes', 'count', 'pages', 'custom']).optional(),
+  "executionType": zod.enum(['duration', 'count', 'boolean', 'limit']).optional(),
   "targetValue": zod.number().min(updateHabitBodyTargetValueMin).optional(),
   "minimumValue": zod.number().min(updateHabitBodyMinimumValueMin).optional(),
   "busyDayValue": zod.number().min(updateHabitBodyBusyDayValueMin).nullish(),
@@ -368,6 +373,7 @@ export const UpdateHabitResponse = zod.object({
   "cadence": zod.enum(['daily', 'weekdays', 'weekly', 'custom_days']),
   "customDays": zod.array(zod.number().int().min(updateHabitResponseCustomDaysItemMin).max(updateHabitResponseCustomDaysItemMax)).nullable(),
   "unit": zod.enum(['minutes', 'count', 'pages', 'custom']),
+  "executionType": zod.union([zod.literal('duration'),zod.literal('count'),zod.literal('boolean'),zod.literal('limit'),zod.literal(null)]).nullish().describe('Nullable for legacy records; inferred from unit and goalType when consumed.'),
   "targetValue": zod.number(),
   "minimumValue": zod.number().nullable(),
   "busyDayValue": zod.number().nullable(),
@@ -427,11 +433,18 @@ export const GetHabitJourneyResponse = zod.object({
   "date": zod.coerce.date(),
   "dayNumber": zod.number().int(),
   "scheduled": zod.boolean(),
+  "title": zod.string().nullish(),
   "targetValue": zod.number(),
   "minimumValue": zod.number(),
   "busyDayValue": zod.number().nullable(),
   "successLimitValue": zod.number().nullable(),
   "goalType": zod.enum(['build', 'quit']),
+  "unit": zod.union([zod.literal('minutes'),zod.literal('count'),zod.literal('pages'),zod.literal('custom'),zod.literal(null)]).nullish(),
+  "executionType": zod.union([zod.literal('duration'),zod.literal('count'),zod.literal('boolean'),zod.literal('limit'),zod.literal(null)]).nullish(),
+  "cueType": zod.union([zod.literal('time'),zod.literal('routine'),zod.literal('custom'),zod.literal(null)]).nullish(),
+  "cueTime": zod.string().nullish(),
+  "cue": zod.string().nullish(),
+  "startAction": zod.string().nullish(),
   "checkin": zod.union([zod.object({
   "id": zod.number().int(),
   "habitId": zod.number().int(),
@@ -450,6 +463,484 @@ export const GetHabitJourneyResponse = zod.object({
   "coinsEarned": zod.number().int(),
   "createdAt": zod.coerce.date()
 }),zod.null()])
+}))
+})
+
+
+/**
+ * @summary Get a habit's durable execution state and immutable plan for a local date
+ */
+export const GetDailyHabitDayParams = zod.object({
+  "habitId": zod.coerce.number().int(),
+  "date": zod.date()
+})
+
+export const getDailyHabitDayResponsePlanRevisionMin = 0;
+
+export const getDailyHabitDayResponseElapsedSecondsMin = 0;
+
+export const getDailyHabitDayResponsePausedSecondsMin = 0;
+
+export const getDailyHabitDayResponseRevisionMin = 0;
+
+export const getDailyHabitDayResponseSuccessfulDaysMin = 0;
+
+export const getDailyHabitDayResponseEligibleDaysMin = 0;
+
+
+
+export const GetDailyHabitDayResponse = zod.object({
+  "habitId": zod.number().int(),
+  "date": zod.coerce.date(),
+  "dayNumber": zod.number().int(),
+  "scheduled": zod.boolean(),
+  "eligible": zod.boolean(),
+  "planRevision": zod.number().int().min(getDailyHabitDayResponsePlanRevisionMin),
+  "title": zod.string(),
+  "executionType": zod.enum(['duration', 'count', 'boolean', 'limit']),
+  "unit": zod.enum(['minutes', 'count', 'pages', 'custom']),
+  "targetValue": zod.number(),
+  "minimumValue": zod.number(),
+  "busyDayValue": zod.number().nullable(),
+  "successLimitValue": zod.number().nullable(),
+  "goalType": zod.enum(['build', 'quit']),
+  "cueType": zod.union([zod.literal('time'),zod.literal('routine'),zod.literal('custom'),zod.literal(null)]).nullable(),
+  "cueTime": zod.string().nullable(),
+  "cue": zod.string().nullable(),
+  "startAction": zod.string().nullable(),
+  "status": zod.enum(['pending', 'in_progress', 'paused', 'minimum_reached', 'target_reached', 'pending_reflection', 'completed', 'missed', 'recovery_available', 'recovery_active', 'recovered']),
+  "actualValue": zod.number().nullable(),
+  "actualSeconds": zod.number().int().nullable(),
+  "elapsedSeconds": zod.number().int().min(getDailyHabitDayResponseElapsedSecondsMin),
+  "startedAt": zod.coerce.date().nullable(),
+  "lastResumedAt": zod.coerce.date().nullable(),
+  "pausedAt": zod.coerce.date().nullable(),
+  "pausedSeconds": zod.number().int().min(getDailyHabitDayResponsePausedSecondsMin),
+  "finishedAt": zod.coerce.date().nullable(),
+  "missedReason": zod.union([zod.literal('too_difficult'),zod.literal('no_time'),zod.literal('forgot'),zod.literal('lost_motivation'),zod.literal('unexpected'),zod.literal('other'),zod.literal(null)]).nullable(),
+  "note": zod.string().nullable(),
+  "difficulty": zod.union([zod.literal('easy'),zod.literal('normal'),zod.literal('hard'),zod.literal('very_hard'),zod.literal(null)]).nullable(),
+  "revision": zod.number().int().min(getDailyHabitDayResponseRevisionMin),
+  "adaptationDecision": zod.union([zod.enum(['accepted', 'rejected']),zod.null()]),
+  "checkin": zod.union([zod.object({
+  "id": zod.number().int(),
+  "habitId": zod.number().int(),
+  "date": zod.coerce.date(),
+  "completed": zod.boolean(),
+  "value": zod.number().nullable(),
+  "note": zod.string().nullable(),
+  "moodRating": zod.number().int().nullable(),
+  "difficulty": zod.union([zod.literal('easy'),zod.literal('normal'),zod.literal('hard'),zod.literal('very_hard'),zod.literal(null)]).nullable(),
+  "missedReason": zod.union([zod.literal('too_difficult'),zod.literal('no_time'),zod.literal('forgot'),zod.literal('lost_motivation'),zod.literal('unexpected'),zod.literal('other'),zod.literal(null)]).nullable(),
+  "targetSnapshot": zod.number().nullable(),
+  "minimumSnapshot": zod.number().nullable(),
+  "successLimitSnapshot": zod.number().nullable(),
+  "goalTypeSnapshot": zod.union([zod.literal('build'),zod.literal('quit'),zod.literal(null)]).nullable(),
+  "targetCompleted": zod.boolean(),
+  "coinsEarned": zod.number().int(),
+  "createdAt": zod.coerce.date()
+}),zod.null()]),
+  "successfulDays": zod.number().int().min(getDailyHabitDayResponseSuccessfulDaysMin),
+  "eligibleDays": zod.number().int().min(getDailyHabitDayResponseEligibleDaysMin),
+  "rewardMilestones": zod.array(zod.object({
+  "days": zod.union([zod.literal(1),zod.literal(5),zod.literal(10),zod.literal(15),zod.literal(22)]),
+  "reached": zod.boolean()
+}))
+})
+
+
+/**
+ * @summary Start, pause, resume, finish, update progress, or complete today's habit execution
+ */
+export const ChangeDailyHabitExecutionParams = zod.object({
+  "habitId": zod.coerce.number().int()
+})
+
+export const changeDailyHabitExecutionBodyExpectedRevisionMin = 0;
+
+export const changeDailyHabitExecutionBodyValueMin = 0;
+
+export const changeDailyHabitExecutionBodyIdempotencyKeyMax = 128;
+
+
+
+export const ChangeDailyHabitExecutionBody = zod.object({
+  "date": zod.coerce.date(),
+  "action": zod.enum(['start', 'pause', 'resume', 'finish', 'update_progress', 'done']),
+  "expectedRevision": zod.number().int().min(changeDailyHabitExecutionBodyExpectedRevisionMin),
+  "value": zod.number().min(changeDailyHabitExecutionBodyValueMin).optional().describe('Seconds for duration, item count for count, or usage for limit; actualValue is normalized to the plan unit (duration minutes) and actualSeconds stores the exact duration.'),
+  "idempotencyKey": zod.string().min(1).max(changeDailyHabitExecutionBodyIdempotencyKeyMax).optional()
+})
+
+export const changeDailyHabitExecutionResponseExecutionPlanRevisionMin = 0;
+
+export const changeDailyHabitExecutionResponseExecutionElapsedSecondsMin = 0;
+
+export const changeDailyHabitExecutionResponseExecutionPausedSecondsMin = 0;
+
+export const changeDailyHabitExecutionResponseExecutionRevisionMin = 0;
+
+export const changeDailyHabitExecutionResponseExecutionSuccessfulDaysMin = 0;
+
+export const changeDailyHabitExecutionResponseExecutionEligibleDaysMin = 0;
+
+export const changeDailyHabitExecutionResponseRewardDeltaXpMin = 0;
+
+export const changeDailyHabitExecutionResponseRewardDeltaCoinsMin = 0;
+
+
+
+export const ChangeDailyHabitExecutionResponse = zod.object({
+  "execution": zod.object({
+  "habitId": zod.number().int(),
+  "date": zod.coerce.date(),
+  "dayNumber": zod.number().int(),
+  "scheduled": zod.boolean(),
+  "eligible": zod.boolean(),
+  "planRevision": zod.number().int().min(changeDailyHabitExecutionResponseExecutionPlanRevisionMin),
+  "title": zod.string(),
+  "executionType": zod.enum(['duration', 'count', 'boolean', 'limit']),
+  "unit": zod.enum(['minutes', 'count', 'pages', 'custom']),
+  "targetValue": zod.number(),
+  "minimumValue": zod.number(),
+  "busyDayValue": zod.number().nullable(),
+  "successLimitValue": zod.number().nullable(),
+  "goalType": zod.enum(['build', 'quit']),
+  "cueType": zod.union([zod.literal('time'),zod.literal('routine'),zod.literal('custom'),zod.literal(null)]).nullable(),
+  "cueTime": zod.string().nullable(),
+  "cue": zod.string().nullable(),
+  "startAction": zod.string().nullable(),
+  "status": zod.enum(['pending', 'in_progress', 'paused', 'minimum_reached', 'target_reached', 'pending_reflection', 'completed', 'missed', 'recovery_available', 'recovery_active', 'recovered']),
+  "actualValue": zod.number().nullable(),
+  "actualSeconds": zod.number().int().nullable(),
+  "elapsedSeconds": zod.number().int().min(changeDailyHabitExecutionResponseExecutionElapsedSecondsMin),
+  "startedAt": zod.coerce.date().nullable(),
+  "lastResumedAt": zod.coerce.date().nullable(),
+  "pausedAt": zod.coerce.date().nullable(),
+  "pausedSeconds": zod.number().int().min(changeDailyHabitExecutionResponseExecutionPausedSecondsMin),
+  "finishedAt": zod.coerce.date().nullable(),
+  "missedReason": zod.union([zod.literal('too_difficult'),zod.literal('no_time'),zod.literal('forgot'),zod.literal('lost_motivation'),zod.literal('unexpected'),zod.literal('other'),zod.literal(null)]).nullable(),
+  "note": zod.string().nullable(),
+  "difficulty": zod.union([zod.literal('easy'),zod.literal('normal'),zod.literal('hard'),zod.literal('very_hard'),zod.literal(null)]).nullable(),
+  "revision": zod.number().int().min(changeDailyHabitExecutionResponseExecutionRevisionMin),
+  "adaptationDecision": zod.union([zod.enum(['accepted', 'rejected']),zod.null()]),
+  "checkin": zod.union([zod.object({
+  "id": zod.number().int(),
+  "habitId": zod.number().int(),
+  "date": zod.coerce.date(),
+  "completed": zod.boolean(),
+  "value": zod.number().nullable(),
+  "note": zod.string().nullable(),
+  "moodRating": zod.number().int().nullable(),
+  "difficulty": zod.union([zod.literal('easy'),zod.literal('normal'),zod.literal('hard'),zod.literal('very_hard'),zod.literal(null)]).nullable(),
+  "missedReason": zod.union([zod.literal('too_difficult'),zod.literal('no_time'),zod.literal('forgot'),zod.literal('lost_motivation'),zod.literal('unexpected'),zod.literal('other'),zod.literal(null)]).nullable(),
+  "targetSnapshot": zod.number().nullable(),
+  "minimumSnapshot": zod.number().nullable(),
+  "successLimitSnapshot": zod.number().nullable(),
+  "goalTypeSnapshot": zod.union([zod.literal('build'),zod.literal('quit'),zod.literal(null)]).nullable(),
+  "targetCompleted": zod.boolean(),
+  "coinsEarned": zod.number().int(),
+  "createdAt": zod.coerce.date()
+}),zod.null()]),
+  "successfulDays": zod.number().int().min(changeDailyHabitExecutionResponseExecutionSuccessfulDaysMin),
+  "eligibleDays": zod.number().int().min(changeDailyHabitExecutionResponseExecutionEligibleDaysMin),
+  "rewardMilestones": zod.array(zod.object({
+  "days": zod.union([zod.literal(1),zod.literal(5),zod.literal(10),zod.literal(15),zod.literal(22)]),
+  "reached": zod.boolean()
+}))
+}),
+  "rewardDelta": zod.object({
+  "xp": zod.number().int().min(changeDailyHabitExecutionResponseRewardDeltaXpMin),
+  "coins": zod.number().int().min(changeDailyHabitExecutionResponseRewardDeltaCoinsMin)
+})
+})
+
+
+/**
+ * @summary Save completion reflection or a real missed-day reason
+ */
+export const SaveDailyHabitReflectionParams = zod.object({
+  "habitId": zod.coerce.number().int(),
+  "date": zod.date()
+})
+
+export const saveDailyHabitReflectionBodyNoteMax = 2000;
+
+
+
+export const SaveDailyHabitReflectionBody = zod.object({
+  "difficulty": zod.union([zod.literal('easy'),zod.literal('normal'),zod.literal('hard'),zod.literal('very_hard'),zod.literal(null)]).nullish(),
+  "note": zod.string().max(saveDailyHabitReflectionBodyNoteMax).nullish(),
+  "missedReason": zod.union([zod.literal('too_difficult'),zod.literal('no_time'),zod.literal('forgot'),zod.literal('lost_motivation'),zod.literal('unexpected'),zod.literal('other'),zod.literal(null)]).nullish()
+})
+
+export const saveDailyHabitReflectionResponseExecutionPlanRevisionMin = 0;
+
+export const saveDailyHabitReflectionResponseExecutionElapsedSecondsMin = 0;
+
+export const saveDailyHabitReflectionResponseExecutionPausedSecondsMin = 0;
+
+export const saveDailyHabitReflectionResponseExecutionRevisionMin = 0;
+
+export const saveDailyHabitReflectionResponseExecutionSuccessfulDaysMin = 0;
+
+export const saveDailyHabitReflectionResponseExecutionEligibleDaysMin = 0;
+
+export const saveDailyHabitReflectionResponseRewardDeltaXpMin = 0;
+
+export const saveDailyHabitReflectionResponseRewardDeltaCoinsMin = 0;
+
+
+
+export const SaveDailyHabitReflectionResponse = zod.object({
+  "execution": zod.object({
+  "habitId": zod.number().int(),
+  "date": zod.coerce.date(),
+  "dayNumber": zod.number().int(),
+  "scheduled": zod.boolean(),
+  "eligible": zod.boolean(),
+  "planRevision": zod.number().int().min(saveDailyHabitReflectionResponseExecutionPlanRevisionMin),
+  "title": zod.string(),
+  "executionType": zod.enum(['duration', 'count', 'boolean', 'limit']),
+  "unit": zod.enum(['minutes', 'count', 'pages', 'custom']),
+  "targetValue": zod.number(),
+  "minimumValue": zod.number(),
+  "busyDayValue": zod.number().nullable(),
+  "successLimitValue": zod.number().nullable(),
+  "goalType": zod.enum(['build', 'quit']),
+  "cueType": zod.union([zod.literal('time'),zod.literal('routine'),zod.literal('custom'),zod.literal(null)]).nullable(),
+  "cueTime": zod.string().nullable(),
+  "cue": zod.string().nullable(),
+  "startAction": zod.string().nullable(),
+  "status": zod.enum(['pending', 'in_progress', 'paused', 'minimum_reached', 'target_reached', 'pending_reflection', 'completed', 'missed', 'recovery_available', 'recovery_active', 'recovered']),
+  "actualValue": zod.number().nullable(),
+  "actualSeconds": zod.number().int().nullable(),
+  "elapsedSeconds": zod.number().int().min(saveDailyHabitReflectionResponseExecutionElapsedSecondsMin),
+  "startedAt": zod.coerce.date().nullable(),
+  "lastResumedAt": zod.coerce.date().nullable(),
+  "pausedAt": zod.coerce.date().nullable(),
+  "pausedSeconds": zod.number().int().min(saveDailyHabitReflectionResponseExecutionPausedSecondsMin),
+  "finishedAt": zod.coerce.date().nullable(),
+  "missedReason": zod.union([zod.literal('too_difficult'),zod.literal('no_time'),zod.literal('forgot'),zod.literal('lost_motivation'),zod.literal('unexpected'),zod.literal('other'),zod.literal(null)]).nullable(),
+  "note": zod.string().nullable(),
+  "difficulty": zod.union([zod.literal('easy'),zod.literal('normal'),zod.literal('hard'),zod.literal('very_hard'),zod.literal(null)]).nullable(),
+  "revision": zod.number().int().min(saveDailyHabitReflectionResponseExecutionRevisionMin),
+  "adaptationDecision": zod.union([zod.enum(['accepted', 'rejected']),zod.null()]),
+  "checkin": zod.union([zod.object({
+  "id": zod.number().int(),
+  "habitId": zod.number().int(),
+  "date": zod.coerce.date(),
+  "completed": zod.boolean(),
+  "value": zod.number().nullable(),
+  "note": zod.string().nullable(),
+  "moodRating": zod.number().int().nullable(),
+  "difficulty": zod.union([zod.literal('easy'),zod.literal('normal'),zod.literal('hard'),zod.literal('very_hard'),zod.literal(null)]).nullable(),
+  "missedReason": zod.union([zod.literal('too_difficult'),zod.literal('no_time'),zod.literal('forgot'),zod.literal('lost_motivation'),zod.literal('unexpected'),zod.literal('other'),zod.literal(null)]).nullable(),
+  "targetSnapshot": zod.number().nullable(),
+  "minimumSnapshot": zod.number().nullable(),
+  "successLimitSnapshot": zod.number().nullable(),
+  "goalTypeSnapshot": zod.union([zod.literal('build'),zod.literal('quit'),zod.literal(null)]).nullable(),
+  "targetCompleted": zod.boolean(),
+  "coinsEarned": zod.number().int(),
+  "createdAt": zod.coerce.date()
+}),zod.null()]),
+  "successfulDays": zod.number().int().min(saveDailyHabitReflectionResponseExecutionSuccessfulDaysMin),
+  "eligibleDays": zod.number().int().min(saveDailyHabitReflectionResponseExecutionEligibleDaysMin),
+  "rewardMilestones": zod.array(zod.object({
+  "days": zod.union([zod.literal(1),zod.literal(5),zod.literal(10),zod.literal(15),zod.literal(22)]),
+  "reached": zod.boolean()
+}))
+}),
+  "rewardDelta": zod.object({
+  "xp": zod.number().int().min(saveDailyHabitReflectionResponseRewardDeltaXpMin),
+  "coins": zod.number().int().min(saveDailyHabitReflectionResponseRewardDeltaCoinsMin)
+})
+})
+
+
+/**
+ * @summary Persist whether the user accepted or rejected the adaptation shown for a day
+ */
+export const RecordDailyAdaptationDecisionParams = zod.object({
+  "habitId": zod.coerce.number().int(),
+  "date": zod.date()
+})
+
+export const RecordDailyAdaptationDecisionBody = zod.object({
+  "decision": zod.enum(['accepted', 'rejected'])
+})
+
+export const recordDailyAdaptationDecisionResponsePlanRevisionMin = 0;
+
+export const recordDailyAdaptationDecisionResponseElapsedSecondsMin = 0;
+
+export const recordDailyAdaptationDecisionResponsePausedSecondsMin = 0;
+
+export const recordDailyAdaptationDecisionResponseRevisionMin = 0;
+
+export const recordDailyAdaptationDecisionResponseSuccessfulDaysMin = 0;
+
+export const recordDailyAdaptationDecisionResponseEligibleDaysMin = 0;
+
+
+
+export const RecordDailyAdaptationDecisionResponse = zod.object({
+  "habitId": zod.number().int(),
+  "date": zod.coerce.date(),
+  "dayNumber": zod.number().int(),
+  "scheduled": zod.boolean(),
+  "eligible": zod.boolean(),
+  "planRevision": zod.number().int().min(recordDailyAdaptationDecisionResponsePlanRevisionMin),
+  "title": zod.string(),
+  "executionType": zod.enum(['duration', 'count', 'boolean', 'limit']),
+  "unit": zod.enum(['minutes', 'count', 'pages', 'custom']),
+  "targetValue": zod.number(),
+  "minimumValue": zod.number(),
+  "busyDayValue": zod.number().nullable(),
+  "successLimitValue": zod.number().nullable(),
+  "goalType": zod.enum(['build', 'quit']),
+  "cueType": zod.union([zod.literal('time'),zod.literal('routine'),zod.literal('custom'),zod.literal(null)]).nullable(),
+  "cueTime": zod.string().nullable(),
+  "cue": zod.string().nullable(),
+  "startAction": zod.string().nullable(),
+  "status": zod.enum(['pending', 'in_progress', 'paused', 'minimum_reached', 'target_reached', 'pending_reflection', 'completed', 'missed', 'recovery_available', 'recovery_active', 'recovered']),
+  "actualValue": zod.number().nullable(),
+  "actualSeconds": zod.number().int().nullable(),
+  "elapsedSeconds": zod.number().int().min(recordDailyAdaptationDecisionResponseElapsedSecondsMin),
+  "startedAt": zod.coerce.date().nullable(),
+  "lastResumedAt": zod.coerce.date().nullable(),
+  "pausedAt": zod.coerce.date().nullable(),
+  "pausedSeconds": zod.number().int().min(recordDailyAdaptationDecisionResponsePausedSecondsMin),
+  "finishedAt": zod.coerce.date().nullable(),
+  "missedReason": zod.union([zod.literal('too_difficult'),zod.literal('no_time'),zod.literal('forgot'),zod.literal('lost_motivation'),zod.literal('unexpected'),zod.literal('other'),zod.literal(null)]).nullable(),
+  "note": zod.string().nullable(),
+  "difficulty": zod.union([zod.literal('easy'),zod.literal('normal'),zod.literal('hard'),zod.literal('very_hard'),zod.literal(null)]).nullable(),
+  "revision": zod.number().int().min(recordDailyAdaptationDecisionResponseRevisionMin),
+  "adaptationDecision": zod.union([zod.enum(['accepted', 'rejected']),zod.null()]),
+  "checkin": zod.union([zod.object({
+  "id": zod.number().int(),
+  "habitId": zod.number().int(),
+  "date": zod.coerce.date(),
+  "completed": zod.boolean(),
+  "value": zod.number().nullable(),
+  "note": zod.string().nullable(),
+  "moodRating": zod.number().int().nullable(),
+  "difficulty": zod.union([zod.literal('easy'),zod.literal('normal'),zod.literal('hard'),zod.literal('very_hard'),zod.literal(null)]).nullable(),
+  "missedReason": zod.union([zod.literal('too_difficult'),zod.literal('no_time'),zod.literal('forgot'),zod.literal('lost_motivation'),zod.literal('unexpected'),zod.literal('other'),zod.literal(null)]).nullable(),
+  "targetSnapshot": zod.number().nullable(),
+  "minimumSnapshot": zod.number().nullable(),
+  "successLimitSnapshot": zod.number().nullable(),
+  "goalTypeSnapshot": zod.union([zod.literal('build'),zod.literal('quit'),zod.literal(null)]).nullable(),
+  "targetCompleted": zod.boolean(),
+  "coinsEarned": zod.number().int(),
+  "createdAt": zod.coerce.date()
+}),zod.null()]),
+  "successfulDays": zod.number().int().min(recordDailyAdaptationDecisionResponseSuccessfulDaysMin),
+  "eligibleDays": zod.number().int().min(recordDailyAdaptationDecisionResponseEligibleDaysMin),
+  "rewardMilestones": zod.array(zod.object({
+  "days": zod.union([zod.literal(1),zod.literal(5),zod.literal(10),zod.literal(15),zod.literal(22)]),
+  "reached": zod.boolean()
+}))
+})
+
+
+/**
+ * @summary Aggregate elapsed scheduled dates, today's execution, and reward milestones by active habit
+ */
+export const GetDailyOverviewQueryParams = zod.object({
+  "date": zod.date().optional()
+})
+
+export const getDailyOverviewResponseHabitsItemSuccessfulDaysMin = 0;
+
+export const getDailyOverviewResponseHabitsItemEligibleDaysMin = 0;
+
+export const getDailyOverviewResponseHabitsItemExecutionPlanRevisionMin = 0;
+
+export const getDailyOverviewResponseHabitsItemExecutionElapsedSecondsMin = 0;
+
+export const getDailyOverviewResponseHabitsItemExecutionPausedSecondsMin = 0;
+
+export const getDailyOverviewResponseHabitsItemExecutionRevisionMin = 0;
+
+export const getDailyOverviewResponseHabitsItemExecutionSuccessfulDaysMin = 0;
+
+export const getDailyOverviewResponseHabitsItemExecutionEligibleDaysMin = 0;
+
+
+
+export const GetDailyOverviewResponse = zod.object({
+  "date": zod.coerce.date(),
+  "timezone": zod.string(),
+  "habits": zod.array(zod.object({
+  "habitId": zod.number().int(),
+  "title": zod.string(),
+  "executionType": zod.enum(['duration', 'count', 'boolean', 'limit']),
+  "scheduledToday": zod.boolean(),
+  "successfulDays": zod.number().int().min(getDailyOverviewResponseHabitsItemSuccessfulDaysMin),
+  "eligibleDays": zod.number().int().min(getDailyOverviewResponseHabitsItemEligibleDaysMin),
+  "execution": zod.object({
+  "habitId": zod.number().int(),
+  "date": zod.coerce.date(),
+  "dayNumber": zod.number().int(),
+  "scheduled": zod.boolean(),
+  "eligible": zod.boolean(),
+  "planRevision": zod.number().int().min(getDailyOverviewResponseHabitsItemExecutionPlanRevisionMin),
+  "title": zod.string(),
+  "executionType": zod.enum(['duration', 'count', 'boolean', 'limit']),
+  "unit": zod.enum(['minutes', 'count', 'pages', 'custom']),
+  "targetValue": zod.number(),
+  "minimumValue": zod.number(),
+  "busyDayValue": zod.number().nullable(),
+  "successLimitValue": zod.number().nullable(),
+  "goalType": zod.enum(['build', 'quit']),
+  "cueType": zod.union([zod.literal('time'),zod.literal('routine'),zod.literal('custom'),zod.literal(null)]).nullable(),
+  "cueTime": zod.string().nullable(),
+  "cue": zod.string().nullable(),
+  "startAction": zod.string().nullable(),
+  "status": zod.enum(['pending', 'in_progress', 'paused', 'minimum_reached', 'target_reached', 'pending_reflection', 'completed', 'missed', 'recovery_available', 'recovery_active', 'recovered']),
+  "actualValue": zod.number().nullable(),
+  "actualSeconds": zod.number().int().nullable(),
+  "elapsedSeconds": zod.number().int().min(getDailyOverviewResponseHabitsItemExecutionElapsedSecondsMin),
+  "startedAt": zod.coerce.date().nullable(),
+  "lastResumedAt": zod.coerce.date().nullable(),
+  "pausedAt": zod.coerce.date().nullable(),
+  "pausedSeconds": zod.number().int().min(getDailyOverviewResponseHabitsItemExecutionPausedSecondsMin),
+  "finishedAt": zod.coerce.date().nullable(),
+  "missedReason": zod.union([zod.literal('too_difficult'),zod.literal('no_time'),zod.literal('forgot'),zod.literal('lost_motivation'),zod.literal('unexpected'),zod.literal('other'),zod.literal(null)]).nullable(),
+  "note": zod.string().nullable(),
+  "difficulty": zod.union([zod.literal('easy'),zod.literal('normal'),zod.literal('hard'),zod.literal('very_hard'),zod.literal(null)]).nullable(),
+  "revision": zod.number().int().min(getDailyOverviewResponseHabitsItemExecutionRevisionMin),
+  "adaptationDecision": zod.union([zod.enum(['accepted', 'rejected']),zod.null()]),
+  "checkin": zod.union([zod.object({
+  "id": zod.number().int(),
+  "habitId": zod.number().int(),
+  "date": zod.coerce.date(),
+  "completed": zod.boolean(),
+  "value": zod.number().nullable(),
+  "note": zod.string().nullable(),
+  "moodRating": zod.number().int().nullable(),
+  "difficulty": zod.union([zod.literal('easy'),zod.literal('normal'),zod.literal('hard'),zod.literal('very_hard'),zod.literal(null)]).nullable(),
+  "missedReason": zod.union([zod.literal('too_difficult'),zod.literal('no_time'),zod.literal('forgot'),zod.literal('lost_motivation'),zod.literal('unexpected'),zod.literal('other'),zod.literal(null)]).nullable(),
+  "targetSnapshot": zod.number().nullable(),
+  "minimumSnapshot": zod.number().nullable(),
+  "successLimitSnapshot": zod.number().nullable(),
+  "goalTypeSnapshot": zod.union([zod.literal('build'),zod.literal('quit'),zod.literal(null)]).nullable(),
+  "targetCompleted": zod.boolean(),
+  "coinsEarned": zod.number().int(),
+  "createdAt": zod.coerce.date()
+}),zod.null()]),
+  "successfulDays": zod.number().int().min(getDailyOverviewResponseHabitsItemExecutionSuccessfulDaysMin),
+  "eligibleDays": zod.number().int().min(getDailyOverviewResponseHabitsItemExecutionEligibleDaysMin),
+  "rewardMilestones": zod.array(zod.object({
+  "days": zod.union([zod.literal(1),zod.literal(5),zod.literal(10),zod.literal(15),zod.literal(22)]),
+  "reached": zod.boolean()
+}))
+}),
+  "rewardMilestones": zod.array(zod.object({
+  "days": zod.union([zod.literal(1),zod.literal(5),zod.literal(10),zod.literal(15),zod.literal(22)]),
+  "reached": zod.boolean()
+}))
 }))
 })
 
@@ -543,6 +1034,7 @@ export const CreateCheckinResponse = zod.object({
   "cadence": zod.enum(['daily', 'weekdays', 'weekly', 'custom_days']),
   "customDays": zod.array(zod.number().int().min(createCheckinResponseTwoHabitCustomDaysItemMin).max(createCheckinResponseTwoHabitCustomDaysItemMax)).nullable(),
   "unit": zod.enum(['minutes', 'count', 'pages', 'custom']),
+  "executionType": zod.union([zod.literal('duration'),zod.literal('count'),zod.literal('boolean'),zod.literal('limit'),zod.literal(null)]).nullish().describe('Nullable for legacy records; inferred from unit and goalType when consumed.'),
   "targetValue": zod.number(),
   "minimumValue": zod.number().nullable(),
   "busyDayValue": zod.number().nullable(),
@@ -679,6 +1171,7 @@ export const RecoverStreakResponse = zod.object({
   "cadence": zod.enum(['daily', 'weekdays', 'weekly', 'custom_days']),
   "customDays": zod.array(zod.number().int().min(recoverStreakResponseHabitCustomDaysItemMin).max(recoverStreakResponseHabitCustomDaysItemMax)).nullable(),
   "unit": zod.enum(['minutes', 'count', 'pages', 'custom']),
+  "executionType": zod.union([zod.literal('duration'),zod.literal('count'),zod.literal('boolean'),zod.literal('limit'),zod.literal(null)]).nullish().describe('Nullable for legacy records; inferred from unit and goalType when consumed.'),
   "targetValue": zod.number(),
   "minimumValue": zod.number().nullable(),
   "busyDayValue": zod.number().nullable(),

@@ -6,12 +6,17 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { Checkin } from './checkin';
+import type { HabitDayCueType } from './habitDayCueType';
+import type { HabitDayExecutionType } from './habitDayExecutionType';
 import type { HabitDayGoalType } from './habitDayGoalType';
+import type { HabitDayUnit } from './habitDayUnit';
 
 export interface HabitDay {
   date: Date;
   dayNumber: number;
   scheduled: boolean;
+  /** @nullable */
+  title?: string | null;
   targetValue: number;
   minimumValue: number;
   /** @nullable */
@@ -19,5 +24,17 @@ export interface HabitDay {
   /** @nullable */
   successLimitValue: number | null;
   goalType: HabitDayGoalType;
+  /** @nullable */
+  unit?: HabitDayUnit;
+  /** @nullable */
+  executionType?: HabitDayExecutionType;
+  /** @nullable */
+  cueType?: HabitDayCueType;
+  /** @nullable */
+  cueTime?: string | null;
+  /** @nullable */
+  cue?: string | null;
+  /** @nullable */
+  startAction?: string | null;
   checkin: Checkin | null;
 }

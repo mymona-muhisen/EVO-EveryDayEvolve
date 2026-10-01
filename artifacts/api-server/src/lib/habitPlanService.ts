@@ -1,5 +1,6 @@
 import { and, eq, gt } from "drizzle-orm";
 import { db, checkinsTable, habitDaysTable } from "@workspace/db";
+import type { HabitPlanJson } from "@workspace/db";
 import { isScheduledDate } from "./habitJourney";
 
 type HabitTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -11,13 +12,20 @@ export async function reviseFutureUnrecordedDays(
   today: string,
   revision: number,
   plan: {
+    title: string;
     targetValue: number;
     minimumValue: number;
     busyDayValue: number | null;
     successLimitValue: number | null;
     goalType: "build" | "quit";
+    unit: "minutes" | "count" | "pages" | "custom";
+    executionType: "duration" | "count" | "boolean" | "limit";
     cadence: "daily" | "weekdays" | "weekly" | "custom_days";
     customDays: number[] | null;
+    cueType: HabitPlanJson["cueType"];
+    cueTime: string | null;
+    cue: string | null;
+    startAction: string | null;
   },
 ): Promise<string[]> {
   const futureDays = await tx.select().from(habitDaysTable).where(and(
@@ -32,11 +40,18 @@ export async function reviseFutureUnrecordedDays(
   for (const day of futureDays) {
     if (recorded.has(day.date)) continue;
     await tx.update(habitDaysTable).set({
+      title: plan.title,
       targetValue: plan.targetValue,
       minimumValue: plan.minimumValue,
       busyDayValue: plan.busyDayValue,
       successLimitValue: plan.successLimitValue,
       goalType: plan.goalType,
+      unit: plan.unit,
+      executionType: plan.executionType,
+      cueType: plan.cueType,
+      cueTime: plan.cueTime,
+      cue: plan.cue,
+      startAction: plan.startAction,
       scheduled: isScheduledDate(day.date, day.dayNumber, plan.cadence, plan.customDays),
       planRevision: revision,
     }).where(eq(habitDaysTable.id, day.id));

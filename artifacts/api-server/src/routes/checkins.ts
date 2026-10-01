@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, and, gte, lte } from "drizzle-orm";
-import { db, habitsTable, checkinsTable } from "@workspace/db";
+import { db, habitsTable, checkinsTable, usersTable } from "@workspace/db";
 import {
   ListHabitCheckinsQueryParams,
   ListHabitCheckinsResponse,
@@ -94,31 +94,36 @@ router.patch("/habits/:habitId/checkins/:date", async (req, res): Promise<void> 
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  const [habit] = await db.select({ id: habitsTable.id })
-    .from(habitsTable)
-    .where(and(eq(habitsTable.id, params.data.habitId), eq(habitsTable.userId, req.userId!)));
-  if (!habit) {
-    res.status(404).json({ error: "Habit not found" });
-    return;
-  }
-  const [checkin] = await db.update(checkinsTable)
-    .set({
-      ...(parsed.data.note !== undefined ? { note: parsed.data.note } : {}),
-      ...(parsed.data.moodRating !== undefined ? { moodRating: parsed.data.moodRating } : {}),
-      ...(parsed.data.difficulty !== undefined ? { difficulty: parsed.data.difficulty } : {}),
-      ...(parsed.data.missedReason !== undefined ? { missedReason: parsed.data.missedReason } : {}),
-    })
-    .where(and(
+  const checkin = await db.transaction(async (tx) => {
+    const [user] = await tx.select({ id: usersTable.id }).from(usersTable)
+      .where(eq(usersTable.id, req.userId!)).for("update");
+    if (!user) return { error: "User not found" } as const;
+    const [habit] = await tx.select({ id: habitsTable.id }).from(habitsTable)
+      .where(and(eq(habitsTable.id, params.data.habitId), eq(habitsTable.userId, req.userId!)))
+      .for("update");
+    if (!habit) return { error: "Habit not found" } as const;
+    const [row] = await tx.select({ id: checkinsTable.id }).from(checkinsTable).where(and(
       eq(checkinsTable.habitId, params.data.habitId),
       eq(checkinsTable.userId, req.userId!),
       eq(checkinsTable.date, toDateOnly(params.data.date)),
-    ))
-    .returning();
-  if (!checkin) {
-    res.status(404).json({ error: "Check-in not found" });
+    )).for("update");
+    if (!row) return { error: "Check-in not found" } as const;
+    const [updated] = await tx.update(checkinsTable)
+      .set({
+        ...(parsed.data.note !== undefined ? { note: parsed.data.note } : {}),
+        ...(parsed.data.moodRating !== undefined ? { moodRating: parsed.data.moodRating } : {}),
+        ...(parsed.data.difficulty !== undefined ? { difficulty: parsed.data.difficulty } : {}),
+        ...(parsed.data.missedReason !== undefined ? { missedReason: parsed.data.missedReason } : {}),
+      })
+      .where(eq(checkinsTable.id, row.id))
+      .returning();
+    return { checkin: updated } as const;
+  });
+  if ("error" in checkin) {
+    res.status(404).json({ error: checkin.error });
     return;
   }
-  res.json(UpdateCheckinReflectionResponse.parse(checkin));
+  res.json(UpdateCheckinReflectionResponse.parse(checkin.checkin));
 });
 
 router.post("/habits/:habitId/recover-streak", async (req, res): Promise<void> => {

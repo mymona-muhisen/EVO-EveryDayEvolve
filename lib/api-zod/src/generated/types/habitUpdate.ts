@@ -10,6 +10,7 @@ import type { HabitUpdateCadence } from './habitUpdateCadence';
 import type { HabitUpdateCategory } from './habitUpdateCategory';
 import type { HabitUpdateCueType } from './habitUpdateCueType';
 import type { HabitUpdateDifficulty } from './habitUpdateDifficulty';
+import type { HabitUpdateExecutionType } from './habitUpdateExecutionType';
 import type { HabitUpdateGoalType } from './habitUpdateGoalType';
 import type { HabitUpdateUnit } from './habitUpdateUnit';
 
@@ -25,6 +26,7 @@ export interface HabitUpdate {
      */
   customDays?: number[];
   unit?: HabitUpdateUnit;
+  executionType?: HabitUpdateExecutionType;
   /** @minimum 0 */
   targetValue?: number;
   /** @minimum 0 */

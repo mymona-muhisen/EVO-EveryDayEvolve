@@ -14,6 +14,7 @@ import journeyRouter from "./journey";
 import dashboardRouter from "./dashboard";
 import groupsRouter from "./groups";
 import aiRouter from "./ai";
+import dailyRouter from "./daily";
 
 const router: IRouter = Router();
 
@@ -32,5 +33,6 @@ router.use(journeyRouter);
 router.use(dashboardRouter);
 router.use(groupsRouter);
 router.use(aiRouter);
+router.use(dailyRouter);
 
 export default router;

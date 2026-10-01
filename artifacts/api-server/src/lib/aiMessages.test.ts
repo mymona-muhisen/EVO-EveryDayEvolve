@@ -351,7 +351,9 @@ test("builder AI accepts only safe structured interpretation and falls back on m
 test("22-day calendar journey includes cadence rest days without scheduling them", () => {
   const days = makeJourneyDays(7, "2025-01-01", 22, {
     targetValue: 10, minimumValue: 5, busyDayValue: 2, successLimitValue: null,
-    goalType: "build", planRevision: 1, cadence: "weekdays", customDays: null,
+    goalType: "build", title: "Read", unit: "minutes", executionType: "duration",
+    cueType: null, cueTime: null, cue: null, startAction: null,
+    planRevision: 1, cadence: "weekdays", customDays: null,
   });
   assert.equal(days.length, 22);
   assert.equal(days[0].date, "2025-01-01");
@@ -362,7 +364,9 @@ test("22-day calendar journey includes cadence rest days without scheduling them
   assert.equal(isScheduledDate("2025-01-05", 5, "custom_days", [0]), true);
   const customDays = makeJourneyDays(8, "2025-01-01", 22, {
     targetValue: 5, minimumValue: 2, busyDayValue: null, successLimitValue: null,
-    goalType: "build", planRevision: 1, cadence: "custom_days", customDays: [1, 3],
+    goalType: "build", title: "Read", unit: "count", executionType: "count",
+    cueType: null, cueTime: null, cue: null, startAction: null,
+    planRevision: 1, cadence: "custom_days", customDays: [1, 3],
   });
   assert.ok(customDays.every((day) => day.scheduled
     === [1, 3].includes(new Date(`${day.date}T00:00:00Z`).getUTCDay())));

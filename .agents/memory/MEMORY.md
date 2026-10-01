@@ -8,3 +8,4 @@
 - [Time awareness data boundaries](time-awareness-boundaries.md) — count only explicitly categorized intervals; never fill missed check-ins or let generated prose invent numeric conclusions.
 - [Historical reward preservation](historical-reward-policy.md) — ambiguous old reward markers are not evidence of nonpayment; atomicity fixes must not retroactively grant rewards.
 - [Adaptive habit boundaries](adaptive-habit-policy.md) — 22 calendar dates include rest days; today's plan stays fixed, and accepted adjustments need fresh numeric evidence.
+- [Daily habit boundaries](daily-habit-boundaries.md) — timer time is not activity proof; known legacy schedules differ from unknown history; consistency recovery is separate from paid repair.

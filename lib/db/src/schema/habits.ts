@@ -34,6 +34,12 @@ export const habitDifficultyEnum = pgEnum("habit_difficulty", [
 
 export const habitGoalTypeEnum = pgEnum("habit_goal_type", ["build", "quit"]);
 export const habitCueTypeEnum = pgEnum("habit_cue_type", ["time", "routine", "custom"]);
+export const habitExecutionTypeEnum = pgEnum("habit_execution_type", [
+  "duration",
+  "count",
+  "boolean",
+  "limit",
+]);
 
 export interface HabitMilestoneJson {
   title: string;
@@ -53,6 +59,7 @@ export const habitsTable = pgTable("habits", {
   cadence: habitCadenceEnum("cadence").notNull(),
   customDays: integer("custom_days").array(),
   unit: habitUnitEnum("unit").notNull(),
+  executionType: habitExecutionTypeEnum("execution_type"),
   targetValue: doublePrecision("target_value").notNull(),
   minimumValue: doublePrecision("minimum_value"),
   busyDayValue: doublePrecision("busy_day_value"),
@@ -70,6 +77,9 @@ export const habitsTable = pgTable("habits", {
   difficulty: habitDifficultyEnum("difficulty").notNull(),
   goalType: habitGoalTypeEnum("goal_type").notNull(),
   isActive: boolean("is_active").notNull().default(true),
+  recoveryEnabled: boolean("recovery_enabled").notNull().default(false),
+  recoveryUsed: integer("recovery_used").notNull().default(0),
+  recoveryLimit: integer("recovery_limit").notNull().default(2),
   currentStreak: integer("current_streak").notNull().default(0),
   longestStreak: integer("longest_streak").notNull().default(0),
   lastCheckinDate: date("last_checkin_date", { mode: "string" }),

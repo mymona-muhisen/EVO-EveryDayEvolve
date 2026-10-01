@@ -130,6 +130,20 @@ export const HabitUnit = {
 } as const;
 
 /**
+ * Nullable for legacy records; inferred from unit and goalType when consumed.
+ * @nullable
+ */
+export type HabitExecutionType = typeof HabitExecutionType[keyof typeof HabitExecutionType] | null;
+
+
+export const HabitExecutionType = {
+  duration: 'duration',
+  count: 'count',
+  boolean: 'boolean',
+  limit: 'limit',
+} as const;
+
+/**
  * @nullable
  */
 export type HabitCueType = typeof HabitCueType[keyof typeof HabitCueType] | null;
@@ -171,6 +185,11 @@ export interface Habit {
      */
   customDays: number[] | null;
   unit: HabitUnit;
+  /**
+     * Nullable for legacy records; inferred from unit and goalType when consumed.
+     * @nullable
+     */
+  executionType?: HabitExecutionType;
   targetValue: number;
   /** @nullable */
   minimumValue: number | null;
@@ -256,6 +275,16 @@ export const HabitInputUnit = {
   custom: 'custom',
 } as const;
 
+export type HabitInputExecutionType = typeof HabitInputExecutionType[keyof typeof HabitInputExecutionType];
+
+
+export const HabitInputExecutionType = {
+  duration: 'duration',
+  count: 'count',
+  boolean: 'boolean',
+  limit: 'limit',
+} as const;
+
 /**
  * @nullable
  */
@@ -297,6 +326,7 @@ export interface HabitInput {
      */
   customDays?: number[];
   unit: HabitInputUnit;
+  executionType?: HabitInputExecutionType;
   /** @minimum 0 */
   targetValue: number;
   /** @minimum 0 */
@@ -369,6 +399,16 @@ export const HabitUpdateUnit = {
   custom: 'custom',
 } as const;
 
+export type HabitUpdateExecutionType = typeof HabitUpdateExecutionType[keyof typeof HabitUpdateExecutionType];
+
+
+export const HabitUpdateExecutionType = {
+  duration: 'duration',
+  count: 'count',
+  boolean: 'boolean',
+  limit: 'limit',
+} as const;
+
 /**
  * @nullable
  */
@@ -410,6 +450,7 @@ export interface HabitUpdate {
      */
   customDays?: number[];
   unit?: HabitUpdateUnit;
+  executionType?: HabitUpdateExecutionType;
   /** @minimum 0 */
   targetValue?: number;
   /** @minimum 0 */
@@ -846,10 +887,50 @@ export const HabitDayGoalType = {
   quit: 'quit',
 } as const;
 
+/**
+ * @nullable
+ */
+export type HabitDayUnit = typeof HabitDayUnit[keyof typeof HabitDayUnit] | null;
+
+
+export const HabitDayUnit = {
+  minutes: 'minutes',
+  count: 'count',
+  pages: 'pages',
+  custom: 'custom',
+} as const;
+
+/**
+ * @nullable
+ */
+export type HabitDayExecutionType = typeof HabitDayExecutionType[keyof typeof HabitDayExecutionType] | null;
+
+
+export const HabitDayExecutionType = {
+  duration: 'duration',
+  count: 'count',
+  boolean: 'boolean',
+  limit: 'limit',
+} as const;
+
+/**
+ * @nullable
+ */
+export type HabitDayCueType = typeof HabitDayCueType[keyof typeof HabitDayCueType] | null;
+
+
+export const HabitDayCueType = {
+  time: 'time',
+  routine: 'routine',
+  custom: 'custom',
+} as const;
+
 export interface HabitDay {
   date: string;
   dayNumber: number;
   scheduled: boolean;
+  /** @nullable */
+  title?: string | null;
   targetValue: number;
   minimumValue: number;
   /** @nullable */
@@ -857,6 +938,18 @@ export interface HabitDay {
   /** @nullable */
   successLimitValue: number | null;
   goalType: HabitDayGoalType;
+  /** @nullable */
+  unit?: HabitDayUnit;
+  /** @nullable */
+  executionType?: HabitDayExecutionType;
+  /** @nullable */
+  cueType?: HabitDayCueType;
+  /** @nullable */
+  cueTime?: string | null;
+  /** @nullable */
+  cue?: string | null;
+  /** @nullable */
+  startAction?: string | null;
   checkin: Checkin | null;
 }
 
@@ -876,6 +969,289 @@ export type CheckinResult = Checkin & {
   newStreak: number;
   habit: Habit;
 };
+
+export type DailyExecutionStatus = typeof DailyExecutionStatus[keyof typeof DailyExecutionStatus];
+
+
+export const DailyExecutionStatus = {
+  pending: 'pending',
+  in_progress: 'in_progress',
+  paused: 'paused',
+  minimum_reached: 'minimum_reached',
+  target_reached: 'target_reached',
+  pending_reflection: 'pending_reflection',
+  completed: 'completed',
+  missed: 'missed',
+  recovery_available: 'recovery_available',
+  recovery_active: 'recovery_active',
+  recovered: 'recovered',
+} as const;
+
+export type DailyAdaptationDecision = typeof DailyAdaptationDecision[keyof typeof DailyAdaptationDecision];
+
+
+export const DailyAdaptationDecision = {
+  accepted: 'accepted',
+  rejected: 'rejected',
+} as const;
+
+export type RewardMilestoneProgressDays = typeof RewardMilestoneProgressDays[keyof typeof RewardMilestoneProgressDays];
+
+
+export const RewardMilestoneProgressDays = {
+  NUMBER_1: 1,
+  NUMBER_5: 5,
+  NUMBER_10: 10,
+  NUMBER_15: 15,
+  NUMBER_22: 22,
+} as const;
+
+export interface RewardMilestoneProgress {
+  days: RewardMilestoneProgressDays;
+  reached: boolean;
+}
+
+export type DailyHabitStateExecutionType = typeof DailyHabitStateExecutionType[keyof typeof DailyHabitStateExecutionType];
+
+
+export const DailyHabitStateExecutionType = {
+  duration: 'duration',
+  count: 'count',
+  boolean: 'boolean',
+  limit: 'limit',
+} as const;
+
+export type DailyHabitStateUnit = typeof DailyHabitStateUnit[keyof typeof DailyHabitStateUnit];
+
+
+export const DailyHabitStateUnit = {
+  minutes: 'minutes',
+  count: 'count',
+  pages: 'pages',
+  custom: 'custom',
+} as const;
+
+export type DailyHabitStateGoalType = typeof DailyHabitStateGoalType[keyof typeof DailyHabitStateGoalType];
+
+
+export const DailyHabitStateGoalType = {
+  build: 'build',
+  quit: 'quit',
+} as const;
+
+/**
+ * @nullable
+ */
+export type DailyHabitStateCueType = typeof DailyHabitStateCueType[keyof typeof DailyHabitStateCueType] | null;
+
+
+export const DailyHabitStateCueType = {
+  time: 'time',
+  routine: 'routine',
+  custom: 'custom',
+} as const;
+
+/**
+ * @nullable
+ */
+export type DailyHabitStateMissedReason = typeof DailyHabitStateMissedReason[keyof typeof DailyHabitStateMissedReason] | null;
+
+
+export const DailyHabitStateMissedReason = {
+  too_difficult: 'too_difficult',
+  no_time: 'no_time',
+  forgot: 'forgot',
+  lost_motivation: 'lost_motivation',
+  unexpected: 'unexpected',
+  other: 'other',
+} as const;
+
+/**
+ * @nullable
+ */
+export type DailyHabitStateDifficulty = typeof DailyHabitStateDifficulty[keyof typeof DailyHabitStateDifficulty] | null;
+
+
+export const DailyHabitStateDifficulty = {
+  easy: 'easy',
+  normal: 'normal',
+  hard: 'hard',
+  very_hard: 'very_hard',
+} as const;
+
+export interface DailyHabitState {
+  habitId: number;
+  date: string;
+  dayNumber: number;
+  scheduled: boolean;
+  eligible: boolean;
+  /** @minimum 0 */
+  planRevision: number;
+  title: string;
+  executionType: DailyHabitStateExecutionType;
+  unit: DailyHabitStateUnit;
+  targetValue: number;
+  minimumValue: number;
+  /** @nullable */
+  busyDayValue: number | null;
+  /** @nullable */
+  successLimitValue: number | null;
+  goalType: DailyHabitStateGoalType;
+  /** @nullable */
+  cueType: DailyHabitStateCueType;
+  /** @nullable */
+  cueTime: string | null;
+  /** @nullable */
+  cue: string | null;
+  /** @nullable */
+  startAction: string | null;
+  status: DailyExecutionStatus;
+  /** @nullable */
+  actualValue: number | null;
+  /** @nullable */
+  actualSeconds: number | null;
+  /** @minimum 0 */
+  elapsedSeconds: number;
+  /** @nullable */
+  startedAt: string | null;
+  /** @nullable */
+  lastResumedAt: string | null;
+  /** @nullable */
+  pausedAt: string | null;
+  /** @minimum 0 */
+  pausedSeconds: number;
+  /** @nullable */
+  finishedAt: string | null;
+  /** @nullable */
+  missedReason: DailyHabitStateMissedReason;
+  /** @nullable */
+  note: string | null;
+  /** @nullable */
+  difficulty: DailyHabitStateDifficulty;
+  /** @minimum 0 */
+  revision: number;
+  adaptationDecision: DailyAdaptationDecision | null;
+  checkin: Checkin | null;
+  /** @minimum 0 */
+  successfulDays: number;
+  /** @minimum 0 */
+  eligibleDays: number;
+  rewardMilestones: RewardMilestoneProgress[];
+}
+
+export type DailyHabitExecutionInputAction = typeof DailyHabitExecutionInputAction[keyof typeof DailyHabitExecutionInputAction];
+
+
+export const DailyHabitExecutionInputAction = {
+  start: 'start',
+  pause: 'pause',
+  resume: 'resume',
+  finish: 'finish',
+  update_progress: 'update_progress',
+  done: 'done',
+} as const;
+
+export interface DailyHabitExecutionInput {
+  date: string;
+  action: DailyHabitExecutionInputAction;
+  /** @minimum 0 */
+  expectedRevision: number;
+  /**
+     * Seconds for duration, item count for count, or usage for limit; actualValue is normalized to the plan unit (duration minutes) and actualSeconds stores the exact duration.
+     * @minimum 0
+     */
+  value?: number;
+  /**
+     * @minLength 1
+     * @maxLength 128
+     */
+  idempotencyKey?: string;
+}
+
+/**
+ * @nullable
+ */
+export type DailyHabitReflectionInputDifficulty = typeof DailyHabitReflectionInputDifficulty[keyof typeof DailyHabitReflectionInputDifficulty] | null;
+
+
+export const DailyHabitReflectionInputDifficulty = {
+  easy: 'easy',
+  normal: 'normal',
+  hard: 'hard',
+  very_hard: 'very_hard',
+} as const;
+
+/**
+ * @nullable
+ */
+export type DailyHabitReflectionInputMissedReason = typeof DailyHabitReflectionInputMissedReason[keyof typeof DailyHabitReflectionInputMissedReason] | null;
+
+
+export const DailyHabitReflectionInputMissedReason = {
+  too_difficult: 'too_difficult',
+  no_time: 'no_time',
+  forgot: 'forgot',
+  lost_motivation: 'lost_motivation',
+  unexpected: 'unexpected',
+  other: 'other',
+} as const;
+
+export interface DailyHabitReflectionInput {
+  /** @nullable */
+  difficulty?: DailyHabitReflectionInputDifficulty;
+  /**
+     * @maxLength 2000
+     * @nullable
+     */
+  note?: string | null;
+  /** @nullable */
+  missedReason?: DailyHabitReflectionInputMissedReason;
+}
+
+export interface RewardDelta {
+  /** @minimum 0 */
+  xp: number;
+  /** @minimum 0 */
+  coins: number;
+}
+
+export interface DailyHabitActionResult {
+  execution: DailyHabitState;
+  rewardDelta: RewardDelta;
+}
+
+export interface DailyAdaptationDecisionInput {
+  decision: DailyAdaptationDecision;
+}
+
+export type DailyHabitOverviewItemExecutionType = typeof DailyHabitOverviewItemExecutionType[keyof typeof DailyHabitOverviewItemExecutionType];
+
+
+export const DailyHabitOverviewItemExecutionType = {
+  duration: 'duration',
+  count: 'count',
+  boolean: 'boolean',
+  limit: 'limit',
+} as const;
+
+export interface DailyHabitOverviewItem {
+  habitId: number;
+  title: string;
+  executionType: DailyHabitOverviewItemExecutionType;
+  scheduledToday: boolean;
+  /** @minimum 0 */
+  successfulDays: number;
+  /** @minimum 0 */
+  eligibleDays: number;
+  execution: DailyHabitState;
+  rewardMilestones: RewardMilestoneProgress[];
+}
+
+export interface DailyOverview {
+  date: string;
+  timezone: string;
+  habits: DailyHabitOverviewItem[];
+}
 
 export interface RecoverStreakResult {
   habit: Habit;
@@ -1440,6 +1816,10 @@ export interface UploadUrlResponse {
 
 export type ListHabitsParams = {
 isActive?: boolean;
+};
+
+export type GetDailyOverviewParams = {
+date?: string;
 };
 
 export type ListHabitCheckinsParams = {

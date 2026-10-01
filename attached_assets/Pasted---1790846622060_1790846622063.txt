@@ -1,0 +1,1697 @@
+هذه الميزة مهمة جدًا لأنها تمثل الجزء الذي سيعيشه المستخدم كل يوم.
+الميزة السابقة أنشأت الخطة، أما هنا فنحن نصمم:
+
+ماذا يرى المستخدم عندما يستيقظ؟ ماذا يفعل؟ ماذا يحدث إذا كان اليوم سهلًا؟ صعبًا؟ إذا تجاوز الهدف؟ إذا لم يفعل شيئًا؟ وإذا انتكس؟
+
+وأريد أن يكون الهدف الأساسي لهذه الميزة:
+
+اجعل تنفيذ العادة أسهل من التفكير في تنفيذها.
+
+04 — Daily Habit Experience
+الـCore Loop اليومي
+OPEN APP
+   ↓
+SEE TODAY
+   ↓
+KNOW THE MINIMUM
+   ↓
+START / COMPLETE
+   ↓
+CHECK-IN
+   ↓
+REFLECT
+   ↓
+EARN PROGRESS
+   ↓
+ADAPT TOMORROW
+   ↓
+LEAVE
+
+لا نريد أن يفتح المستخدم التطبيق فيرى Dashboard مليئة بالمعلومات ولا يعرف ماذا يفعل.
+
+يجب أن يكون أول سؤال:
+
+What do I need to do today?
+
+1. Daily Home
+
+عند فتح التطبيق، الصفحة الأساسية تتغير حسب حالة اليوم.
+
+الحالة الطبيعية
+Good morning, Mymona
+
+Today's habit
+
+📚 Reading
+
+10 min target
+5 min minimum
+
+[ Start ]
+
+Day 7 / 22
+6 successful days / 7
+
+🎧 Headphones
+7 days closer
+2. الـHero في Daily Screen
+
+أهم عنصر في الشاشة:
+
+Today's Minimum
+
+5 minutes
+
+وتحته:
+
+هدفك اليوم 10 دقائق.
+
+ثم:
+
+حتى في اليوم الصعب، 5 دقائق تكفي للحفاظ على التقدم.
+
+زر كبير:
+
+ابدأ الآن
+3. لماذا نظهر Minimum أولًا؟
+
+لأن المستخدم يجب أن يشعر:
+
+"أستطيع فعل هذا."
+
+بدل:
+
+"عليّ أن أحقق 10 دقائق."
+
+هذا يقلل الاحتكاك النفسي في البداية.
+
+4. Start Habit
+
+عندما يضغط:
+
+ابدأ الآن
+
+ننتقل إلى وضع بسيط جدًا:
+
+Reading
+
+00:00
+
+Today's target
+10 min
+
+Minimum
+5 min
+
+[ Pause ]
+[ Finish ]
+
+لكن يجب أن يكون التطبيق مرنًا حسب نوع العادة.
+
+5. أنواع تنفيذ مختلفة
+
+ليس كل Habit يمكن عمله Stopwatch.
+
+لذلك Habit يحتوي على:
+
+duration
+count
+boolean
+limit
+Duration
+
+قراءة 10 دقائق.
+
+Count
+
+شرب 8 أكواب.
+
+Boolean
+
+Meditation completed.
+
+Reduce
+
+أقل من ساعتين Social Media.
+
+الواجهة تتكيف حسب النوع.
+
+6. Duration Habit
+
+مثلاً:
+
+Read 10 minutes.
+
+المستخدم يستطيع:
+
+Start
+
+ثم Timer.
+
+لكن لا نريد أن نجبره على البقاء داخل الصفحة.
+
+لذلك إذا ترك الصفحة:
+
+habit session continues logically
+
+ثم يستطيع العودة.
+
+إذا كانت بيئة الـBrowser لا تدعم استمرار timer بدقة أثناء background، استخدم timestamps وليس عدادًا ينقص في الواجهة فقط.
+
+مصدر الحقيقة هو startTime/endTime.
+
+7. Count Habit
+
+مثلاً:
+
+Drink 8 glasses of water.
+
+واجهة:
+
+Today's target
+
+🥤 5 / 8
+
+[-]   [+]
+
+[ Complete ]
+
+Minimum:
+
+4 glasses
+
+8. Boolean Habit
+
+مثلاً:
+
+Meditate today.
+
+واجهة:
+
+🧘 Meditation
+
+Did you do it?
+
+[ Yes, I did ]
+
+[ Not yet ]
+
+هنا يمكن اعتبار الـMinimum هو تنفيذ السلوك مرة واحدة.
+
+9. Reduce Habit
+
+مثلاً:
+
+Reduce Social Media.
+
+الواجهة:
+
+📱 Social Media
+
+Today's limit
+160 min
+
+You've used
+94 min
+
+██████░░░░
+
+Success limit
+170 min
+
+المستخدم لا يحتاج معرفة كل المعادلات.
+
+اللغة:
+
+ما زلت ضمن هدفك اليوم.
+
+10. Partial Completion
+
+إذا كان:
+
+Target = 10
+Minimum = 5
+Actual = 6
+
+المستخدم يضغط:
+
+أنهي اليوم
+
+فنقول:
+
+You made it.
+
+وصلت إلى الحد الأدنى اليوم.
+
+ثم:
+
+هل تريد الاستمرار أم تكتفي اليوم؟
+
+[ Continue ]
+[ Done for today ]
+
+إذا اختار Done:
+
+✅ Minimum achieved.
+
+11. Target Completion
+
+إذا:
+
+Actual = Target
+
+نظهر:
+
+Target complete 🎯
+
+ثم animation قصيرة.
+
+والشخصية في الخريطة تتحرك.
+
+12. Overachievement
+
+إذا تجاوز المستخدم:
+
+Target = 10
+Actual = 25
+
+نقول:
+
+تجاوزت هدفك اليوم.
+
+لكن:
+
+لا نرفع هدف الغد تلقائيًا.
+
+نسمح:
+
+هل تريد الحفاظ على هذا المستوى أم نجرب زيادة صغيرة؟
+
+لكن يمكن تأجيل هذا القرار ليظهر ضمن Adaptive Engine.
+
+13. Check-in بعد الإنجاز
+
+كل إكمال يقود إلى Reflection صغير.
+
+السؤال:
+
+How did it feel today?
+
+😊 Easy
+😐 Normal
+😣 Hard
+😞 Very Hard
+
+هذا هو الإشعار السلوكي الأهم بالنسبة للنظام.
+
+14. Optional Note
+
+بعد Difficulty:
+
+Anything worth remembering?
+
+Optional:
+
+"كنت متعبًا اليوم"
+
+لا نجعلها إجبارية.
+
+15. كيف نمنع المستخدم من لعب النظام؟
+
+نحتاج أن يكون لدينا شيء مهم:
+
+Completion Claim
+
+إذا المستخدم ضغط:
+
+"Done"
+
+لا نطلب صورة في V1.
+
+ولا نطلب Proof.
+
+نحن نبني على:
+
+self-report
+
+وفي المستقبل يمكن إضافة Memories / Evidence.
+
+ولا نريد في V1 تحويل التجربة إلى نظام شرطة.
+
+16. Consistency
+
+هذه الميزة يجب أن تكون مختلفة عن Streak التقليدي.
+
+بدل:
+
+🔥 6
+
+نقول:
+
+6 successful days out of 7
+
+وهذا يظهر في:
+
+Dashboard
+Habit
+Journey
+Profile
+17. ماذا يعني Successful Day؟
+Build
+actual >= minimum
+Reduce
+actual <= successLimit
+Boolean
+completed = true
+
+ولا نستخدم:
+
+"Did you hit the full target?"
+
+لتحديد نجاح اليوم.
+
+18. مستويات الإنجاز
+
+يمكن أن يكون لدينا داخليًا:
+
+minimum
+target
+bonus
+
+مثلاً:
+
+Minimum
+
+5 min
+
+Target
+
+10 min
+
+Bonus
+
+20 min
+
+لكن Bonus ليس مطلوبًا.
+
+ويمكن إعطاء XP إضافي عند تجاوزه، إذا كان الاقتصاد الحالي يسمح.
+
+19. Consistency Calculation
+
+يجب أن يكون الحساب deterministic.
+
+مثلاً:
+
+successfulDays = number of successful habit days
+eligibleDays = number of days with active journey
+
+ثم:
+
+6 / 7
+
+ولا نستخدم AI.
+
+20. ماذا يحدث إذا لم يفتح المستخدم التطبيق؟
+
+لا نفترض أنه فشل.
+
+هذه نقطة شديدة الأهمية.
+
+مثلاً:
+
+أمس:
+
+لا Check-in.
+
+لكن اليوم:
+
+لم نراك بالأمس.
+
+بدل:
+
+❌ Failed
+
+نقول:
+
+Yesterday wasn't completed.
+
+ثم:
+
+هل كان هناك شيء منعك؟
+
+21. Missed Day
+
+عندما يثبت أن اليوم انتهى بدون إكمال:
+
+Journey
+Day 7
+Status = missed
+
+لكن:
+
+Journey continues.
+
+والـConsistency:
+
+6 successful days / 7
+
+ولا نقول:
+
+Streak = 0.
+
+22. Failure Screen
+
+أريد الشاشة بسيطة جدًا.
+
+عنوان:
+
+Yesterday didn't go as planned.
+
+ثم:
+
+وهذا لا يعني أن الرحلة توقفت.
+
+السبب:
+😫 كان الهدف صعبًا
+🕐 لم أجد وقتًا
+😴 نسيت
+😕 فقدت الحافز
+⚡ حدث شيء غير متوقع
+✍️ سبب آخر
+23. بعد اختيار السبب
+
+لا ننتقل مباشرة.
+
+نظهر:
+
+Got it.
+
+ثم تدخل Adaptive Engine.
+
+24. إذا كان Too Difficult
+
+مثلاً:
+
+الهدف:
+
+10 min
+
+Minimum:
+
+5 min
+
+نظام القواعد يقرر:
+
+Target tomorrow = 8 min
+
+والـAI يصيغ:
+
+يبدو أن 10 دقائق كانت ثقيلة في الأيام الأخيرة. لنخفف الخطوة قليلًا بدل جعل الاستمرار أصعب.
+
+ثم:
+
+Continue with 8 min
+
+25. إذا No Time
+
+لا نريد خفض الخطة الأساسية فورًا.
+
+نستخدم:
+
+Busy Day Mode
+
+في الأيام المزدحمة، لديك نسخة أصغر:
+
+3 minutes
+
+ثم:
+
+هدفك المعتاد يبقى 10 دقائق.
+
+26. إذا Forgot
+
+AI لا يقلل الهدف.
+
+بدلًا من ذلك:
+
+لنغير الـCue.
+
+مثلاً:
+
+بعد القهوة الصباحية.
+
+ثم:
+
+Set this cue
+
+27. إذا Lost Motivation
+
+الهدف هنا تقليل الاحتكاك.
+
+مثلاً:
+
+بدل "اقرأ 10 دقائق"
+
+نقول:
+
+افتح الكتاب واقرأ صفحة واحدة.
+
+وهذه قد تكون نسخة بداية اليوم التالي.
+
+28. إذا Unexpected
+
+لا نعدل الخطة عادة.
+
+يبدو أن هذا اليوم كان استثناءً.
+
+نكمل رحلتك كالمعتاد غدًا.
+
+29. AI Failure Message
+
+مهم جدًا:
+
+لا نريد أن يرى:
+
+Error analyzing relapse.
+
+بدل ذلك:
+
+خلينا نكمل بدون تعديل كبير اليوم.
+
+ثم fallback.
+
+30. Recovery
+
+هنا نصل إلى الفكرة التي أحببتِها سابقًا:
+
+استعادة الـStreak.
+
+رغم أننا في V1 يمكن أن نجعلها Lite.
+
+إذا قرر الفريق تنفيذها، لا يجب أن تكون مجرد:
+
+Restore 🔥
+
+بل:
+
+Recovery Challenge
+
+مثلاً:
+
+المعتاد:
+
+10 min
+
+Recovery:
+
+15 min
+
+أو:
+
+Minimum + bonus action.
+
+31. عدد مرات Recovery
+
+الاتفاق السابق:
+
+مرتان لكل رحلة.
+
+نحفظ:
+
+recovery_used = 0
+recovery_limit = 2
+
+بعد استخدامها:
+
+1 / 2 used
+32. لكن هل Recovery يعيد "الستريك"؟
+
+بما أن المنتج يعتمد:
+
+X successful days / Y
+
+أنا أفضل أن نسميه:
+
+Consistency Recovery
+
+بدل:
+
+Repair broken streak.
+
+لأنه أكثر انسجامًا مع فلسفة المنتج.
+
+مثلاً:
+
+Recover this day
+
+ويصبح اليوم:
+
+Recovered
+
+لكن يجب أن يكون واضحًا للمستخدم أنه تم استخدام إحدى فرص الاستعادة.
+
+33. Recovery Flow
+Missed Day
+    ↓
+Reason
+    ↓
+Normal adaptation
+    ↓
+Optional Recovery
+    ↓
+Challenge
+    ↓
+Complete challenge
+    ↓
+Day marked recovered
+    ↓
+Consistency updated
+34. إذا لم يُكمل Recovery Challenge
+
+لا نسمح بمحاولة لا نهائية.
+
+يتم تسجيل:
+
+Recovery not completed.
+
+وتبقى الرحلة مستمرة.
+
+35. Recovery لا يجب أن يصبح عقابًا
+
+لا نريد:
+
+2x target!
+
+مثلاً إذا habit:
+
+Read 10 min
+
+ليس ضروريًا:
+
+Read 60 min.
+
+الـRecovery يجب أن يكون أكبر قليلًا فقط.
+
+36. Daily Celebration
+
+بعد Successful Day:
+
+نريد Celebration صغيرة:
+
+✓ Day 7 complete
+
++10 coins
++20 XP
+
+Consistency
+7 / 7
+
+Your character moved forward.
+
+ثم:
+
+Continue
+
+لا نريد animation طويلة كل يوم.
+
+37. Milestones
+
+الخريطة يمكن أن تحتوي milestones:
+
+Day 1
+
+Started
+
+Day 5
+
+Getting consistent
+
+Day 10
+
+Halfway
+
+Day 15
+
+Momentum
+
+Day 22
+
+Journey complete
+
+لكن هذه أسماء UI وليست ادعاءات علمية.
+
+38. Reward Progress
+
+بعد كل successful day:
+
+مثلاً:
+
+7 / 22
+
+ويظهر:
+
+🎧 Headphones
+
+15 days to go
+
+لكن لا نحسب المكافأة بفلوس تلقائيًا في V1.
+
+39. Character Progress
+
+بعد completion:
+
+Coins +10
+XP +20
+
+الشخصية:
+
+👋 celebrates
+
+ثم تتحرك في الرحلة.
+
+40. Daily Notification
+
+لو الـPWA يدعمها:
+
+قبل وقت العادة:
+
+Your 5-minute minimum is waiting.
+
+لكن لا نريد:
+
+"You haven't done your habit!!!"
+
+نستخدم لغة خفيفة.
+
+41. Smart Reminder
+
+إذا كان المستخدم يكرر نسيان العادة في 8 PM:
+
+لا نستنتج وحدنا أنه يجب تغييرها ما لم تدعم البيانات ذلك.
+
+AI يمكن أن يقول:
+
+يبدو أن وقت المساء لا يعمل جيدًا لك.
+
+ثم:
+
+هل تريد تجربتها صباحًا؟
+
+42. Daily Screen — الحالات كلها
+
+أريد Replit أن يبني State Machine واضحة:
+
+NOT_STARTED
+   ↓
+IN_PROGRESS
+   ↓
+MINIMUM_REACHED
+   ↓
+TARGET_REACHED
+   ↓
+COMPLETED
+
+or
+
+NOT_STARTED
+   ↓
+DAY_EXPIRED
+   ↓
+MISSED
+   ↓
+REFLECTION
+   ↓
+ADAPTATION
+   ↓
+NEXT_DAY
+
+or
+
+MISSED
+   ↓
+RECOVERY_AVAILABLE
+   ↓
+RECOVERY_ACTIVE
+   ↓
+RECOVERED
+
+هذا أفضل بكثير من وضع if عشوائي في كل Component.
+
+43. Habit Status
+
+في قاعدة البيانات:
+
+pending
+in_progress
+minimum_reached
+completed
+missed
+recovered
+
+ولا نستخدم completed = true/false فقط.
+
+44. Habit Day Data
+
+كل يوم:
+
+id
+habit_id
+day_number
+date
+target_value
+minimum_value
+actual_value
+status
+difficulty
+missed_reason
+started_at
+completed_at
+recovered
+recovery_used
+note
+
+هذا يعطينا تاريخًا كاملًا.
+
+45. User Experience Example — Day 1
+
+المستخدم يفتح:
+
+Day 1
+
+Read 10 min
+
+Minimum 5 min
+
+يضغط Start.
+
+يقرأ 6 دقائق.
+
+يضغط Done.
+
+التطبيق:
+
+✅ Minimum reached
+
+هل تريد الاستمرار؟
+
+المستخدم:
+
+Done for today
+
+التطبيق:
+
+How did it feel?
+
+Easy
+
+النتيجة:
+
+Day 1 complete
+
++10 coins
++20 XP
+
+🗺️ Character moves.
+
+46. Day 4 Example
+
+المستخدم:
+
+Read 10 min
+
+يقرأ 10.
+
+يختار:
+
+😣 Hard
+
+النظام لا يخفض فورًا إذا لم يوجد pattern.
+
+يقول:
+
+Thanks for telling us.
+
+ولا يحدث شيء دراماتيكي.
+
+47. Day 5
+
+Again:
+
+😣 Hard
+
+الآن Rules Engine:
+
+adjustment candidate.
+
+ثم:
+
+نخفف هدفك غدًا قليلًا.
+
+Target:
+
+10 → 8
+
+Minimum:
+
+5
+
+48. Day 6
+
+المستخدم ينفذ 8 min.
+
+ويختار:
+
+😐 Normal
+
+النظام:
+
+Current plan looks manageable.
+
+لا تعديل.
+
+49. Day 7 — Failure
+
+لا ينفذ.
+
+في اليوم التالي:
+
+Yesterday didn't go as planned.
+
+يختار:
+
+Forgot
+
+النظام:
+
+لنجرب ربط القراءة بشيء تفعله كل صباح.
+
+Cue:
+
+After coffee ☕
+
+50. Day 8
+
+يظهر:
+
+📚 After your morning coffee
+
+Target:
+
+8 min
+
+Minimum:
+
+5 min
+
+هذا يجعل الخطة تبدو وكأنها تتطور مع حياة المستخدم.
+
+51. AI Role in This Feature
+
+AI لا يجب أن يظهر عند كل عملية.
+
+نستدعي AI عند:
+
+After repeated difficulty
+
+صياغة adaptation.
+
+Missed day
+
+صياغة response.
+
+Pattern in failures
+
+اقتراح تغيير cue/strategy.
+
+Milestone
+
+تشجيع شخصي إذا كان هناك سياق مفيد.
+
+أما:
+
+coins
+XP
+status
+day number
+progress
+
+فهي من التطبيق.
+
+52. Prompt للـAI — Failure
+You are the adaptive habit coach.
+
+The application has already determined:
+- current target
+- current minimum
+- recent performance
+- failure reason
+- recommended adjustment
+
+Do NOT change any numeric value.
+
+Your job is to:
+1. explain what happened without blame
+2. explain the recommended next step
+3. encourage the user
+4. suggest one practical action
+
+Failure reason may be:
+- too_difficult
+- no_time
+- forgot
+- lost_motivation
+- unexpected
+- other
+
+For:
+too_difficult:
+Explain that reducing friction or target can help.
+
+no_time:
+Suggest a smaller busy-day version.
+
+forgot:
+Suggest attaching the habit to an existing routine/cue.
+
+lost_motivation:
+Suggest making the starting action smaller/easier.
+
+unexpected:
+Treat it as an exception and avoid unnecessary changes.
+
+Never shame the user.
+Never diagnose.
+Never claim scientific certainty.
+Return concise natural Arabic.
+Return structured JSON.
+53. Prompt — Daily Coach
+You are the daily coach inside a personal habit application.
+
+Use ONLY the structured facts provided by the application.
+
+Possible context:
+- today's habit
+- target
+- minimum
+- actual progress
+- recent difficulty
+- consistency
+- reward
+- current journey day
+
+Your response must be concise and actionable.
+
+Examples of useful output:
+- today's focus
+- short encouragement
+- explanation of an adaptation
+- reminder of minimum
+- recognition of progress
+
+Do not invent behavior.
+Do not shame.
+Do not make medical claims.
+Do not make 22-day habit-formation claims.
+
+Return structured JSON.
+54. Acceptance Criteria
+
+الميزة تعتبر مكتملة عندما:
+
+ عند فتح التطبيق يرى المستخدم مهمته اليومية بوضوح.
+ Target وMinimum منفصلان.
+ يدعم Build / Reduce / Count / Boolean حسب ما هو موجود في Habit model.
+ يستطيع المستخدم بدء العادة.
+ يستطيع إكمالها جزئيًا.
+ الوصول إلى Minimum يعتبر نجاحًا.
+ الوصول إلى Target يظهر كإكمال كامل.
+ يستطيع المستخدم تقييم الصعوبة.
+ يستطيع إضافة ملاحظة اختيارية.
+ Consistency تظهر كـX/Y.
+ يوم واحد فائت لا يصفر الرحلة.
+ توجد شاشة Failure/Reflection.
+ سبب التفويت يحفظ.
+ سبب التفويت يؤثر على الخطة المستقبلية وفق Rules Engine.
+ AI يشرح التعديل ولا يقرر الأرقام.
+ المستخدم يستطيع رؤية التعديل قبل اعتماده عند الحاجة.
+ Busy Day behavior موجود.
+ Cue/Reminder adaptation موجودة.
+ Recovery يمكن تفعيله كـLite إذا قرر الفريق تضمينه في الهاكاثون.
+ Recovery محدود بمرتين لكل رحلة.
+ لا توجد لغة عقابية.
+ XP/Coins/character progress ترتبط بإتمام العادة.
+ Refresh لا يفقد الحالة.
+ Mobile RTL يعمل.
+55. Prompt جاهز لـReplit
+
+هذا هو النص الذي أعطيه الآن لـReplit:
+
+Implement Feature 04:
+DAILY HABIT EXPERIENCE + CHECK-IN + CONSISTENCY + FAILURE/RECOVERY UX
+
+IMPORTANT:
+Do not redesign unrelated features.
+Do not remove existing Habit Creation, AI Coach, Time Tracking, Journey, XP, Coins, or Reward functionality.
+Inspect the current implementation first.
+Reuse current components, APIs, database tables, and rules whenever possible.
+Implement this feature incrementally.
+Do not replace the existing system from scratch.
+
+==================================================
+1. DAILY HABIT HOME
+==================================================
+
+When a user opens the application, the primary screen should answer:
+
+1. What do I need to do today?
+2. What is the target?
+3. What is the minimum?
+4. How much have I completed?
+5. Where am I in the journey?
+6. What am I working toward?
+
+Show:
+
+- Habit name
+- Today's target
+- Today's minimum
+- Current progress
+- Journey day
+- Consistency
+- Reward
+- Start/Complete action
+
+Make "minimum" visually reassuring.
+
+Example:
+Target: 10 min
+Minimum: 5 min
+
+Use Arabic RTL.
+
+==================================================
+2. SUPPORT HABIT TYPES
+==================================================
+
+Support existing habit types where the current data model allows:
+
+BUILD duration habit
+BUILD count habit
+BUILD boolean habit
+REDUCE habit
+
+For BUILD:
+actual >= minimum → successful day
+actual >= target → target achieved
+
+For REDUCE:
+actual <= success limit → successful day
+actual <= target limit → target achieved
+
+Do not treat minimum achievement as failure.
+
+==================================================
+3. HABIT EXECUTION
+==================================================
+
+Duration habits:
+- Start
+- Pause
+- Resume
+- Finish
+
+Use timestamps as the source of truth for elapsed duration.
+Do not rely only on a visual frontend timer.
+
+Count habits:
+- plus/minus controls
+- current count
+- target count
+
+Boolean habits:
+- simple completion action
+
+Reduce habits:
+- show current usage
+- target limit
+- success threshold
+- progress
+
+==================================================
+4. PARTIAL COMPLETION
+==================================================
+
+When:
+minimum <= actual < target
+
+Show:
+"Minimum reached."
+
+Then ask:
+"Continue or finish for today?"
+
+Buttons:
+- Continue
+- Done for today
+
+Minimum completion counts as a successful day.
+
+==================================================
+5. TARGET COMPLETION
+==================================================
+
+When actual >= target:
+
+Show:
+"Target complete."
+
+Trigger:
+- XP
+- Coins
+- journey progression
+- character movement
+- consistency update
+
+Do not automatically increase tomorrow's target.
+
+==================================================
+6. OVERACHIEVEMENT
+==================================================
+
+If actual > target:
+- show recognition
+- optionally award a small bonus if existing economy supports it
+- do not automatically set tomorrow's target to the achieved value
+- allow future adaptation through the existing rules engine
+
+==================================================
+7. DIFFICULTY CHECK-IN
+==================================================
+
+After completion ask:
+
+😊 Easy
+😐 Normal
+😣 Hard
+😞 Very Hard
+
+Optional note field.
+
+Persist difficulty using the existing data model where possible.
+
+If the current system stores numeric values internally, map them cleanly to these four user-facing states.
+
+Do not break historical data.
+
+==================================================
+8. CONSISTENCY
+==================================================
+
+Do NOT center the experience around traditional streak language.
+
+Use:
+
+"6 successful days out of 7"
+
+Calculate this deterministically.
+
+Successful day:
+BUILD → actual >= minimum
+REDUCE → actual <= success limit
+BOOLEAN → completed
+
+A missed day must not reset the entire journey.
+
+==================================================
+9. USER DID NOT COMPLETE THE DAY
+==================================================
+
+When the day expires without successful completion:
+
+Show:
+
+"Yesterday didn't go as planned."
+
+Then:
+
+"What got in the way?"
+
+Options:
+
+- Too difficult
+- No time
+- Forgot
+- Lost motivation
+- Unexpected event
+- Other
+
+Persist the real selected reason.
+
+Do NOT hard-code missedDays = 1.
+
+Use actual habit history.
+
+==================================================
+10. FAILURE ADAPTATION
+==================================================
+
+Pass failure reason into the existing deterministic adaptation engine.
+
+Rules:
+
+Too difficult:
+→ reduce future target/minimum gradually
+
+No time:
+→ offer Busy Day Version
+→ do not automatically reduce main target
+
+Forgot:
+→ suggest cue/reminder adjustment
+
+Lost motivation:
+→ simplify starting action / reduce friction
+
+Unexpected:
+→ normally keep the plan
+
+One difficult day should not cause a major target reduction.
+
+Repeated difficulty can trigger adaptation.
+
+==================================================
+11. BUSY DAY VERSION
+==================================================
+
+Support:
+
+Normal target
+Minimum
+Busy-day version
+
+Example:
+
+Target = 10 min
+Minimum = 5 min
+Busy-day version = 3 min
+
+When user reports "No time", show the smaller option.
+
+Do not permanently replace the main target.
+
+==================================================
+12. CUE ADAPTATION
+==================================================
+
+For "Forgot":
+
+Allow:
+- fixed time
+- existing routine cue
+- custom cue
+
+Example:
+"After morning coffee"
+
+Do not invent routines that the user has not provided.
+
+==================================================
+13. FAILURE AI
+==================================================
+
+Use the AI only to explain and coach.
+
+The deterministic engine decides numeric changes.
+
+AI receives:
+- failure reason
+- recent history
+- current target
+- new target if changed
+- recommended action
+
+AI must NOT modify the numbers.
+
+Return concise Arabic structured JSON:
+{
+  "headline": "...",
+  "explanation": "...",
+  "next_step": "...",
+  "encouragement": "..."
+}
+
+If AI fails, use a deterministic Arabic fallback.
+
+Never show technical API errors.
+
+==================================================
+14. OPTIONAL RECOVERY — LITE
+==================================================
+
+If the existing codebase can support it without destabilizing V1, implement a lightweight consistency recovery system.
+
+Limit:
+2 recovery opportunities per journey.
+
+Flow:
+Missed day
+→ Reflection
+→ Recovery available
+→ User chooses recovery
+→ Show small recovery challenge
+→ Complete challenge
+→ Mark missed day as recovered
+→ Update consistency
+
+Do NOT make recovery punitive.
+
+Example:
+Normal target = 10 min
+Recovery challenge = 15 min
+
+Do not require huge tasks.
+
+Track:
+recovery_used
+recovery_limit = 2
+recovered
+
+If recovery challenge is not completed:
+do not allow unlimited retries.
+
+If implementing Recovery would destabilize core functionality, leave it disabled but keep the architecture ready.
+
+==================================================
+15. DAILY CELEBRATION
+==================================================
+
+After successful completion show:
+
+"Day X complete"
+
+Then:
++XP
++Coins
+
+Update:
+- consistency
+- journey position
+- character position
+
+Use a short animation.
+
+Do not create long repetitive animations.
+
+==================================================
+16. MILESTONES
+==================================================
+
+Support simple milestone states:
+Day 1
+Day 5
+Day 10
+Day 15
+Day 22
+
+These are product milestones only.
+
+Do not describe them as scientifically validated habit-formation stages.
+
+==================================================
+17. REWARD PROGRESS
+==================================================
+
+After successful day:
+update journey reward progress.
+
+Display:
+"7 / 22"
+
+Do not implement monetary reward fund.
+
+The user-selected real reward remains the journey goal.
+
+==================================================
+18. DAILY STATE MACHINE
+==================================================
+
+Implement a clear state model.
+
+States:
+
+NOT_STARTED
+IN_PROGRESS
+MINIMUM_REACHED
+TARGET_REACHED
+COMPLETED
+MISSED
+REFLECTION
+ADAPTATION
+RECOVERY_AVAILABLE
+RECOVERY_ACTIVE
+RECOVERED
+
+Avoid scattering arbitrary state logic across multiple components.
+
+Keep the source of truth server/database driven where appropriate.
+
+==================================================
+19. DATA MODEL
+==================================================
+
+Use the existing schema when possible.
+
+Habit day should preserve:
+
+- id
+- habit_id
+- day_number
+- date
+- target_value
+- minimum_value
+- actual_value
+- status
+- difficulty
+- missed_reason
+- started_at
+- completed_at
+- recovered
+- recovery_used if appropriate
+- note
+
+Historical target/minimum values must never be overwritten by future adaptation.
+
+==================================================
+20. MOBILE UX
+==================================================
+
+This feature must work especially well on mobile.
+
+Prioritize:
+- one-handed interaction
+- large completion button
+- large difficulty buttons
+- minimal typing
+- fast check-in
+- clear progress
+- RTL
+- no horizontal scrolling
+
+==================================================
+21. REQUIRED UI STATES
+==================================================
+
+Implement and test:
+
+- new day
+- not started
+- in progress
+- paused
+- minimum reached
+- target reached
+- completed
+- over target
+- day incomplete
+- missed day
+- failure reflection
+- adaptation suggestion
+- adaptation accepted
+- adaptation rejected
+- recovery available
+- recovery active
+- recovery completed
+- recovery failed
+- AI loading
+- AI failure
+- empty state
+- API/network error
+
+==================================================
+22. TESTING
+==================================================
+
+Test:
+
+1. BUILD duration habit.
+2. Reach minimum but not target.
+3. Complete target.
+4. Overachieve.
+5. Easy difficulty.
+6. Normal difficulty.
+7. Hard difficulty.
+8. Repeated Hard and adaptive adjustment.
+9. Miss day due to Too difficult.
+10. Miss day due to No time.
+11. Miss day due to Forgot.
+12. Miss day due to Lost motivation.
+13. Miss day due to Unexpected event.
+14. REDUCE habit.
+15. Consistency calculation.
+16. Journey progress.
+17. XP/Coins.
+18. Historical targets remain unchanged after adaptation.
+19. Recovery if implemented.
+20. Refresh page and verify persistence.
+21. Logout/login and verify persistence.
+22. Mobile RTL.
+
+==================================================
+23. IMPORTANT PRODUCT RULES
+==================================================
+
+Never:
+- shame the user
+- reset the whole journey after one miss
+- call every missed day a failure
+- automatically make tomorrow much harder
+- let AI decide numeric business logic
+- expose technical errors to users
+- require a photo as proof
+- make completion unnecessarily complicated
+
+Prefer:
+- "Your journey is still moving."
+- "Let's make tomorrow easier."
+- "Minimum reached."
+- "This day gave us useful information."
+- "You can continue when you're ready."
+
+Before editing:
+1. Inspect current implementation.
+2. Identify reusable files/components/routes.
+3. Identify current habit-day schema.
+4. Identify current XP/coins/journey logic.
+5. Identify current AI service.
+
+Then implement the feature.
+After implementation, actually test the critical paths.
+
+Final report:
+- files changed
+- DB changes
+- API changes
+- state machine changes
+- tests run
+- tests passed
+- tests failed
+- issues remaining

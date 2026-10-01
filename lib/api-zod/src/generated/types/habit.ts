@@ -9,6 +9,7 @@ import type { HabitCadence } from './habitCadence';
 import type { HabitCategory } from './habitCategory';
 import type { HabitCueType } from './habitCueType';
 import type { HabitDifficulty } from './habitDifficulty';
+import type { HabitExecutionType } from './habitExecutionType';
 import type { HabitGoalType } from './habitGoalType';
 import type { HabitMilestone } from './habitMilestone';
 import type { HabitUnit } from './habitUnit';
@@ -26,6 +27,11 @@ export interface Habit {
      */
   customDays: number[] | null;
   unit: HabitUnit;
+  /**
+     * Nullable for legacy records; inferred from unit and goalType when consumed.
+     * @nullable
+     */
+  executionType?: HabitExecutionType;
   targetValue: number;
   /** @nullable */
   minimumValue: number | null;

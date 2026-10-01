@@ -30,6 +30,8 @@ tags:
     description: Level/XP journey map progress
   - name: dashboard
     description: Aggregate "safe wow" summary endpoints
+  - name: daily
+    description: Durable daily habit execution, reflection, and consistency
   - name: groups
     description: Simplified social challenges
   - name: ai
@@ -202,6 +204,158 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
+
+  /habits/{habitId}/daily/{date}:
+    get:
+      operationId: getDailyHabitDay
+      tags: [daily]
+      summary: Get a habit's durable execution state and immutable plan for a local date
+      parameters:
+        - name: habitId
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: date
+          in: path
+          required: true
+          schema: { type: string, format: date }
+      responses:
+        "200":
+          description: Daily execution and consistency state
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DailyHabitState" }
+        "404":
+          description: Habit not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "409":
+          description: Date is outside the journey or not eligible for execution
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /habits/{habitId}/daily/actions:
+    post:
+      operationId: changeDailyHabitExecution
+      tags: [daily]
+      summary: Start, pause, resume, finish, update progress, or complete today's habit execution
+      parameters:
+        - name: habitId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DailyHabitExecutionInput" }
+      responses:
+        "200":
+          description: Durable execution state and any new reward delta
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DailyHabitActionResult" }
+        "404":
+          description: Habit not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "409":
+          description: Stale revision, invalid state transition, future date, or rest day
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /habits/{habitId}/daily/{date}/reflection:
+    patch:
+      operationId: saveDailyHabitReflection
+      tags: [daily]
+      summary: Save completion reflection or a real missed-day reason
+      parameters:
+        - name: habitId
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: date
+          in: path
+          required: true
+          schema: { type: string, format: date }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DailyHabitReflectionInput" }
+      responses:
+        "200":
+          description: Updated execution, check-in if successful, and actual newly granted rewards
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DailyHabitActionResult" }
+        "404":
+          description: Habit not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "409":
+          description: Date cannot be reflected or completion is not eligible
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /habits/{habitId}/daily/{date}/adaptation-decision:
+    post:
+      operationId: recordDailyAdaptationDecision
+      tags: [daily]
+      summary: Persist whether the user accepted or rejected the adaptation shown for a day
+      parameters:
+        - name: habitId
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: date
+          in: path
+          required: true
+          schema: { type: string, format: date }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DailyAdaptationDecisionInput" }
+      responses:
+        "200":
+          description: Persisted adaptation decision
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DailyHabitState" }
+        "404":
+          description: Habit not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "409":
+          description: Date has no persisted missed-day adaptation context
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /daily/overview:
+    get:
+      operationId: getDailyOverview
+      tags: [daily]
+      summary: Aggregate elapsed scheduled dates, today's execution, and reward milestones by active habit
+      parameters:
+        - name: date
+          in: query
+          required: false
+          schema: { type: string, format: date }
+      responses:
+        "200":
+          description: Per-habit daily consistency summary
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DailyOverview" }
 
   /checkins:
     get:
@@ -1178,6 +1332,7 @@ components:
           type: ["array", "null"]
           items: { type: integer, minimum: 0, maximum: 6 }
         unit: { type: string, enum: [minutes, count, pages, custom] }
+        executionType: { type: ["string", "null"], enum: [duration, count, boolean, limit, null], description: Nullable for legacy records; inferred from unit and goalType when consumed. }
         targetValue: { type: number }
         minimumValue: { type: ["number", "null"] }
         busyDayValue: { type: ["number", "null"] }
@@ -1214,6 +1369,7 @@ components:
           type: array
           items: { type: integer, minimum: 0, maximum: 6 }
         unit: { type: string, enum: [minutes, count, pages, custom] }
+        executionType: { type: string, enum: [duration, count, boolean, limit] }
         targetValue: { type: number, minimum: 0 }
         minimumValue: { type: number, minimum: 0 }
         busyDayValue: { type: number, minimum: 0 }
@@ -1244,6 +1400,7 @@ components:
           type: array
           items: { type: integer, minimum: 0, maximum: 6 }
         unit: { type: string, enum: [minutes, count, pages, custom] }
+        executionType: { type: string, enum: [duration, count, boolean, limit] }
         targetValue: { type: number, minimum: 0 }
         minimumValue: { type: number, minimum: 0 }
         busyDayValue: { type: ["number", "null"], minimum: 0 }
@@ -1404,11 +1561,18 @@ components:
         date: { type: string, format: date }
         dayNumber: { type: integer }
         scheduled: { type: boolean }
+        title: { type: ["string", "null"] }
         targetValue: { type: number }
         minimumValue: { type: number }
         busyDayValue: { type: ["number", "null"] }
         successLimitValue: { type: ["number", "null"] }
         goalType: { type: string, enum: [build, quit] }
+        unit: { type: ["string", "null"], enum: [minutes, count, pages, custom, null] }
+        executionType: { type: ["string", "null"], enum: [duration, count, boolean, limit, null] }
+        cueType: { type: ["string", "null"], enum: [time, routine, custom, null] }
+        cueTime: { type: ["string", "null"] }
+        cue: { type: ["string", "null"] }
+        startAction: { type: ["string", "null"] }
         checkin: { oneOf: [{ $ref: "#/components/schemas/Checkin" }, { type: "null" }] }
     CheckinResult:
       allOf:
@@ -1418,6 +1582,123 @@ components:
           properties:
             newStreak: { type: integer }
             habit: { $ref: "#/components/schemas/Habit" }
+
+    DailyExecutionStatus:
+      type: string
+      enum: [pending, in_progress, paused, minimum_reached, target_reached, pending_reflection, completed, missed, recovery_available, recovery_active, recovered]
+    DailyAdaptationDecision:
+      type: string
+      enum: [accepted, rejected]
+    RewardMilestoneProgress:
+      type: object
+      required: [days, reached]
+      properties:
+        days: { type: integer, enum: [1, 5, 10, 15, 22] }
+        reached: { type: boolean }
+    DailyHabitState:
+      type: object
+      required: [habitId, date, dayNumber, scheduled, eligible, planRevision, title, executionType, unit, targetValue, minimumValue, busyDayValue, successLimitValue, goalType, cueType, cueTime, cue, startAction, status, actualValue, actualSeconds, elapsedSeconds, startedAt, lastResumedAt, pausedAt, pausedSeconds, finishedAt, missedReason, note, difficulty, revision, adaptationDecision, checkin, successfulDays, eligibleDays, rewardMilestones]
+      properties:
+        habitId: { type: integer }
+        date: { type: string, format: date }
+        dayNumber: { type: integer }
+        scheduled: { type: boolean }
+        eligible: { type: boolean }
+        planRevision: { type: integer, minimum: 0 }
+        title: { type: string }
+        executionType: { type: string, enum: [duration, count, boolean, limit] }
+        unit: { type: string, enum: [minutes, count, pages, custom] }
+        targetValue: { type: number }
+        minimumValue: { type: number }
+        busyDayValue: { type: ["number", "null"] }
+        successLimitValue: { type: ["number", "null"] }
+        goalType: { type: string, enum: [build, quit] }
+        cueType: { type: ["string", "null"], enum: [time, routine, custom, null] }
+        cueTime: { type: ["string", "null"] }
+        cue: { type: ["string", "null"] }
+        startAction: { type: ["string", "null"] }
+        status: { $ref: "#/components/schemas/DailyExecutionStatus" }
+        actualValue: { type: ["number", "null"] }
+        actualSeconds: { type: ["integer", "null"] }
+        elapsedSeconds: { type: integer, minimum: 0 }
+        startedAt: { type: ["string", "null"], format: date-time }
+        lastResumedAt: { type: ["string", "null"], format: date-time }
+        pausedAt: { type: ["string", "null"], format: date-time }
+        pausedSeconds: { type: integer, minimum: 0 }
+        finishedAt: { type: ["string", "null"], format: date-time }
+        missedReason: { type: ["string", "null"], enum: [too_difficult, no_time, forgot, lost_motivation, unexpected, other, null] }
+        note: { type: ["string", "null"] }
+        difficulty: { type: ["string", "null"], enum: [easy, normal, hard, very_hard, null] }
+        revision: { type: integer, minimum: 0 }
+        adaptationDecision:
+          anyOf:
+            - { $ref: "#/components/schemas/DailyAdaptationDecision" }
+            - { type: "null" }
+        checkin:
+          anyOf:
+            - { $ref: "#/components/schemas/Checkin" }
+            - { type: "null" }
+        successfulDays: { type: integer, minimum: 0 }
+        eligibleDays: { type: integer, minimum: 0 }
+        rewardMilestones:
+          type: array
+          items: { $ref: "#/components/schemas/RewardMilestoneProgress" }
+    DailyHabitExecutionInput:
+      type: object
+      required: [date, action, expectedRevision]
+      properties:
+        date: { type: string, format: date }
+        action: { type: string, enum: [start, pause, resume, finish, update_progress, done] }
+        expectedRevision: { type: integer, minimum: 0 }
+        value: { type: number, minimum: 0, description: "Seconds for duration, item count for count, or usage for limit; actualValue is normalized to the plan unit (duration minutes) and actualSeconds stores the exact duration." }
+        idempotencyKey: { type: string, minLength: 1, maxLength: 128 }
+    DailyHabitReflectionInput:
+      type: object
+      properties:
+        difficulty: { type: ["string", "null"], enum: [easy, normal, hard, very_hard, null] }
+        note: { type: ["string", "null"], maxLength: 2000 }
+        missedReason: { type: ["string", "null"], enum: [too_difficult, no_time, forgot, lost_motivation, unexpected, other, null] }
+    RewardDelta:
+      type: object
+      required: [xp, coins]
+      properties:
+        xp: { type: integer, minimum: 0 }
+        coins: { type: integer, minimum: 0 }
+    DailyHabitActionResult:
+      type: object
+      required: [execution, rewardDelta]
+      properties:
+        execution: { $ref: "#/components/schemas/DailyHabitState" }
+        rewardDelta: { $ref: "#/components/schemas/RewardDelta" }
+    DailyAdaptationDecisionInput:
+      type: object
+      required: [decision]
+      properties:
+        decision: { $ref: "#/components/schemas/DailyAdaptationDecision" }
+    DailyHabitOverviewItem:
+      type: object
+      required: [habitId, title, executionType, scheduledToday, successfulDays, eligibleDays, execution, rewardMilestones]
+      properties:
+        habitId: { type: integer }
+        title: { type: string }
+        executionType: { type: string, enum: [duration, count, boolean, limit] }
+        scheduledToday: { type: boolean }
+        successfulDays: { type: integer, minimum: 0 }
+        eligibleDays: { type: integer, minimum: 0 }
+        execution: { $ref: "#/components/schemas/DailyHabitState" }
+        rewardMilestones:
+          type: array
+          items: { $ref: "#/components/schemas/RewardMilestoneProgress" }
+    DailyOverview:
+      type: object
+      required: [date, timezone, habits]
+      properties:
+        date: { type: string, format: date }
+        timezone: { type: string }
+        habits:
+          type: array
+          items: { $ref: "#/components/schemas/DailyHabitOverviewItem" }
+
     RecoverStreakResult:
       type: object
       required: [habit, coinsSpent]

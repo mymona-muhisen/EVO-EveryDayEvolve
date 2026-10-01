@@ -1,13 +1,29 @@
 import type { HabitPlanJson } from "@workspace/db";
 
 export const HABIT_JOURNEY_LENGTH = 22;
+export type HabitExecutionType = "duration" | "count" | "boolean" | "limit";
+
+export function resolveExecutionType(
+  unit: "minutes" | "count" | "pages" | "custom",
+  goalType: "build" | "quit",
+  executionType?: HabitExecutionType | null,
+): HabitExecutionType {
+  return executionType ?? (goalType === "quit" ? "limit" : unit === "minutes" ? "duration" : "count");
+}
 
 export interface DayPlan {
+  title: string;
   targetValue: number;
   minimumValue: number;
   busyDayValue: number | null;
   successLimitValue: number | null;
   goalType: "build" | "quit";
+  unit: "minutes" | "count" | "pages" | "custom";
+  executionType: "duration" | "count" | "boolean" | "limit";
+  cueType: "time" | "routine" | "custom" | null;
+  cueTime: string | null;
+  cue: string | null;
+  startAction: string | null;
   planRevision: number;
   cadence: "daily" | "weekdays" | "weekly" | "custom_days";
   customDays: number[] | null;
@@ -48,6 +64,13 @@ export function makeJourneyDays(habitId: number, startDate: string, length: numb
     busyDayValue: plan.busyDayValue,
     successLimitValue: plan.successLimitValue,
     goalType: plan.goalType,
+    title: plan.title,
+    unit: plan.unit,
+    executionType: plan.executionType,
+    cueType: plan.cueType,
+    cueTime: plan.cueTime,
+    cue: plan.cue,
+    startAction: plan.startAction,
     planRevision: plan.planRevision,
   }));
 }
@@ -63,6 +86,8 @@ export function snapshotPlan(input: HabitPlanJson): HabitPlanJson {
     successLimitValue: input.successLimitValue,
     minimumFloor: input.minimumFloor,
     goalType: input.goalType,
+    ...(input.unit === undefined ? {} : { unit: input.unit }),
+    ...(input.executionType === undefined ? {} : { executionType: input.executionType }),
     cueType: input.cueType,
     cueTime: input.cueTime,
     cue: input.cue,

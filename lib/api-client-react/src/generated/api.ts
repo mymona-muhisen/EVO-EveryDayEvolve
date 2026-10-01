@@ -33,9 +33,16 @@ import type {
   CheckinReflection,
   CheckinResult,
   CoinTransaction,
+  DailyAdaptationDecisionInput,
+  DailyHabitActionResult,
+  DailyHabitExecutionInput,
+  DailyHabitReflectionInput,
+  DailyHabitState,
+  DailyOverview,
   DashboardCalendarDay,
   DashboardToday,
   Error,
+  GetDailyOverviewParams,
   GetDashboardCalendarParams,
   GetTimeEntriesSummaryParams,
   GetTrackedDayAnalysisParams,
@@ -832,6 +839,443 @@ export function useGetHabitJourney<TData = Awaited<ReturnType<typeof getHabitJou
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetHabitJourneyQueryOptions(habitId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetDailyHabitDayUrl = (habitId: number,
+    date: string,) => {
+
+
+
+
+  return `/api/habits/${habitId}/daily/${date}`
+}
+
+/**
+ * @summary Get a habit's durable execution state and immutable plan for a local date
+ */
+export const getDailyHabitDay = async (habitId: number,
+    date: string, options?: Parameters<typeof customFetch>[1]): Promise<DailyHabitState> => {
+
+  return customFetch<DailyHabitState>(getGetDailyHabitDayUrl(habitId,date),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetDailyHabitDayQueryKey = (habitId: number,
+    date: string,) => {
+    return [
+    `/api/habits/${habitId}/daily/${date}`
+    ] as const;
+    }
+
+
+export const getGetDailyHabitDayQueryOptions = <TData = Awaited<ReturnType<typeof getDailyHabitDay>>, TError = ErrorType<Error>>(habitId: number,
+    date: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDailyHabitDay>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetDailyHabitDayQueryKey(habitId,date);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getDailyHabitDay>>> = ({ signal }) => getDailyHabitDay(habitId,date, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: habitId !== null && habitId !== undefined && date !== null && date !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getDailyHabitDay>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetDailyHabitDayQueryResult = NonNullable<Awaited<ReturnType<typeof getDailyHabitDay>>>
+export type GetDailyHabitDayQueryError = ErrorType<Error>
+
+
+/**
+ * @summary Get a habit's durable execution state and immutable plan for a local date
+ */
+
+export function useGetDailyHabitDay<TData = Awaited<ReturnType<typeof getDailyHabitDay>>, TError = ErrorType<Error>>(
+ habitId: number,
+    date: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDailyHabitDay>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetDailyHabitDayQueryOptions(habitId,date,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getChangeDailyHabitExecutionUrl = (habitId: number,) => {
+
+
+
+
+  return `/api/habits/${habitId}/daily/actions`
+}
+
+/**
+ * @summary Start, pause, resume, finish, update progress, or complete today's habit execution
+ */
+export const changeDailyHabitExecution = async (habitId: number,
+    dailyHabitExecutionInput: DailyHabitExecutionInput, options?: Parameters<typeof customFetch>[1]): Promise<DailyHabitActionResult> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<DailyHabitActionResult>(getChangeDailyHabitExecutionUrl(habitId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(dailyHabitExecutionInput)
+  }
+);}
+
+
+
+
+
+export const getChangeDailyHabitExecutionMutationKey = () => ['changeDailyHabitExecution'] as const;
+
+export const getChangeDailyHabitExecutionMutationOptions = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof changeDailyHabitExecution>>, TError,ChangeDailyHabitExecutionMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof changeDailyHabitExecution>>, TError,ChangeDailyHabitExecutionMutationVariables, TContext> => {
+
+const mutationKey = getChangeDailyHabitExecutionMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof changeDailyHabitExecution>>, ChangeDailyHabitExecutionMutationVariables> = (props) => {
+          const {habitId,data} = props ?? {};
+
+          return  changeDailyHabitExecution(habitId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ChangeDailyHabitExecutionMutationResult = NonNullable<Awaited<ReturnType<typeof changeDailyHabitExecution>>>
+    export type ChangeDailyHabitExecutionMutationBody = BodyType<DailyHabitExecutionInput>
+    export type ChangeDailyHabitExecutionMutationError = ErrorType<Error>
+    export type ChangeDailyHabitExecutionMutationVariables = {habitId: number;data: BodyType<DailyHabitExecutionInput>}
+
+    /**
+ * @summary Start, pause, resume, finish, update progress, or complete today's habit execution
+ */
+export const useChangeDailyHabitExecution = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof changeDailyHabitExecution>>, TError,ChangeDailyHabitExecutionMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof changeDailyHabitExecution>>,
+        TError,
+        ChangeDailyHabitExecutionMutationVariables,
+        TContext
+      > => {
+      return useMutation(getChangeDailyHabitExecutionMutationOptions(options));
+    }
+
+export const getSaveDailyHabitReflectionUrl = (habitId: number,
+    date: string,) => {
+
+
+
+
+  return `/api/habits/${habitId}/daily/${date}/reflection`
+}
+
+/**
+ * @summary Save completion reflection or a real missed-day reason
+ */
+export const saveDailyHabitReflection = async (habitId: number,
+    date: string,
+    dailyHabitReflectionInput: DailyHabitReflectionInput, options?: Parameters<typeof customFetch>[1]): Promise<DailyHabitActionResult> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<DailyHabitActionResult>(getSaveDailyHabitReflectionUrl(habitId,date),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(dailyHabitReflectionInput)
+  }
+);}
+
+
+
+
+
+export const getSaveDailyHabitReflectionMutationKey = () => ['saveDailyHabitReflection'] as const;
+
+export const getSaveDailyHabitReflectionMutationOptions = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveDailyHabitReflection>>, TError,SaveDailyHabitReflectionMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof saveDailyHabitReflection>>, TError,SaveDailyHabitReflectionMutationVariables, TContext> => {
+
+const mutationKey = getSaveDailyHabitReflectionMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof saveDailyHabitReflection>>, SaveDailyHabitReflectionMutationVariables> = (props) => {
+          const {habitId,date,data} = props ?? {};
+
+          return  saveDailyHabitReflection(habitId,date,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SaveDailyHabitReflectionMutationResult = NonNullable<Awaited<ReturnType<typeof saveDailyHabitReflection>>>
+    export type SaveDailyHabitReflectionMutationBody = BodyType<DailyHabitReflectionInput>
+    export type SaveDailyHabitReflectionMutationError = ErrorType<Error>
+    export type SaveDailyHabitReflectionMutationVariables = {habitId: number;date: string;data: BodyType<DailyHabitReflectionInput>}
+
+    /**
+ * @summary Save completion reflection or a real missed-day reason
+ */
+export const useSaveDailyHabitReflection = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveDailyHabitReflection>>, TError,SaveDailyHabitReflectionMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof saveDailyHabitReflection>>,
+        TError,
+        SaveDailyHabitReflectionMutationVariables,
+        TContext
+      > => {
+      return useMutation(getSaveDailyHabitReflectionMutationOptions(options));
+    }
+
+export const getRecordDailyAdaptationDecisionUrl = (habitId: number,
+    date: string,) => {
+
+
+
+
+  return `/api/habits/${habitId}/daily/${date}/adaptation-decision`
+}
+
+/**
+ * @summary Persist whether the user accepted or rejected the adaptation shown for a day
+ */
+export const recordDailyAdaptationDecision = async (habitId: number,
+    date: string,
+    dailyAdaptationDecisionInput: DailyAdaptationDecisionInput, options?: Parameters<typeof customFetch>[1]): Promise<DailyHabitState> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<DailyHabitState>(getRecordDailyAdaptationDecisionUrl(habitId,date),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(dailyAdaptationDecisionInput)
+  }
+);}
+
+
+
+
+
+export const getRecordDailyAdaptationDecisionMutationKey = () => ['recordDailyAdaptationDecision'] as const;
+
+export const getRecordDailyAdaptationDecisionMutationOptions = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recordDailyAdaptationDecision>>, TError,RecordDailyAdaptationDecisionMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof recordDailyAdaptationDecision>>, TError,RecordDailyAdaptationDecisionMutationVariables, TContext> => {
+
+const mutationKey = getRecordDailyAdaptationDecisionMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof recordDailyAdaptationDecision>>, RecordDailyAdaptationDecisionMutationVariables> = (props) => {
+          const {habitId,date,data} = props ?? {};
+
+          return  recordDailyAdaptationDecision(habitId,date,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RecordDailyAdaptationDecisionMutationResult = NonNullable<Awaited<ReturnType<typeof recordDailyAdaptationDecision>>>
+    export type RecordDailyAdaptationDecisionMutationBody = BodyType<DailyAdaptationDecisionInput>
+    export type RecordDailyAdaptationDecisionMutationError = ErrorType<Error>
+    export type RecordDailyAdaptationDecisionMutationVariables = {habitId: number;date: string;data: BodyType<DailyAdaptationDecisionInput>}
+
+    /**
+ * @summary Persist whether the user accepted or rejected the adaptation shown for a day
+ */
+export const useRecordDailyAdaptationDecision = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recordDailyAdaptationDecision>>, TError,RecordDailyAdaptationDecisionMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof recordDailyAdaptationDecision>>,
+        TError,
+        RecordDailyAdaptationDecisionMutationVariables,
+        TContext
+      > => {
+      return useMutation(getRecordDailyAdaptationDecisionMutationOptions(options));
+    }
+
+export const getGetDailyOverviewUrl = (params?: GetDailyOverviewParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/daily/overview?${stringifiedParams}` : `/api/daily/overview`
+}
+
+/**
+ * @summary Aggregate elapsed scheduled dates, today's execution, and reward milestones by active habit
+ */
+export const getDailyOverview = async (params?: GetDailyOverviewParams, options?: Parameters<typeof customFetch>[1]): Promise<DailyOverview> => {
+
+  return customFetch<DailyOverview>(getGetDailyOverviewUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetDailyOverviewQueryKey = (params?: GetDailyOverviewParams,) => {
+    return [
+    `/api/daily/overview`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetDailyOverviewQueryOptions = <TData = Awaited<ReturnType<typeof getDailyOverview>>, TError = ErrorType<unknown>>(params?: GetDailyOverviewParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDailyOverview>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetDailyOverviewQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getDailyOverview>>> = ({ signal }) => getDailyOverview(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getDailyOverview>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetDailyOverviewQueryResult = NonNullable<Awaited<ReturnType<typeof getDailyOverview>>>
+export type GetDailyOverviewQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Aggregate elapsed scheduled dates, today's execution, and reward milestones by active habit
+ */
+
+export function useGetDailyOverview<TData = Awaited<ReturnType<typeof getDailyOverview>>, TError = ErrorType<unknown>>(
+ params?: GetDailyOverviewParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDailyOverview>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetDailyOverviewQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
