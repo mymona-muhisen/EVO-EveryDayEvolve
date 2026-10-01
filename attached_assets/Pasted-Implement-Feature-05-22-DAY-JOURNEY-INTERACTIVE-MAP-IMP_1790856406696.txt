@@ -1,0 +1,526 @@
+Implement Feature 05:
+22-DAY JOURNEY + INTERACTIVE MAP
+
+IMPORTANT:
+Do not redesign unrelated features.
+Do not remove existing Habit Engine, AI Coach, Daily Habit Experience, XP, Coins, or Reward functionality.
+Inspect the current implementation first.
+Reuse existing database tables, APIs, components, and business logic.
+
+==================================================
+PRODUCT GOAL
+==================================================
+
+Transform habit progress into a visual 22-day journey.
+
+The user should not feel like they are viewing a checklist.
+
+They should feel:
+"I am traveling through a journey, and every completed day moves my character forward."
+
+22 days is a product challenge/journey duration.
+Do NOT claim that 22 days scientifically creates a habit.
+
+==================================================
+1. JOURNEY CREATION
+==================================================
+
+A journey is created from an existing habit.
+
+Journey contains:
+- user_id
+- habit_id
+- total_days = 22
+- current_day
+- status
+- reward_id if available
+- created_at
+- completed_at
+
+Only one active journey is required for V1.
+
+Multiple historical journeys should remain supported by the data model.
+
+==================================================
+2. JOURNEY SCREEN
+==================================================
+
+Create a dedicated journey page.
+
+Header:
+- Back button
+- Habit name
+- Day X / 22
+- Consistency: X successful days out of Y
+
+Main area:
+- Interactive visual map
+- Curved path
+- 22 nodes
+- Character
+- Current node
+- Completed nodes
+- Locked future nodes
+- Milestones
+- Final reward node
+
+Mobile must work well in RTL.
+
+==================================================
+3. MAP IMPLEMENTATION
+==================================================
+
+Prefer SVG + HTML/CSS rather than a large canvas/game engine.
+
+Use:
+- SVG path for journey route
+- circles/markers for nodes
+- HTML character positioned over the map
+- CSS transitions/animations
+
+Do not implement:
+- zoom/pan system
+- physics
+- pathfinding
+- multiple worlds
+- 3D environment
+
+The map should still feel polished and interactive.
+
+==================================================
+4. NODE STATES
+==================================================
+
+Support:
+
+LOCKED
+AVAILABLE
+CURRENT
+COMPLETED
+MISSED
+RECOVERED
+MILESTONE
+FINAL
+
+A node's state must be derived from real habit/journey data.
+
+Do not hard-code completion state in the frontend.
+
+==================================================
+5. NODE INTERACTIONS
+==================================================
+
+CURRENT:
+Show:
+- Today's habit
+- Target
+- Minimum
+- current progress
+CTA:
+"Complete habit"
+
+COMPLETED:
+Show:
+- Day number
+- target
+- actual value
+- difficulty
+- completion status
+
+MISSED:
+Show:
+- Day number
+- missed status
+- missed reason if available
+
+RECOVERED:
+Show:
+- recovered state
+- recovery indicator if available
+
+LOCKED:
+Show:
+"Complete today's progress to continue your journey."
+
+MILESTONE:
+Show milestone message.
+
+FINAL:
+Show reward preview.
+
+==================================================
+6. JOURNEY DESIGN
+==================================================
+
+Use a visually interesting curved/S-shaped route rather than a straight list.
+
+Suggested landmarks:
+- Start
+- simple nature landmark
+- bridge
+- mountain
+- camp
+- castle/final area
+
+Keep the world visually simple.
+
+Do NOT create multiple themed worlds in V1.
+
+The base map can remain consistent across different habits.
+
+==================================================
+7. CHARACTER
+==================================================
+
+Display one user character.
+
+Character position must be derived from:
+
+journey.currentDay
+
+Example:
+currentDay = 7
+→ character appears at node 7.
+
+Animate movement when journey progress changes.
+
+States:
+- idle
+- moving
+- celebrating
+- completed
+
+Do not implement a full game engine.
+
+==================================================
+8. DAILY PROGRESSION
+==================================================
+
+When a habit day becomes successfully completed:
+
+Server-side:
+- update habit day
+- update journey progress
+- award existing XP
+- award existing coins
+- make next node available
+
+The operation must be idempotent.
+
+If the user clicks Complete twice:
+- do not award coins twice
+- do not award XP twice
+- do not advance journey twice
+
+==================================================
+9. CONSISTENCY
+==================================================
+
+Display:
+
+"6 successful days out of 7"
+
+Do NOT make the interface revolve around a traditional streak.
+
+Journey day and consistency are different values.
+
+Example:
+Day 7 / 22
+6 successful days / 7
+
+==================================================
+10. MISSED DAY
+==================================================
+
+If a day is missed:
+- mark node MISSED
+- keep future journey available
+- do not reset journey
+- do not move user back to Day 1
+
+Example:
+
+Day 1 ✅
+Day 2 ✅
+Day 3 MISSED
+Day 4 AVAILABLE
+
+The missed day remains visible on the map.
+
+==================================================
+11. RECOVERY COMPATIBILITY
+==================================================
+
+If the existing Recovery system is implemented:
+support:
+
+RECOVERY_AVAILABLE
+RECOVERY_ACTIVE
+RECOVERED
+
+Recovered day should have a visible but non-punitive recovery indicator.
+
+Do not rebuild Recovery if it is not currently stable.
+
+==================================================
+12. MILESTONES
+==================================================
+
+Add milestone nodes:
+
+Day 1:
+"The Beginning"
+
+Day 5:
+"Finding Rhythm"
+
+Day 10:
+"Halfway"
+
+Day 15:
+"Momentum"
+
+Day 22:
+"Journey Complete"
+
+These are product milestones only.
+Do not make scientific habit-formation claims.
+
+==================================================
+13. FINAL REWARD NODE
+==================================================
+
+Day 22 is followed by/contains the final reward state.
+
+On completion:
+- journey.status = completed
+- reward becomes unlocked
+- character enters celebration
+- show completion screen
+
+Display:
+- 22-day progress
+- successful days
+- missed days
+- XP
+- coins
+- selected reward
+
+Do not automate purchases or payments.
+
+==================================================
+14. COMPLETION SCREEN
+==================================================
+
+Create:
+
+"Your journey is complete."
+
+Show:
+- 22 days
+- consistency
+- earned XP
+- earned coins
+- reward
+- character
+
+Buttons:
+- Claim/View reward
+- View journey
+- Start another habit
+
+==================================================
+15. NODE CONFIGURATION
+==================================================
+
+Use a frontend configuration for visual node positions/types.
+
+Example:
+
+[
+ { day: 1, type: "start", x: ..., y: ... },
+ { day: 2, type: "normal", x: ..., y: ... },
+ ...
+ { day: 5, type: "milestone", x: ..., y: ... },
+ ...
+ { day: 22, type: "final", x: ..., y: ... }
+]
+
+Do not store completion state in this static config.
+
+Completion state must come from habit_days/journey data.
+
+==================================================
+16. DATA SOURCE
+==================================================
+
+Prefer habit_days as source of truth for daily status.
+
+Journey may store summary/current day for convenience.
+
+Do not allow frontend-only local state to unlock rewards or generate coins.
+
+Server/database must be authoritative.
+
+==================================================
+17. FUTURE COMPATIBILITY
+==================================================
+
+Prepare the model for future:
+- memories on nodes
+- map decorations
+- map themes
+- multiple worlds
+
+But do NOT build full customization or multiple worlds in this feature.
+
+Do not allow future compatibility work to delay current functionality.
+
+==================================================
+18. UI STATES
+==================================================
+
+Implement:
+
+- no journey
+- journey loading
+- journey loaded
+- current day
+- completed node
+- locked node
+- missed node
+- recovered node
+- milestone
+- final reward
+- journey completed
+- API error
+- retry state
+
+==================================================
+19. ANIMATION
+==================================================
+
+Implement lightweight animations:
+
+- route draw on first load
+- character movement when day advances
+- node unlock
+- milestone celebration
+- final celebration
+
+Avoid:
+- large video files
+- complex 3D
+- heavy animation libraries unless already installed
+
+Do not play large celebration effects every time the user opens the map.
+
+==================================================
+20. RESPONSIVE
+==================================================
+
+Test:
+- 375px
+- 390px
+- 414px
+- tablet
+- desktop
+
+The map must not:
+- overflow horizontally
+- become too small to interact with
+- hide current day
+- hide the character
+
+==================================================
+21. ACCESSIBILITY
+==================================================
+
+Each node needs an accessible label:
+- "Day 7, completed"
+- "Day 8, current"
+- "Day 9, locked"
+
+Do not rely only on color to communicate state.
+
+==================================================
+22. SECURITY / SERVER LOGIC
+==================================================
+
+Keep server-side authority for:
+- completing day
+- advancing journey
+- awarding XP
+- awarding coins
+- unlocking reward
+
+Do not trust client-provided:
+- day number
+- coin amount
+- XP amount
+- reward unlock state
+
+==================================================
+23. TESTING
+==================================================
+
+Test:
+
+1. Create new journey.
+2. Day 1 appears current.
+3. Complete Day 1.
+4. Character moves to Day 2.
+5. Coins/XP awarded once.
+6. Click complete twice.
+7. Verify duplicate rewards do not happen.
+8. Refresh.
+9. Verify current day persists.
+10. Complete several days.
+11. Verify milestone nodes.
+12. Miss a day.
+13. Verify journey does not reset.
+14. Verify future day remains available.
+15. Recover a day if Recovery exists.
+16. Reach Day 22.
+17. Verify reward unlocks only after valid completion.
+18. Verify completion screen.
+19. Logout/login.
+20. Verify journey persists.
+21. Test mobile.
+22. Test Arabic RTL.
+23. Test API failure.
+24. Test no-journey state.
+
+==================================================
+24. ACCEPTANCE CRITERIA
+==================================================
+
+Feature is DONE when:
+
+- [ ] User can see a 22-day journey.
+- [ ] 22 nodes are visually represented.
+- [ ] Current day is obvious.
+- [ ] Completed days are obvious.
+- [ ] Future days are locked.
+- [ ] Missed days remain visible without resetting progress.
+- [ ] Character moves with actual journey progress.
+- [ ] Milestones are visible.
+- [ ] Final reward is visible.
+- [ ] Day click opens useful information.
+- [ ] Completion advances journey exactly once.
+- [ ] Coins/XP are not duplicated.
+- [ ] Reward cannot unlock from frontend manipulation.
+- [ ] Refresh preserves state.
+- [ ] Mobile RTL works.
+- [ ] Animations are lightweight.
+- [ ] No unrelated features were broken.
+
+Before coding:
+1. Inspect current Journey API.
+2. Inspect current habit_days data.
+3. Inspect existing character component.
+4. Inspect XP/coins logic.
+5. Inspect reward logic.
+6. Report reusable files/components.
+
+Then implement incrementally and test the complete journey.
