@@ -12,7 +12,7 @@ import { ConsistencyLine } from './consistency';
 
 const big = 'min-h-14 text-base font-bold w-full sm:w-auto';
 
-export function DailyExecutionCard({ state, stamp, habit, title, emoji, linkTo, refetch, today, autoAdaptation = true }: { autoAdaptation?: boolean; today: string;  state: DailyHabitState; stamp: number; habit?: Habit; title?: string; emoji?: string; linkTo?: string; refetch?: () => void }) {
+export function DailyExecutionCard({ state, stamp, habit, title, emoji, linkTo, refetch, today, autoAdaptation = true, showMemoryPrompt = true }: { autoAdaptation?: boolean; showMemoryPrompt?: boolean; today: string;  state: DailyHabitState; stamp: number; habit?: Habit; title?: string; emoji?: string; linkTo?: string; refetch?: () => void }) {
   const { run, pending, celebrate, error } = useDailyActions(state.habitId, state);
   const live = useLiveElapsed(state, stamp);
   const meta = statusMeta(displayStatus(state));
@@ -72,7 +72,7 @@ export function DailyExecutionCard({ state, stamp, habit, title, emoji, linkTo, 
     {celebrate && <div role="status" data-testid="toast-celebrate" className="mt-4 rounded-2xl bg-[#214e43] text-[#fff9e9] p-4 pop"><b>اكتملت خطوة اليوم {state.dayNumber}.</b> <span className="text-[#eab879]">+{celebrate.xp} نقطة</span>{celebrate.coins > 0 && <span className="text-[#eab879]"> · +{celebrate.coins} عملة</span>}</div>}
     {error && <div role="alert" className="mt-3 text-sm rounded-xl bg-[#f2dccf] p-3 flex items-center justify-between gap-2"><span>{error}</span><button className="underline shrink-0 flex items-center gap-1" onClick={refetch}><RefreshCw size={13} /> حدّث</button></div>}
     {['pending_reflection', 'minimum_reached', 'target_reached', 'completed'].includes(state.status) && <ReflectionBlock state={state} />}
-    {state.checkin?.completed && <MemoryPrompt habitId={state.habitId} date={dayKey(state.date)} dayNumber={state.dayNumber} memoryId={state.memoryId} canCreate={!!state.habitDayId && state.scheduled && state.eligible && state.dayNumber >= 1 && state.dayNumber <= 22} />}
+    {showMemoryPrompt && state.checkin?.completed && <MemoryPrompt key={`${state.habitId}:${dayKey(state.date)}`} habitId={state.habitId} date={dayKey(state.date)} dayNumber={state.dayNumber} memoryId={state.memoryId} canCreate={!!state.habitDayId && state.scheduled && state.eligible && state.dayNumber >= 1 && state.dayNumber <= 22} />}
     {state.status === 'missed' && !state.missedReason && <MissedReasonForm state={state} />}
     {habit && (state.missedReason || state.difficulty === 'hard' || state.difficulty === 'very_hard') && (autoAdaptation || review || state.adaptationDecision ? <AdaptationOffer state={state} habit={habit} /> : <button type="button" className="btn btn-light min-h-11 mt-4" data-testid="button-review-adaptation" onClick={() => setReview(true)}>راجع تكييف الخطّة</button>)}
     <div className="mt-4 pt-4 border-t border-[#e8dfce]"><ConsistencyLine compact successful={state.successfulDays} eligible={state.eligibleDays} /></div>

@@ -1,7 +1,6 @@
-import { MemoryDetailById } from '@/components/memory/memory';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Link, useLocation, useParams } from 'wouter';
+import { Link, useLocation, useParams, useSearch } from 'wouter';
 import { useGetHabitDecorations, getGetHabitDecorationsQueryKey, useGetHabit, useGetHabitJourney, getGetHabitJourneyQueryKey, getGetHabitQueryKey, useListHabits, useListRewards,  useStartHabitJourney } from '@workspace/api-client-react';
 import { toast } from 'sonner';
 import { Crosshair, Maximize2 } from 'lucide-react';
@@ -17,9 +16,11 @@ import { RewardCard, RewardEditDialog, AddRewardPanel, RewardEditor, emptyDraft,
 import { SharingButton } from '@/components/social/sharing';
 import { usePhotoUpload } from '@/hooks/use-photo-upload';
 import { invalidateDailyAll } from '@/hooks/use-daily';
+import { journeyDayFromSearch } from '@/lib/memory-navigation';
 
 export function HabitJourneyPage() {
   const { habitId } = useParams<{ habitId: string }>(), id = Number(habitId), [, nav] = useLocation();
+  const requestedDay = journeyDayFromSearch(useSearch());
   const habit = useGetHabit(id, { query: { enabled: !!id, queryKey: getGetHabitQueryKey(id) } });
   const j = useGetHabitJourney(id, { query: { enabled: !!id, queryKey: getGetHabitJourneyQueryKey(id), refetchOnWindowFocus: true, refetchOnMount: 'always' } });
   const habits = useListHabits();
@@ -94,17 +95,26 @@ export function HabitJourneyPage() {
   useEffect(() => () => { returnPosition.current?.controller.abort(); }, []);
   const deco = useGetHabitDecorations(id, { query: { enabled: !!id, queryKey: getGetHabitDecorationsQueryKey(id) } });
   useEffect(() => { if (id && habit.data && habits.data?.some(h => h.id === id)) writeLastHabit(id); }, [id, habit.data, habits.data]);
-  const [sel, setSel] = useState<number | null>(null);
-  const [openMemory, setOpenMemory] = useState<number | null>(null);
+  const [sel, setSel] = useState<number | null>(requestedDay);
   const [cel, setCel] = useState(false);
   const prevSucc = useRef<number | null>(null);
-  useEffect(() => { setSel(null); setCel(false); prevSucc.current = null; window.scrollTo({ top: 0, behavior: 'instant' }); }, [id]);
+  useEffect(() => { setSel(requestedDay); setCel(false); prevSucc.current = null; window.scrollTo({ top: 0, behavior: 'instant' }); }, [id]);
+  useEffect(() => { setSel(requestedDay); }, [requestedDay]);
   const refetchRef = useRef(j.refetch); refetchRef.current = j.refetch;
   const jRef = useRef(j.data); jRef.current = j.data;
   useEffect(() => { const t = setInterval(() => { const jj = jRef.current; if (jj && needsRolloverRefetch(new Date(), jj)) refetchRef.current(); }, 60000); return () => clearInterval(t); }, []);
   const d = j.data;
   useEffect(() => { if (!d) return; const s = successCount(d, d.today.slice(0, 10)); if (prevSucc.current !== null && s > prevSucc.current) { setCel(true); const t = setTimeout(() => setCel(false), 4000); prevSucc.current = s; return () => clearTimeout(t); } prevSucc.current = s; return undefined; }, [d]);
-  const focus = () => { const n = d ? calendarDay(d) : 1; setSel(n); document.getElementById(`jnode-${n}`)?.scrollIntoView({ block: 'center', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }); };
+  const selectDay = (n: number) => {
+    setSel(n);
+    nav(`/habits/${id}/journey?day=${n}`, { replace: true });
+    if (window.innerWidth < 1024) requestAnimationFrame(() => {
+      const detail = document.querySelector<HTMLElement>('[data-testid="node-details"]');
+      detail?.scrollIntoView({ block: 'start', behavior: 'instant' });
+      detail?.focus({ preventScroll: true });
+    });
+  };
+  const focus = () => { const n = d ? calendarDay(d) : 1; setSel(n); nav(`/habits/${id}/journey?day=${n}`, { replace: true }); document.getElementById(`jnode-${n}`)?.scrollIntoView({ block: 'center', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }); };
   const picker = habits.data && habits.data.length > 1 && <select className="field !w-auto" aria-label="اختيار العادة" value={id} onChange={e => nav(`/habits/${e.target.value}/journey`)}>{habits.data.map(h => <option key={h.id} value={h.id}>{h.title}</option>)}</select>;
   const preservePagePosition = !full && returnPosition.current?.habitId === id
     && !returnPosition.current.controller.signal.aborted
@@ -128,18 +138,18 @@ export function HabitJourneyPage() {
       </div><div data-journey-layout className={`grid ${full ? 'lg:grid-cols-[minmax(0,1fr)_320px]' : 'lg:grid-cols-[minmax(0,560px)_1fr]'} gap-6 items-start`}>
         <div className={`min-w-0 ${full ? 'lg:sticky lg:top-4' : ''}`}>
           {cel && <div role="status" className="paper rounded-2xl p-3 mb-3 pop flex gap-3 items-center"><img src={base('component-pikura-star-20750.gif')} alt="" className="h-10 motion-reduce:hidden" />{(MILESTONES as readonly number[]).includes(calendarDay(d)) ? 'أكملت يوم هذه المحطة. خطوة جديدة في رحلتك.' : 'خطوة اليوم محفوظة. أثر جديد على جزيرتك.'}</div>}
-          <JourneyMap journey={d} selected={cur} onSelect={setSel} placements={deco.data?.placements} fullscreen={full} preservePagePosition={preservePagePosition} layoutRevision={layoutRevision} onOpenMemory={setOpenMemory} />
-          {openMemory && <MemoryDetailById memoryId={openMemory} onClose={() => setOpenMemory(null)} />}
+          <JourneyMap journey={d} selected={cur} onSelect={selectDay} placements={deco.data?.placements} fullscreen={full} preservePagePosition={preservePagePosition} layoutRevision={layoutRevision} />
         </div>
         <div className="space-y-4 lg:sticky lg:top-4 min-w-0">
           <div data-journey-controls className="flex flex-wrap gap-2 items-center"><button className="btn" onClick={focus} data-testid="button-focus-current"><Crosshair size={16} />اذهب إلى اليوم {calendarDay(d)}</button>{!full && <button ref={fsBtn} className="btn btn-light" disabled={closing} onClick={enterFullscreen} data-testid="button-fullscreen"><Maximize2 size={16} />ملء الشاشة</button>}<Link href="/character" className="btn btn-light">الشخصية والمتجر</Link><span className="badge">{d.successful} ناجحة · {d.restDays} راحة · {d.missedDays} فائتة</span></div>
           {d.status === 'expired' && <p className="panel rounded-xl p-3 text-sm">انتهت الرحلة دون إكمال، وتبقى خريطتك محفوظة كما هي.</p>}
           {d.status === 'completed' && <Link href={`/habits/${id}/journey/complete`} className="btn btn-coral">ملخص إكمال الرحلة</Link>}
+          <NodeDetails key={`${id}:${day.date}`} habit={habit.data} journey={d} day={day} />
           <div className="mb-3" data-testid="journey-sharing"><SharingButton resourceType="journey" resourceId={String(id)} title="مشاركة هذه الرحلة" /></div>
           {(d.realReward || d.status === 'active') && <div data-journey-reward data-testid="journey-reward-wrapper">{d.realReward ? <RewardCard reward={d.realReward} journeyDay={calendarDay(d)} onEdit={() => setEditReward(true)} /> : <AddRewardPanel habitId={id} />}</div>}
           {d.realReward && d.status === 'active' && calendarDay(d) >= 22 && <p role="status" data-testid="text-final-day" className="text-sm font-bold text-[#a8571e]">اليوم الأخير: وجهتك النهائية، عادتك {habit.data.title}، ومكافأتك {d.realReward.title}.</p>}
           {editReward && d.realReward && <RewardEditDialog reward={d.realReward} onClose={() => setEditReward(false)} />}
-          <NodeDetails habit={habit.data} journey={d} day={day} /><DecorShop habitId={id} />
+          <DecorShop habitId={id} />
         </div>
       </div></>;
     })()}

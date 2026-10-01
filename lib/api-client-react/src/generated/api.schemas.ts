@@ -1656,6 +1656,21 @@ export interface TrackingSession {
   nextCheckinAt: string | null;
   /** @nullable */
   finishedAt: string | null;
+  /**
+     * Persisted accumulated active milliseconds before timerAnchorAt
+     * @minimum 0
+     */
+  activeElapsedMs: number;
+  /**
+     * Persisted cyclic interval progress before timerAnchorAt
+     * @minimum 0
+     */
+  intervalElapsedMs: number;
+  /**
+     * Active timer anchor; null while paused or finished
+     * @nullable
+     */
+  timerAnchorAt: string | null;
 }
 
 export interface TrackingSessionResult {

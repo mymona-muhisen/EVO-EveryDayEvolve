@@ -14,3 +14,17 @@ mtime_ms = 1790862985541
 storage_uri = "gcs://replit-rams-assets-archer/rams/assets/repl:4d2a677a-cb3d-44ac-9898-50521e868d04/7af54973-7d9f-481f-8961-37c78a3d50d5/b67b507f-8905-46ac-b5a7-f03ad77a9dc1"
 storage_version_token = "1790862986568863"
 content_type = "text/html"
+
+[[outputs]]
+id = "7_m41Mt5JkTPjDm6NExYJ"
+uri = "file://.local/reports/product-ux-correction.md"
+type = "text"
+title = "تقرير التحقق من تصحيح تجربة الاستخدام"
+description = "نتائج PASS/FAIL، الاختبارات الفعلية، وحدود التغطية للذكريات المرتبطة باليوم والتتبّع الصامت."
+logical_id = "4844bd32-409c-4f98-99e5-6a5438b5bb37"
+content_hash = "sha256:1d0b10194baab1ef247b8d7f6a79dd0120241956a44f5c809be8f42cc551a6c4"
+size = 4569
+mtime_ms = 1790897965623
+storage_uri = "gcs://replit-rams-assets-archer/rams/assets/repl:4d2a677a-cb3d-44ac-9898-50521e868d04/4844bd32-409c-4f98-99e5-6a5438b5bb37/2c4b1193-937a-40bb-8d4d-2d9109c25d6e"
+storage_version_token = "1790898028372592"
+content_type = "text/markdown"

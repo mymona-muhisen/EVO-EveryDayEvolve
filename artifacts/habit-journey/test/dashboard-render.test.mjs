@@ -59,7 +59,7 @@ await esbuild.build({
   platform: 'node',
   format: 'esm',
   jsx: 'automatic',
-  external: ['react', 'react-dom', 'react-dom/server', '@tanstack/react-query', 'wouter', 'lucide-react', 'sonner'],
+  external: ['react', 'react-dom', 'react-dom/server', '@tanstack/react-query', 'wouter', 'lucide-react', 'sonner', '@radix-ui/react-dialog'],
   alias: { '@': path.join(ui, 'src') },
   define: { 'import.meta.env.BASE_URL': '"/"' },
   logLevel: 'silent',
@@ -262,12 +262,24 @@ test('friend authorized character differs from initial fallback and cheer has a 
 });
 
 test('saved memory renders while absent memory does not fabricate an empty card', async () => {
-  const memory = { id: 2, habitId: null, note: null, photoUrl: null, date: '2025-02-01', createdAt: '2025-02-01T00:00:00Z', caption: 'لحظة هادئة', visibility: 'private', updatedAt: '2025-02-01T00:00:00Z', journeyId: null };
+  const memory = { id: 2, habitId: 1, habitDayId: 3, dayNumber: 3, journeyId: 1, journeyLength: 22, habitTitle: 'قراءة', note: null, photoUrl: null, date: '2025-02-01', createdAt: '2025-02-01T00:00:00Z', caption: 'لحظة هادئة', visibility: 'private', updatedAt: '2025-02-01T00:00:00Z' };
   const saved = await show(home({ memory }));
   assert.match(saved, /data-testid="section-memory"/);
+  assert.match(saved, /href="\/habits\/1\/journey\?day=3"/);
   assert.match(saved, /لحظة هادئة/);
   const absent = await show(home());
   assert.doesNotMatch(absent, /data-testid="section-memory"/);
+});
+
+test('Home hides memories without verified journey-day linkage instead of guessing a destination', async () => {
+  const legacyMemory = {
+    id: 7, habitId: 1, habitDayId: null, dayNumber: null, journeyId: null, journeyLength: null,
+    habitTitle: 'قراءة', note: 'سطر قديم', photoUrl: null, date: '2025-02-01',
+    createdAt: '2025-02-01T00:00:00Z', caption: null, visibility: 'private', updatedAt: '2025-02-01T00:00:00Z',
+  };
+  const html = await show(home({ memory: legacyMemory }));
+  assert.doesNotMatch(html, /data-testid="section-memory"/);
+  assert.doesNotMatch(html, /button-memory-add|memory-chooser|إضافة ذكرى/);
 });
 
 test('unavailable section retries remain local and do not replace the usable focus', async () => {

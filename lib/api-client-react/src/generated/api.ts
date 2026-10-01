@@ -2360,7 +2360,7 @@ export const getChangeTrackingSessionUrl = () => {
 }
 
 /**
- * @summary Start, pause, resume, finish, or change the next check-in interval
+ * @summary Start, pause, resume, finish, or change the tracking interval
  */
 export const changeTrackingSession = async (trackingSessionInput: TrackingSessionInput, options?: Parameters<typeof customFetch>[1]): Promise<TrackingSessionResult> => {
 
@@ -2426,7 +2426,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type ChangeTrackingSessionMutationVariables = {data: BodyType<TrackingSessionInput>}
 
     /**
- * @summary Start, pause, resume, finish, or change the next check-in interval
+ * @summary Start, pause, resume, finish, or change the tracking interval
  */
 export const useChangeTrackingSession = <TError = ErrorType<unknown>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof changeTrackingSession>>, TError,ChangeTrackingSessionMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
@@ -2448,7 +2448,7 @@ export const getCreateTrackingCheckinUrl = () => {
 }
 
 /**
- * @summary Categorize the most recent tracking interval
+ * @summary Explicitly record activity for one chosen tracking interval
  */
 export const createTrackingCheckin = async (trackingCheckinInput: TrackingCheckinInput, options?: Parameters<typeof customFetch>[1]): Promise<TimeEntry> => {
 
@@ -2514,7 +2514,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type CreateTrackingCheckinMutationVariables = {data: BodyType<TrackingCheckinInput>}
 
     /**
- * @summary Categorize the most recent tracking interval
+ * @summary Explicitly record activity for one chosen tracking interval
  */
 export const useCreateTrackingCheckin = <TError = ErrorType<unknown>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createTrackingCheckin>>, TError,CreateTrackingCheckinMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}

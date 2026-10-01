@@ -98,6 +98,9 @@ const ddl = [
     date date NOT NULL, status text NOT NULL DEFAULT 'active',
     interval_minutes integer NOT NULL DEFAULT 15, started_at timestamptz NOT NULL DEFAULT now(),
     last_checkin_at timestamptz, next_checkin_at timestamptz, finished_at timestamptz,
+    active_elapsed_ms integer NOT NULL DEFAULT 0,
+    interval_elapsed_ms integer NOT NULL DEFAULT 0,
+    timer_anchor_at timestamptz,
     UNIQUE(user_id, date)
   )`,
   `CREATE TABLE ${quote("day_analysis_cache")} (
@@ -1092,6 +1095,60 @@ test("parallel same-day submissions grant one reward; parallel habits retain bot
     assert.equal(transactions.length, 3);
     assert.equal(transactions.filter(({ reason }) => reason === "manual").length, 1);
   });
+});
+
+test("dashboard memory keeps legacy data unlinked, prefers verified same-date links, and performs no writes", async () => {
+  await reset();
+  const ownerId = await seedDashboardUser({ id: "dashboard-memory-association" });
+  const habitId = await seedHabit({ userId: ownerId });
+  await seedDailyJourney(habitId, dailyToday);
+  await seedCheckin({
+    habitId,
+    userId: ownerId,
+    date: dailyToday,
+    value: 12,
+    difficulty: "hard",
+  });
+  const [day] = (await adminPool.query(
+    `SELECT id FROM ${quote("habit_days")} WHERE habit_id = $1 AND date = $2`,
+    [habitId, dailyToday],
+  )).rows;
+  assert.ok(day, "test fixture has a saved day for the journey date");
+  const [legacy] = (await adminPool.query(
+    `INSERT INTO ${quote("memories")} (user_id, habit_id, note, caption, date, created_at)
+     VALUES ($1,$2,'same-date legacy note','Legacy caption',$3,now() + interval '1 hour')
+     RETURNING id`,
+    [ownerId, habitId, dailyToday],
+  )).rows;
+
+  const api = await startJourneyApi(ownerId);
+  try {
+    const legacyOnly = await assertDashboardReadOnly(() => currentDashboardResponse(api));
+    assert.equal(legacyOnly.memory.id, legacy.id);
+    assert.equal(legacyOnly.memory.journeyId, null,
+      "habit/date coincidence must not infer a legacy journey association");
+    assert.equal(legacyOnly.memory.habitDayId, null);
+    assert.equal(legacyOnly.memory.dayNumber, null);
+
+    const [linked] = (await adminPool.query(
+      `INSERT INTO ${quote("memories")}
+         (user_id, habit_id, habit_day_id, note, caption, date, created_at)
+       VALUES ($1,$2,$3,'verified day note','Day caption',$4,now())
+       RETURNING id`,
+      [ownerId, habitId, day.id, dailyToday],
+    )).rows;
+    const withBoth = await assertDashboardReadOnly(() => currentDashboardResponse(api));
+    assert.equal(withBoth.memory.id, linked.id,
+      "the verified day-linked memory wins even when the same-date legacy row sorts first");
+    assert.equal(withBoth.memory.journeyId, habitId);
+    assert.equal(withBoth.memory.habitDayId, day.id);
+    assert.equal(withBoth.memory.dayNumber, 1);
+    assert.equal(withBoth.memory.habitTitle, "Walk");
+    assert.equal(withBoth.memory.actualValue, 12);
+    assert.equal(withBoth.memory.difficulty, "hard");
+  } finally {
+    await api.close();
+  }
 });
 
 test("duplicate retry is idempotent, incomplete check-ins can succeed later, and downgrades conflict", async (t) => {
@@ -3255,6 +3312,13 @@ test("private memory CRUD preserves ownership, saved-day context, and financial/
     assert.equal(uploaded.caption, null);
     assert.equal(uploaded.note, "");
     assert.equal(uploaded.dayNumber, 2);
+    const duplicateDayTwo = await ownerApi.request("/memories", "POST", {
+      habitId: owner.habitId,
+      date: addDays(owner.startDate, 1),
+      photoObjectPath: ownerUploadPath,
+    });
+    assert.equal(duplicateDayTwo.status, 409,
+      "the one-memory limit applies independently to each journey day");
     assert.deepEqual(ownerUpload.metadata, {
       contentType: "image/png",
       size: String(validMemoryPng.length),
@@ -3341,6 +3405,9 @@ test("private memory CRUD preserves ownership, saved-day context, and financial/
     const journeyPayload = await journey.json();
     const journeyDay = journeyPayload.days.find((day) => day.habitDayId === created.habitDayId);
     assert.equal(journeyDay.memoryId, created.id, "journey map exposes the owner-associated memory ID");
+    const secondJourneyDay = journeyPayload.days.find((day) => day.habitDayId === uploaded.habitDayId);
+    assert.equal(secondJourneyDay.memoryId, uploaded.id,
+      "a second day's memory remains associated with that exact day");
     const dailyState = await service.getDailyHabitState(
       owner.userId,
       owner.habitId,
@@ -3370,6 +3437,11 @@ test("private memory CRUD preserves ownership, saved-day context, and financial/
     assert.equal(
       updatedJourneyPayload.days.find((day) => day.habitDayId === created.habitDayId).memoryId,
       null,
+    );
+    assert.equal(
+      updatedJourneyPayload.days.find((day) => day.habitDayId === uploaded.habitDayId).memoryId,
+      uploaded.id,
+      "deleting the first day's memory does not affect the second day's association",
     );
 
     const ownerRead = await ownerApi.request("/storage/objects/uploads/owner-photo");

@@ -1579,6 +1579,12 @@ export const GetTrackingSessionQueryParams = zod.object({
   "date": zod.date()
 })
 
+export const getTrackingSessionResponseSessionOneActiveElapsedMsMin = 0;
+
+export const getTrackingSessionResponseSessionOneIntervalElapsedMsMin = 0;
+
+
+
 export const GetTrackingSessionResponse = zod.object({
   "session": zod.union([zod.object({
   "date": zod.coerce.date(),
@@ -1587,19 +1593,28 @@ export const GetTrackingSessionResponse = zod.object({
   "startedAt": zod.coerce.date(),
   "lastCheckinAt": zod.coerce.date().nullable(),
   "nextCheckinAt": zod.coerce.date().nullable(),
-  "finishedAt": zod.coerce.date().nullable()
+  "finishedAt": zod.coerce.date().nullable(),
+  "activeElapsedMs": zod.number().int().min(getTrackingSessionResponseSessionOneActiveElapsedMsMin).describe('Persisted accumulated active milliseconds before timerAnchorAt'),
+  "intervalElapsedMs": zod.number().int().min(getTrackingSessionResponseSessionOneIntervalElapsedMsMin).describe('Persisted cyclic interval progress before timerAnchorAt'),
+  "timerAnchorAt": zod.coerce.date().nullable().describe('Active timer anchor; null while paused or finished')
 }),zod.null()])
 })
 
 
 /**
- * @summary Start, pause, resume, finish, or change the next check-in interval
+ * @summary Start, pause, resume, finish, or change the tracking interval
  */
 export const ChangeTrackingSessionBody = zod.object({
   "date": zod.coerce.date(),
   "action": zod.enum(['start', 'pause', 'resume', 'finish', 'interval']),
   "intervalMinutes": zod.union([zod.literal(15),zod.literal(30)]).optional()
 })
+
+export const changeTrackingSessionResponseSessionOneActiveElapsedMsMin = 0;
+
+export const changeTrackingSessionResponseSessionOneIntervalElapsedMsMin = 0;
+
+
 
 export const ChangeTrackingSessionResponse = zod.object({
   "session": zod.union([zod.object({
@@ -1609,13 +1624,16 @@ export const ChangeTrackingSessionResponse = zod.object({
   "startedAt": zod.coerce.date(),
   "lastCheckinAt": zod.coerce.date().nullable(),
   "nextCheckinAt": zod.coerce.date().nullable(),
-  "finishedAt": zod.coerce.date().nullable()
+  "finishedAt": zod.coerce.date().nullable(),
+  "activeElapsedMs": zod.number().int().min(changeTrackingSessionResponseSessionOneActiveElapsedMsMin).describe('Persisted accumulated active milliseconds before timerAnchorAt'),
+  "intervalElapsedMs": zod.number().int().min(changeTrackingSessionResponseSessionOneIntervalElapsedMsMin).describe('Persisted cyclic interval progress before timerAnchorAt'),
+  "timerAnchorAt": zod.coerce.date().nullable().describe('Active timer anchor; null while paused or finished')
 }),zod.null()])
 })
 
 
 /**
- * @summary Categorize the most recent tracking interval
+ * @summary Explicitly record activity for one chosen tracking interval
  */
 export const createTrackingCheckinBodyLabelMax = 100;
 
@@ -2677,6 +2695,10 @@ export const getDashboardHomeResponseCharacterOneRecentProgressItemXpEarnedMin =
 
 export const getDashboardHomeResponseCharacterOneRecentProgressItemCoinsEarnedMin = 0;
 
+export const getDashboardHomeResponseTimeOneSessionOneActiveElapsedMsMin = 0;
+
+export const getDashboardHomeResponseTimeOneSessionOneIntervalElapsedMsMin = 0;
+
 export const getDashboardHomeResponseTimeOneTrackedMinutesMin = 0;
 
 export const getDashboardHomeResponseTimeOneCategoryTotalsItemMinutesMin = 0;
@@ -3120,7 +3142,10 @@ export const GetDashboardHomeResponse = zod.object({
   "startedAt": zod.coerce.date(),
   "lastCheckinAt": zod.coerce.date().nullable(),
   "nextCheckinAt": zod.coerce.date().nullable(),
-  "finishedAt": zod.coerce.date().nullable()
+  "finishedAt": zod.coerce.date().nullable(),
+  "activeElapsedMs": zod.number().int().min(getDashboardHomeResponseTimeOneSessionOneActiveElapsedMsMin).describe('Persisted accumulated active milliseconds before timerAnchorAt'),
+  "intervalElapsedMs": zod.number().int().min(getDashboardHomeResponseTimeOneSessionOneIntervalElapsedMsMin).describe('Persisted cyclic interval progress before timerAnchorAt'),
+  "timerAnchorAt": zod.coerce.date().nullable().describe('Active timer anchor; null while paused or finished')
 }),zod.null()]),
   "trackedMinutes": zod.number().int().min(getDashboardHomeResponseTimeOneTrackedMinutesMin),
   "intervalMinutes": zod.number().int().nullable(),

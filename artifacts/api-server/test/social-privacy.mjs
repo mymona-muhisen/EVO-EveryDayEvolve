@@ -68,8 +68,18 @@ if (!databaseUrl) {
       created_at timestamptz NOT NULL DEFAULT now()
     )`,
     `CREATE TABLE ${quote("habits")} (
-      id integer PRIMARY KEY, user_id text NOT NULL, journey_length integer,
-      journey_start_date date, journey_completed_at timestamptz
+      id integer PRIMARY KEY, user_id text NOT NULL,
+      title text DEFAULT 'Test journey', emoji text DEFAULT '🌱', category text DEFAULT 'health',
+      cadence text, custom_days integer[], unit text, execution_type text,
+      target_value double precision, minimum_value double precision, busy_day_value double precision,
+      baseline_value double precision, success_limit_value double precision, cue_type text,
+      cue_time text, cue text, start_action text, friction text, minimum_floor double precision,
+      journey_start_date date, journey_length integer, journey_completed_at timestamptz,
+      reward_id integer, difficulty text, goal_type text, is_active boolean DEFAULT true,
+      recovery_enabled boolean DEFAULT false, recovery_used integer DEFAULT 0,
+      recovery_limit integer DEFAULT 2, current_streak integer DEFAULT 0,
+      longest_streak integer DEFAULT 0, last_checkin_date date, last_broken_streak integer,
+      streak_broken_at date, milestones jsonb, created_at timestamptz DEFAULT now()
     )`,
     `CREATE TABLE ${quote("habit_days")} (
       id serial PRIMARY KEY, habit_id integer NOT NULL, day_number integer NOT NULL,
@@ -85,7 +95,12 @@ if (!databaseUrl) {
       photo_object_path text, date date NOT NULL, created_at timestamptz NOT NULL DEFAULT now(),
       updated_at timestamptz NOT NULL DEFAULT now()
     )`,
-    `CREATE TABLE ${quote("journey_rewards")} (id integer PRIMARY KEY, user_id text NOT NULL)`,
+    `CREATE TABLE ${quote("journey_rewards")} (
+      id integer PRIMARY KEY, user_id text NOT NULL, habit_id integer, title text, type text,
+      description text, image_url text, estimated_value double precision, status text,
+      created_at timestamptz DEFAULT now(), updated_at timestamptz DEFAULT now(),
+      unlocked_at timestamptz, claimed_at timestamptz
+    )`,
     `CREATE TABLE ${quote("rewards")} (id integer PRIMARY KEY, user_id text NOT NULL)`,
     `CREATE TABLE ${quote("social_blocks")} (
       id serial PRIMARY KEY, blocker_user_id text NOT NULL, blocked_user_id text NOT NULL,
@@ -710,10 +725,23 @@ if (!databaseUrl) {
         metadata: { "custom:aclPolicy": JSON.stringify({ owner: "owner", visibility: "private" }) },
       },
     });
+    const friendPrivateProfileResponse = await requestAs("friend", "GET", "/social/profiles/owner");
+    assert.equal(friendPrivateProfileResponse.status, 200);
+    const friendPrivateProfile = await friendPrivateProfileResponse.json();
+    const strangerPrivateProfileResponse = await requestAs("stranger", "GET", "/social/profiles/owner");
+    assert.equal(strangerPrivateProfileResponse.status, 200);
+    const strangerPrivateProfile = await strangerPrivateProfileResponse.json();
+    assert.equal(friendPrivateProfile.sharedMemories.some((memory) => memory.id === 81), false,
+      "a friend profile read must not reveal an unshared private memory");
+    assert.equal(strangerPrivateProfile.sharedMemories.some((memory) => memory.id === 81), false,
+      "a foreign profile read must not reveal an unshared private memory");
     assert.equal((await requestAs("owner", "PATCH", "/social/sharing/memory/81", {
       visibility: "selected",
       selectedUserIds: ["friend"],
     })).status, 200);
+    const selectedProfile = await (await requestAs("friend", "GET", "/social/profiles/owner")).json();
+    assert.ok(selectedProfile.sharedMemories.some((memory) => memory.id === 81),
+      "the selected friend sees a memory only after it is deliberately shared");
     const sharedPhoto = await requestAs("friend", "GET", "/social/memories/81/photo");
     assert.equal(sharedPhoto.status, 200);
     assert.equal(sharedPhoto.headers.get("cache-control"), "private, no-store");

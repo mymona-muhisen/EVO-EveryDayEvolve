@@ -11,4 +11,7 @@ export const trackingSessionsTable = pgTable("tracking_sessions", {
   lastCheckinAt: timestamp("last_checkin_at", { withTimezone: true }),
   nextCheckinAt: timestamp("next_checkin_at", { withTimezone: true }),
   finishedAt: timestamp("finished_at", { withTimezone: true }),
+  activeElapsedMs: integer("active_elapsed_ms").notNull().default(0),
+  intervalElapsedMs: integer("interval_elapsed_ms").notNull().default(0),
+  timerAnchorAt: timestamp("timer_anchor_at", { withTimezone: true }),
 }, (t) => [uniqueIndex("tracking_sessions_user_date_unique").on(t.userId, t.date)]);

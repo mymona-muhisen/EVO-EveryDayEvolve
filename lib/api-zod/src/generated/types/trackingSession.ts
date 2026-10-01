@@ -19,4 +19,19 @@ export interface TrackingSession {
   nextCheckinAt: Date | null;
   /** @nullable */
   finishedAt: Date | null;
+  /**
+     * Persisted accumulated active milliseconds before timerAnchorAt
+     * @minimum 0
+     */
+  activeElapsedMs: number;
+  /**
+     * Persisted cyclic interval progress before timerAnchorAt
+     * @minimum 0
+     */
+  intervalElapsedMs: number;
+  /**
+     * Active timer anchor; null while paused or finished
+     * @nullable
+     */
+  timerAnchorAt: Date | null;
 }

@@ -15,7 +15,7 @@ function useReducedMotion() {
   return r;
 }
 
-export function JourneyMap({ journey, selected, onSelect, placements = [], fullscreen = false, preservePagePosition = false, layoutRevision = 0, onOpenMemory }: { onOpenMemory?: (memoryId: number) => void; journey: HabitJourney; selected: number; onSelect: (day: number) => void; fullscreen?: boolean; preservePagePosition?: boolean; layoutRevision?: number; placements?: { decorationId: number; islandId: string; slot: number; assetFile: string; name: string }[] }) {
+export function JourneyMap({ journey, selected, onSelect, placements = [], fullscreen = false, preservePagePosition = false, layoutRevision = 0 }: { journey: HabitJourney; selected: number; onSelect: (day: number) => void; fullscreen?: boolean; preservePagePosition?: boolean; layoutRevision?: number; placements?: { decorationId: number; islandId: string; slot: number; assetFile: string; name: string }[] }) {
   const reduced = useReducedMotion();
   const character = useGlobalCharacter();
   const cur = calendarDay(journey), today = journey.today.slice(0, 10);
@@ -26,6 +26,7 @@ export function JourneyMap({ journey, selected, onSelect, placements = [], fulls
   const path = useMemo(() => { const pts = days.map(d => nodePos(d.dayNumber)); return pts.map((p, i) => { if (!i) return `M${p.x * 3.6} ${p.y}`; const q = pts[i - 1]; const my = (p.y + q.y) / 2; return `C${q.x * 3.6} ${my} ${p.x * 3.6} ${my} ${p.x * 3.6} ${p.y}`; }).join(' '); }, [days]);
   const cp = nodePos(cur);
   const viewport = useRef<HTMLDivElement>(null);
+  const selectedRef = useRef(selected); selectedRef.current = selected;
   useEffect(() => {
     const el = viewport.current;
     if (!el) return;
@@ -35,7 +36,7 @@ export function JourneyMap({ journey, selected, onSelect, placements = [], fulls
     const rewardSpace = () => { const h = rewardEl?.getBoundingClientRect().height ?? 0; return h > 0 ? h + 16 : 0; };
     const center = () => {
       if (!active) return;
-      const node = el.querySelector<HTMLButtonElement>(`#jnode-${cur}`);
+      const node = el.querySelector<HTMLButtonElement>(`#jnode-${selectedRef.current}`);
       if (!node) return;
       const nodeBounds = node.getBoundingClientRect(), bounds = el.getBoundingClientRect();
       el.scrollTop += nodeBounds.top + nodeBounds.height / 2 - bounds.top - el.clientHeight / 2;
@@ -92,12 +93,12 @@ export function JourneyMap({ journey, selected, onSelect, placements = [], fulls
     </div>; })}
     <div className="absolute top-3 inset-x-0 text-center pointer-events-none" aria-hidden="true"><img src={base('station-ferris-wheel.webp')} alt="" className="mx-auto h-24 opacity-90" /></div>
     {days.map(d => { const s = classifyDay(d, today), p = nodePos(d.dayNumber), ms = (MILESTONES as readonly number[]).includes(d.dayNumber), sel = selected === d.dayNumber;
-      return <button key={d.dayNumber} id={`jnode-${d.dayNumber}`} data-testid={`node-day-${d.dayNumber}`} aria-label={nodeLabel(d, s)} aria-pressed={sel} onClick={() => onSelect(d.dayNumber)}
+      return <button type="button" key={d.dayNumber} id={`jnode-${d.dayNumber}`} data-testid={`node-day-${d.dayNumber}`} aria-label={nodeLabel(d, s)} aria-pressed={sel} onClick={() => onSelect(d.dayNumber)}
         className={`absolute flex flex-col items-center justify-center rounded-full font-bold transition-[transform,background-color,box-shadow] active:scale-95 ${s === 'today' ? 'map-node-enter' : ''}`}
         style={{ left: `${p.x}%`, top: p.y, width: ms ? 56 : 48, height: ms ? 56 : 48, transform: 'translate(-50%,-50%)', background: FILL[s], color: INK[s], border: `${ms ? 3 : 2}px ${s === 'rest' ? 'dashed' : 'solid'} ${sel ? '#1c443c' : ms ? '#e8b87c' : '#fffaf0'}`, boxShadow: s === 'today' ? '0 0 0 6px #ce755533' : '0 3px 8px #1c443c26' }}>
         <span className="text-base leading-none">{d.dayNumber}</span><span className="text-[11px] leading-none" aria-hidden="true">{STATE_SYMBOL[s]}</span>
+        {d.memoryId && <span data-testid={`badge-map-memory-${d.dayNumber}`} aria-hidden="true" className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-[#fffaf0] border border-[#e8b87c] flex items-center justify-center shadow"><Camera size={13} className="text-[#245448]" /></span>}
       </button>; })}
-    {days.filter(d => d.memoryId).map(d => { const p = nodePos(d.dayNumber), dir = p.x > 50 ? -1 : 1; return <button key={`mem-${d.dayNumber}`} type="button" data-testid={`button-map-memory-${d.dayNumber}`} aria-label={`ذكرى اليوم ${d.dayNumber}`} onClick={() => { onSelect(d.dayNumber); if (d.memoryId) onOpenMemory?.(d.memoryId); }} className="absolute flex items-center justify-center" style={{ left: `calc(${p.x}% + ${dir * 60}px)`, top: p.y, width: 44, height: 44, transform: 'translate(-50%,-50%)' }}><span className="w-7 h-7 rounded-full bg-[#fffaf0] border border-[#e8b87c] flex items-center justify-center shadow"><Camera size={14} className="text-[#245448]" /></span></button>; })}
     <div className="absolute pointer-events-none" aria-label={`الشخصية عند اليوم ${cur}`} style={{ left: `${cp.x}%`, top: cp.y, transform: 'translate(-50%,-100%)', transition: reduced ? 'none' : 'left 1.4s ease, top 1.4s ease', marginTop: -26 }}>
       {character.data ? <CharacterAvatar items={character.data.equippedItems} src={charSrc} height={56} testId="journey-character" /> : character.isError ? <span role="alert" className="text-[10px] whitespace-nowrap">تعذّر تحميل الشخصية</span> : <div className="skeleton h-14 w-12" aria-label="تحميل الشخصية" />}
       {character.levelUp && <span role="status" className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 paper px-2 py-1 rounded-lg text-[10px] whitespace-nowrap pop motion-reduce:animate-none">المستوى {character.levelUp}!</span>}

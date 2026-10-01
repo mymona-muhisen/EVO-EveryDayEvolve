@@ -40,7 +40,7 @@ export const STATE_LABEL: Record<NodeState, string> = {
   success: 'يوم ناجح', recovered: 'يوم مُستعاد', today: 'اليوم', missed: 'يوم فات', rest: 'يوم راحة', future: 'مغلق، لم يحن بعد', pending: 'يوم لم يكتمل',
 };
 export const STATE_SYMBOL: Record<NodeState, string> = { success: '✓', recovered: '↺', today: '●', missed: 'فات', rest: 'راحة', future: 'قفل', pending: '–' };
-export const nodeLabel = (d: HabitDay, s: NodeState) => `اليوم ${d.dayNumber}: ${STATE_LABEL[s]}${(MILESTONES as readonly number[]).includes(d.dayNumber) ? '، محطة' : ''}`;
+export const nodeLabel = (d: HabitDay, s: NodeState) => `اليوم ${d.dayNumber}: ${STATE_LABEL[s]}${(MILESTONES as readonly number[]).includes(d.dayNumber) ? '، محطة' : ''}${d.memoryId ? '، له ذكرى' : ''}`;
 
 export const showValue = (v: number | null | undefined) => (v === null || v === undefined ? '—' : String(v));
 export const showText = (v: string | null | undefined) => (v ? v : '—');

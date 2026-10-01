@@ -21,7 +21,7 @@ import {
 } from "@workspace/api-zod";
 import { canViewSocialResource } from "../services/social-common";
 import { getLevelProgress, getTotalXp, xpToNextLevel } from "./rules";
-import { addCalendarDays } from "./habitJourney";
+import { addCalendarDays, isWithinJourneyWindow, journeyDayNumber } from "./habitJourney";
 import {
   getReadOnlyDailyHabitStates,
   getReadOnlyPastScheduledHabitStates,
@@ -34,6 +34,49 @@ import { categories as trackedCategoryLabels } from "./trackedDay";
 
 function dateKey(value: string | Date): string {
   return value instanceof Date ? value.toISOString().slice(0, 10) : value;
+}
+
+function dashboardMemoryResponse(row: {
+  memory: typeof memoriesTable.$inferSelect;
+  day: typeof habitDaysTable.$inferSelect | null;
+  habit: typeof habitsTable.$inferSelect | null;
+  checkin: typeof checkinsTable.$inferSelect | null;
+}) {
+  const { memory, day, habit, checkin } = row;
+  const hasSavedContext = day != null
+    && habit != null
+    && memory.habitDayId === day.id
+    && memory.habitId === habit.id
+    && memory.date === day.date
+    && memory.userId === habit.userId
+    && day.scheduled
+    && habit.journeyStartDate != null
+    && habit.journeyLength === 22
+    && isWithinJourneyWindow(day.date, habit.journeyStartDate, habit.journeyLength)
+    && day.dayNumber === journeyDayNumber(day.date, habit.journeyStartDate);
+
+  return {
+    id: memory.id,
+    habitId: memory.habitId,
+    note: memory.note,
+    photoUrl: memory.photoObjectPath ? `/api/storage${memory.photoObjectPath}` : null,
+    date: memory.date,
+    createdAt: memory.createdAt,
+    caption: memory.caption ?? (
+      memory.habitDayId == null && memory.note.length <= 300 ? memory.note : null
+    ),
+    visibility: memory.visibility,
+    updatedAt: memory.updatedAt,
+    journeyId: hasSavedContext ? habit.id : null,
+    habitDayId: hasSavedContext ? day.id : null,
+    dayNumber: hasSavedContext ? day.dayNumber : null,
+    journeyLength: hasSavedContext ? habit.journeyLength : null,
+    habitTitle: hasSavedContext ? day.title : null,
+    targetValue: hasSavedContext ? day.targetValue : null,
+    actualValue: hasSavedContext && checkin != null ? checkin.value : null,
+    unit: hasSavedContext ? day.unit : null,
+    difficulty: hasSavedContext && checkin != null ? checkin.difficulty : null,
+  };
 }
 
 async function getCharacter(userId: string, user: any) {
@@ -321,18 +364,32 @@ export async function getDashboardHome(
     }, null),
     settled("social", () => getSocial(userId, now), []),
     settled("memory", async () => {
-      const [row] = await db.select().from(memoriesTable).where(and(
-        eq(memoriesTable.userId, userId), eq(memoriesTable.date, date),
-      )).orderBy(desc(memoriesTable.createdAt)).limit(1);
-      if (!row) return null;
-      return {
-        id: row.id, habitId: row.habitId, note: row.note,
-        photoUrl: row.photoObjectPath ? `/api/storage${row.photoObjectPath}` : null,
-        date: row.date, createdAt: row.createdAt, caption: row.caption ?? (row.note.length <= 300 ? row.note : null),
-        visibility: row.visibility, updatedAt: row.updatedAt,
-        journeyId: null, habitDayId: null, dayNumber: null, journeyLength: null,
-        habitTitle: null, targetValue: null, actualValue: null, unit: null, difficulty: null,
-      };
+      const rows = await db.select({
+        memory: memoriesTable,
+        day: habitDaysTable,
+        habit: habitsTable,
+        checkin: checkinsTable,
+      }).from(memoriesTable)
+        .leftJoin(habitDaysTable, eq(habitDaysTable.id, memoriesTable.habitDayId))
+        .leftJoin(habitsTable, and(
+          eq(habitsTable.id, habitDaysTable.habitId),
+          eq(habitsTable.userId, memoriesTable.userId),
+        ))
+        .leftJoin(checkinsTable, and(
+          eq(checkinsTable.habitId, habitDaysTable.habitId),
+          eq(checkinsTable.userId, memoriesTable.userId),
+          eq(checkinsTable.date, habitDaysTable.date),
+          eq(checkinsTable.completed, true),
+        ))
+        .where(and(
+          eq(memoriesTable.userId, userId),
+          eq(memoriesTable.date, date),
+        )).orderBy(desc(memoriesTable.createdAt));
+      if (!rows.length) return null;
+      const shaped = rows.map(dashboardMemoryResponse);
+      // If old standalone history and a linked memory share a date, prefer the
+      // verified journey-day memory without ever promoting the legacy row.
+      return shaped.find((memory) => memory.habitDayId != null) ?? shaped[0];
     }, null),
   ]);
   const { habits, executions, missedExecutions } = habitResult;

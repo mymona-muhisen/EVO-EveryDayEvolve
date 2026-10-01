@@ -25,7 +25,7 @@ export function Modal({title,children,onClose}: {title:string,children:ReactNode
 export function Field({label,children}: {label:string,children:ReactNode}) { return <label className="block mb-4"><span className="block text-sm font-bold mb-2">{label}</span>{children}</label>; }
 const nav = [
   {href:'/home',label:'اليوم',icon:Home},{href:'/time',label:'وقتي',icon:Clock3},{href:'/habits',label:'عاداتي',icon:ListChecks},{href:'/journey',label:'رحلتي',icon:Map},
-  {href:'/character',label:'الشخصية والمتجر',icon:Sparkles},{href:'/rewards',label:'المكافآت',icon:Gift},{href:'/friends',label:'الأصدقاء',icon:UserRoundCheck},{href:'/memories',label:'ذكرياتي',icon:Images},{href:'/groups',label:'المجموعات',icon:Users},{href:'/settings',label:'الإعدادات',icon:Settings}
+  {href:'/character',label:'الشخصية والمتجر',icon:Sparkles},{href:'/rewards',label:'المكافآت',icon:Gift},{href:'/friends',label:'الأصدقاء',icon:UserRoundCheck},{href:'/memories',label:'ذكريات الرحلات',icon:Images},{href:'/groups',label:'المجموعات',icon:Users},{href:'/settings',label:'الإعدادات',icon:Settings}
 ];
 const mobilePrimary = new Set(['/home', '/time', '/habits', '/journey']);
 const navActive = (location: string, href: string) => location === href

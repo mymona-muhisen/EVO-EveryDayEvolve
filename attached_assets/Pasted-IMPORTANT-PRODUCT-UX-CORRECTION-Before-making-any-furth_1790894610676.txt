@@ -1,0 +1,617 @@
+IMPORTANT PRODUCT/UX CORRECTION
+
+Before making any further UI changes, inspect the existing:
+1. Memories implementation
+2. Journey / Map implementation
+3. Time Tracking timer / check-in implementation
+
+There are two important UX corrections that must be applied.
+
+==================================================
+PART 1 — MEMORIES MUST BE PART OF THE JOURNEY
+==================================================
+
+CURRENT PROBLEM:
+
+Memories currently appear as a separate standalone window/feature.
+
+This is NOT the intended product experience.
+
+A Memory belongs to a specific JOURNEY DAY and should be experienced as part of the Journey Map.
+
+PRODUCT PRINCIPLE:
+
+Journey Day
+→ Habit completed
+→ Optional Memory
+→ Memory becomes part of that day's story
+→ Memory indicator appears on that exact day/node on the map
+→ User can open the day's Memory directly from the map
+
+Do not treat Memories as a separate photo gallery product.
+
+==================================================
+1. JOURNEY DAY = MEMORY CONTAINER
+==================================================
+
+Each Journey Day may have one optional Memory.
+
+Relationship:
+
+User
+→ Journey
+→ Journey Day / Habit Day
+→ Memory
+
+The Memory must be linked to:
+- user_id
+- journey_id
+- habit_day_id
+
+Do not create a global user photo unrelated to a journey.
+
+==================================================
+2. MAP INTEGRATION
+==================================================
+
+Every Journey Day node should support a Memory state.
+
+Without memory:
+
+Day 7
+●
+
+With memory:
+
+Day 7
+● 📸
+
+Or a small thumbnail if visually appropriate.
+
+The Memory indicator must belong visually to the node/day.
+
+The user should understand immediately:
+
+"this day has a memory."
+
+==================================================
+3. CLICKING A DAY WITH A MEMORY
+==================================================
+
+When the user clicks Day 7:
+
+Show the Day Detail.
+
+Example:
+
+Day 7
+Reading
+10 min
+😊 Easy
+
+📸 Memory
+
+[photo]
+
+"أول أسبوع من القراءة."
+
+Actions:
+- View larger
+- Edit caption
+- Replace photo if appropriate
+- Delete memory
+
+The Memory should open FROM the Journey Day.
+
+Do NOT send the user to a disconnected Memories feature just to view it.
+
+==================================================
+4. ADD MEMORY FLOW
+==================================================
+
+After a successful habit completion, show a subtle optional action:
+
+"Capture this moment 📸"
+
+Buttons:
+- Add Memory
+- Maybe later
+
+This is optional.
+
+A user can complete the habit without adding a Memory.
+
+Do NOT make Memory a prerequisite for:
+- habit completion
+- XP
+- Coins
+- journey progression
+- reward progress
+
+==================================================
+5. ONE MEMORY PER DAY IN V1
+==================================================
+
+For V1:
+- max 1 Memory per Habit Day
+
+Allow:
+- add
+- edit caption
+- replace image if easy
+- delete
+
+Do not build a multi-photo album for each day.
+
+==================================================
+6. NO SEPARATE PRIMARY MEMORIES WINDOW
+==================================================
+
+The existing Memories page/window should NOT be the primary way to use Memories.
+
+The primary navigation path must be:
+
+Journey
+→ Day
+→ Memory
+
+If the existing Memories page is useful as a history view, keep it only as a secondary "Memories from my journeys" history/gallery.
+
+It must not duplicate the core Journey experience.
+
+==================================================
+7. MEMORY GALLERY
+==================================================
+
+If a Memories gallery already exists:
+keep it as a secondary view.
+
+Its purpose:
+- browse previous memories
+- jump back to their Journey Day
+
+Each gallery item must link back to:
+Journey → Day
+
+Do not make the gallery the main interaction.
+
+==================================================
+8. MAP VISUAL DESIGN
+==================================================
+
+Do not put full-size photographs permanently across the map.
+
+Use:
+- small thumbnail
+- camera icon
+- memory badge
+
+Then show the full image in Day Detail.
+
+Keep the map visually clean.
+
+==================================================
+9. MEMORY + JOURNEY COMPLETION
+==================================================
+
+When Journey is completed:
+show a recap option:
+
+"Your Journey Memories"
+
+This can display:
+- Day 1 Memory
+- Day 5 Memory
+- Day 8 Memory
+- Day 12 Memory
+- etc.
+
+Only days with memories should appear.
+
+This is a recap of the Journey, not a separate social feed.
+
+==================================================
+10. PRIVACY
+==================================================
+
+Memory is:
+PRIVATE BY DEFAULT.
+
+Do not automatically share it.
+
+When social features are active:
+allow explicit visibility:
+- private
+- friends
+- selected users
+- public
+
+Never expose private Memories through Journey/Profile APIs.
+
+==================================================
+11. MEMORY DOES NOT PROVE THE HABIT
+==================================================
+
+Important:
+A Memory is a personal record, NOT proof of completing a habit.
+
+Do not use computer vision or AI image verification.
+
+Do not require a photo to validate the habit.
+
+==================================================
+12. MEMORY FAILURE
+==================================================
+
+If image upload fails:
+
+Show:
+"تعذر حفظ الذكرى."
+
+But:
+- habit remains completed
+- journey remains progressed
+- XP remains valid
+- Coins remain valid
+
+Memory must never break the core habit flow.
+
+==================================================
+13. MEMORY DATA
+==================================================
+
+Reuse existing memory implementation where possible.
+
+Preferred fields:
+
+id
+user_id
+journey_id
+habit_day_id
+image_url
+thumbnail_url
+caption
+visibility
+created_at
+updated_at
+
+Do not create duplicate memory records for the same habit day.
+
+==================================================
+PART 2 — THE 15-MINUTE TIMER IS NOT A REMINDER
+==================================================
+
+THIS IS A CRITICAL PRODUCT CORRECTION.
+
+The 15-minute interval is a TIME TRACKING GRANULARITY.
+
+It is NOT a reminder system.
+
+The user is expected to notice the passing time and manually record what they were doing.
+
+==================================================
+1. NO RING
+==================================================
+
+The 15-minute timer must NOT:
+
+- play a sound
+- ring
+- beep
+- vibrate
+- show an alarming modal
+- force the user to interact
+- automatically push a notification saying "What were you doing?"
+- behave like an alarm clock
+
+Do not implement a ringing timer.
+
+==================================================
+2. TIMER PURPOSE
+==================================================
+
+The timer simply helps divide the tracking day into intervals.
+
+Example:
+
+Tracking started at 09:00.
+
+09:15
+→ first tracking interval completed
+
+09:30
+→ second interval completed
+
+09:45
+→ third interval completed
+
+The user notices the interval themselves.
+
+==================================================
+3. USER MANUALLY RECORDS ACTIVITY
+==================================================
+
+When the user decides to record/check in:
+
+Show:
+
+"What were you doing?"
+
+Quick options:
+- Study
+- Work
+- Social Media
+- Gaming
+- Entertainment
+- Exercise
+- Eating
+- Rest
+- Travel
+- Socializing
+- Personal
+- Other
+- I don't remember
+
+The user selects one.
+
+No forced modal every 15 minutes.
+
+==================================================
+4. TRACKING UI
+==================================================
+
+The tracking screen should show:
+
+Tracking
+15 min interval
+
+Elapsed time:
+02h 34m
+
+Current interval:
+08m 42s
+
+The timer is visible and updates silently.
+
+It does not alert the user.
+
+==================================================
+5. MANUAL CHECK-IN
+==================================================
+
+Add a clear user-controlled action such as:
+
+"Log what I'm doing"
+
+or:
+
+"Check in"
+
+The user presses it whenever they notice the time and want to record the current/recent activity.
+
+The app can use the current 15/30 minute interval as the default duration.
+
+Example:
+
+Current interval:
+09:20–09:35
+
+User selects:
+Study
+
+Save:
+Study — 15 minutes
+
+==================================================
+6. 15-MINUTE INTERVAL VS CHECK-IN
+==================================================
+
+These are different concepts:
+
+INTERVAL:
+How the tracking day is divided.
+
+CHECK-IN:
+When the user chooses to tell the app what happened.
+
+Do NOT implement:
+every 15 minutes → automatically force check-in.
+
+Instead:
+
+15-minute interval
+→ tracking system marks the interval
+→ user manually checks in when ready
+
+==================================================
+7. SUPPORT 30 MINUTES
+==================================================
+
+The user can choose:
+
+15 minutes
+30 minutes
+
+This changes interval granularity only.
+
+It does not activate notifications or alarms.
+
+==================================================
+8. PAUSE / RESUME
+==================================================
+
+User can:
+
+Pause Tracking
+Resume Tracking
+
+While paused:
+- timer stops
+- interval accumulation stops
+- no reminder or sound
+- no automatic check-in
+
+==================================================
+9. END OF TRACKING
+==================================================
+
+When the user chooses to stop tracking:
+
+Show:
+
+"Your tracking is complete."
+
+Then provide the day summary based on the entries the user manually recorded.
+
+Do not force missing intervals into invented activities.
+
+Unknown intervals may remain:
+"Not recorded"
+
+rather than invented data.
+
+==================================================
+10. IMPORTANT DATA RULE
+==================================================
+
+Never invent activity for an interval.
+
+If the user did not record it:
+store it as:
+- unknown
+- unrecorded
+
+Do not claim:
+"Social Media — 15 minutes"
+
+unless the user actually recorded it or reliable future automatic tracking exists.
+
+==================================================
+11. NOTIFICATIONS SEPARATE FROM TIMER
+==================================================
+
+If notification infrastructure already exists:
+keep Notifications as a SEPARATE optional feature.
+
+Habit reminders may exist.
+
+Social notifications may exist.
+
+But the 15-minute tracking timer itself must never ring.
+
+Do not connect:
+timer interval → notification automatically.
+
+==================================================
+12. DASHBOARD COPY
+==================================================
+
+Avoid wording such as:
+
+"Your next reminder is in 05:00."
+
+Use:
+
+"Tracking interval: 15 min"
+
+or:
+
+"15-minute tracking"
+
+The user should understand:
+"This helps me structure my tracking."
+
+Not:
+"The app will interrupt me every 15 minutes."
+
+==================================================
+13. TESTING — MEMORIES
+==================================================
+
+Test:
+
+1. Complete Day 1.
+2. Add one Memory.
+3. Verify it is linked to Day 1.
+4. Verify Memory indicator appears on Day 1 node.
+5. Click Day 1.
+6. Verify Memory appears inside Day Detail.
+7. Edit caption.
+8. Delete Memory.
+9. Verify Day 1 remains completed.
+10. Verify XP/Coins remain unchanged.
+11. Add Memory on another day.
+12. Verify each day has its own Memory.
+13. Verify duplicate Memory for same day is prevented.
+14. Verify private Memory cannot be accessed by another user.
+15. Simulate upload failure.
+16. Verify habit/journey still work.
+17. Open Journey recap.
+18. Verify only existing Memories appear.
+
+==================================================
+14. TESTING — TIMER
+==================================================
+
+Test:
+
+1. Start tracking.
+2. Set 15-minute interval.
+3. Verify timer counts silently.
+4. Wait until interval changes.
+5. Verify NO sound.
+6. Verify NO vibration.
+7. Verify NO automatic modal.
+8. Verify NO forced check-in.
+9. Manually press "Log what I'm doing."
+10. Select an activity.
+11. Verify it is saved.
+12. Change to 30-minute interval.
+13. Verify interval changes.
+14. Pause tracking.
+15. Verify timer stops.
+16. Verify no notification occurs.
+17. Resume.
+18. Verify timer continues.
+19. Stop tracking.
+20. Verify summary contains only recorded activities.
+21. Verify unrecorded intervals are not fabricated.
+
+==================================================
+15. ACCEPTANCE CRITERIA
+==================================================
+
+MEMORIES:
+- [ ] Memory belongs to a Journey Day.
+- [ ] Every day can have one optional Memory.
+- [ ] Memory is accessed from the Journey Map.
+- [ ] Memory appears on the corresponding node.
+- [ ] Day Detail contains the Memory.
+- [ ] Gallery is secondary, not primary.
+- [ ] Memory is private by default.
+- [ ] Deleting Memory does not affect habit progress.
+- [ ] Upload failure does not affect habit progress.
+
+TIMER:
+- [ ] 15-minute interval exists.
+- [ ] 30-minute interval exists.
+- [ ] Timer runs silently.
+- [ ] No ringing.
+- [ ] No beep.
+- [ ] No vibration.
+- [ ] No forced check-in.
+- [ ] User manually records activity.
+- [ ] Timer and notifications are separate systems.
+- [ ] Pausing stops interval tracking.
+- [ ] Resuming continues it.
+- [ ] Unrecorded time is never fabricated.
+
+Before changing code:
+1. Inspect current Memories implementation.
+2. Inspect current Journey Day/Map implementation.
+3. Inspect current Time Tracking implementation.
+4. Inspect current Notification implementation.
+5. Reuse existing APIs/database/storage/components.
+6. Report which files/components will change.
+7. Then implement the corrections.
+8. Run the specified tests and report PASS/FAIL.

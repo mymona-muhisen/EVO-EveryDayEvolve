@@ -647,7 +647,7 @@ paths:
     post:
       operationId: changeTrackingSession
       tags: [timeEntries]
-      summary: Start, pause, resume, finish, or change the next check-in interval
+      summary: Start, pause, resume, finish, or change the tracking interval
       requestBody:
         required: true
         content:
@@ -664,7 +664,7 @@ paths:
     post:
       operationId: createTrackingCheckin
       tags: [timeEntries]
-      summary: Categorize the most recent tracking interval
+      summary: Explicitly record activity for one chosen tracking interval
       requestBody:
         required: true
         content:
@@ -3333,7 +3333,7 @@ components:
         note: { type: string }
     TrackingSession:
       type: object
-      required: [date, status, intervalMinutes, startedAt, lastCheckinAt, nextCheckinAt, finishedAt]
+      required: [date, status, intervalMinutes, startedAt, lastCheckinAt, nextCheckinAt, finishedAt, activeElapsedMs, intervalElapsedMs, timerAnchorAt]
       properties:
         date: { type: string, format: date }
         status: { type: string, enum: [active, paused, finished] }
@@ -3342,6 +3342,9 @@ components:
         lastCheckinAt: { type: ["string", "null"], format: date-time }
         nextCheckinAt: { type: ["string", "null"], format: date-time }
         finishedAt: { type: ["string", "null"], format: date-time }
+        activeElapsedMs: { type: integer, minimum: 0, description: Persisted accumulated active milliseconds before timerAnchorAt }
+        intervalElapsedMs: { type: integer, minimum: 0, description: Persisted cyclic interval progress before timerAnchorAt }
+        timerAnchorAt: { type: ["string", "null"], format: date-time, description: Active timer anchor; null while paused or finished }
     TrackingSessionResult:
       type: object
       required: [session]

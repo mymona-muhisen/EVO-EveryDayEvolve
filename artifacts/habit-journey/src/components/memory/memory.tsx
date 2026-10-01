@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
+import * as Dialog from '@radix-ui/react-dialog';
 import { Link } from 'wouter';
 import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -14,6 +14,7 @@ import { usePhotoUpload } from '@/hooks/use-photo-upload';
 import { invalidateDailyAll } from '@/hooks/use-daily';
 import { SharingButton } from '@/components/social/sharing';
 import { useRewardImage } from '@/components/reward/real-reward';
+import { memoryDayHref } from '@/lib/memory-navigation';
 import type { HabitDay } from '@workspace/api-client-react';
 
 /** Only a saved, scheduled, elapsed day with a real completed check-in may receive a new memory. */
@@ -27,7 +28,28 @@ function Modal(props: Parameters<typeof BaseModal>[0]) {
   // Animated page containers establish fixed-position containing blocks.
   // Keep memory dialogs viewport-bound, but inside fullscreen's focus scope.
   const host = document.querySelector('[data-testid="journey-fullscreen"]') ?? document.body;
-  return createPortal(<BaseModal {...props} />, host);
+  const opener = useRef(document.activeElement as HTMLElement | null);
+  return <Dialog.Root open onOpenChange={open => { if (!open) props.onClose(); }}>
+    <Dialog.Portal container={host}>
+      <Dialog.Overlay dir="rtl" className="fixed inset-0 z-[110] bg-[#102f2ac2] backdrop-blur-[5px] flex items-center justify-center p-4">
+        <Dialog.Content aria-describedby={undefined}
+          className="paper rounded-[24px] p-5 md:p-7 w-full max-w-xl max-h-[90dvh] overflow-auto outline-none"
+          onEscapeKeyDown={event => event.stopPropagation()}
+          onKeyDown={event => { if (event.key === 'Tab' || event.key === 'Escape') event.stopPropagation(); }}
+          onCloseAutoFocus={event => {
+            event.preventDefault();
+            if (opener.current?.isConnected) opener.current.focus({ preventScroll: true });
+            else document.querySelector<HTMLElement>('[data-testid="node-details"]')?.focus({ preventScroll: true });
+          }}>
+          <div className="flex justify-between items-center mb-6">
+            <Dialog.Title className="text-2xl font-bold">{props.title}</Dialog.Title>
+            <button type="button" onClick={props.onClose} className="btn btn-light !px-3" aria-label="إغلاق">×</button>
+          </div>
+          {props.children}
+        </Dialog.Content>
+      </Dialog.Overlay>
+    </Dialog.Portal>
+  </Dialog.Root>;
 }
 
 /** Normalize API photoUrl ('/api/storage/objects/..') or raw object path to '/objects/..' */
@@ -40,11 +62,13 @@ export function refreshMemories(qc: QueryClient, habitId?: number | null, memory
   if (habitId) { qc.invalidateQueries({ queryKey: getGetHabitJourneyQueryKey(habitId) }); invalidateDailyAll(qc, habitId); }
 }
 
-export function MemoryImage({ photoUrl, className = '', alt = 'صورة من الذكرى' }: { photoUrl?: string | null; className?: string; alt?: string }) {
+export function MemoryImage({ photoUrl, className = '', alt = 'صورة من الذكرى', retryable = true }: { photoUrl?: string | null; className?: string; alt?: string; retryable?: boolean }) {
   const img = useRewardImage(memoryPath(photoUrl));
   if (!img.hasPath) return null;
   if (img.status === 'ok' && img.url) return <img src={img.url} alt={alt} className={`${className} object-cover bg-[#eae4d5]`} />;
-  if (img.status === 'error') return <button type="button" onClick={img.retry} data-testid="button-retry-memory-image" className={`${className} bg-[#f6e0d8] text-[#8a4a3a] text-sm flex items-center justify-center gap-2`}><RefreshCw size={15} />تعذّر تحميل الصورة، أعد المحاولة</button>;
+  if (img.status === 'error') return retryable
+    ? <button type="button" onClick={img.retry} data-testid="button-retry-memory-image" className={`${className} bg-[#f6e0d8] text-[#8a4a3a] text-sm flex items-center justify-center gap-2`}><RefreshCw size={15} />تعذّر تحميل الصورة، أعد المحاولة</button>
+    : <span className={`${className} bg-[#f6e0d8] text-[#8a4a3a] text-sm flex items-center justify-center`} role="img" aria-label="تعذّر عرض صورة الذكرى">تعذّر عرض الصورة</span>;
   return <div className={`${className} skeleton`} aria-label="تحميل الصورة" />;
 }
 
@@ -106,9 +130,9 @@ export function MemoryCaptureDialog({ habitId, date, dayLabel, onClose, onSaved 
   </div></Modal>;
 }
 
-export function MemoryDetailDialog({ memory, onClose }: { memory: Memory; onClose: () => void }) {
+export function MemoryDetailDialog({ memory, onClose, startDelete = false }: { memory: Memory; onClose: () => void; startDelete?: boolean }) {
   const orig = memoryText(memory), long = orig.length > 300;
-  const [text, setText] = useState(long ? '' : orig), [confirm, setConfirm] = useState(false);
+  const [text, setText] = useState(long ? '' : orig), [confirm, setConfirm] = useState(startDelete);
   const upd = useUpdateMemory(), del = useDeleteMemory(), qc = useQueryClient();
   const dirty = long ? text.trim().length > 0 : text.trim() !== orig;
   const clearAll = () => upd.mutate({ memoryId: memory.id, data: { caption: null } }, { onSuccess: () => { refreshMemories(qc, memory.journeyId, memory.id); toast.success('مُسحت الكلمة'); }, onError: () => toast.error('تعذّر مسح الكلمة') });
@@ -122,7 +146,7 @@ export function MemoryDetailDialog({ memory, onClose }: { memory: Memory; onClos
     onError: () => toast.error('تعذّر حذف الذكرى'),
   });
   return <Modal title={linked ? `اليوم ${memory.dayNumber} من ${memory.journeyLength ?? 22}` : 'ذكرى قديمة'} onClose={onClose}><div className="space-y-4" dir="rtl" data-testid="memory-detail">
-    <MemoryImage photoUrl={memory.photoUrl} className="w-full max-h-[360px] min-h-[120px] rounded-2xl" />
+    <MemoryImage photoUrl={memory.photoUrl} className="w-full max-h-[65dvh] min-h-[120px] rounded-2xl !object-contain" />
     <div className="text-sm space-y-1"><div className="eyebrow">{arDate(memory.date.slice(0, 10))}</div>
       {linked ? <div className="muted">{memory.habitTitle}{memory.actualValue != null && ` · أنجزت ${memory.actualValue}${memory.targetValue != null ? ` من ${memory.targetValue}` : ''}`}{memory.difficulty && ` · ${DIFF_AR[memory.difficulty] ?? ''}`}</div>
         : <div className="muted">ذكرى سابقة غير مرتبطة بيوم محدد من رحلة.</div>}</div>
@@ -140,23 +164,26 @@ export function MemoryDetailDialog({ memory, onClose }: { memory: Memory; onClos
   </div></Modal>;
 }
 
-export function MemoryDetailById({ memoryId, onClose }: { memoryId: number; onClose: () => void }) {
-  const q = useGetMemory(memoryId, { query: { queryKey: getGetMemoryQueryKey(memoryId) } });
-  if (q.data) return <MemoryDetailDialog key={q.data.id} memory={q.data} onClose={onClose} />;
+export function MemoryDetailById({ memoryId, onClose, startDelete = false }: { memoryId: number; onClose: () => void; startDelete?: boolean }) {
+  const q = useGetMemory(memoryId, { query: { queryKey: getGetMemoryQueryKey(memoryId), refetchOnMount: 'always' } });
+  if (q.data) return <MemoryDetailDialog key={q.data.id} memory={q.data} onClose={onClose} startDelete={startDelete} />;
   return <Modal title="الذكرى" onClose={onClose}><div dir="rtl" data-testid="memory-detail-state">{q.isError ? <div className="space-y-3"><p role="alert" className="text-sm">تعذّر تحميل الذكرى.</p><button type="button" className="btn min-h-11" onClick={() => q.refetch()}>أعد المحاولة</button></div> : <div className="skeleton h-40" />}</div></Modal>;
 }
 
 /** Optional prompt after authoritative success. Never blocks Done. */
 export function MemoryPrompt({ habitId, date, dayNumber, memoryId, canCreate = true }: { habitId: number; date: string; dayNumber?: number; memoryId?: number | null; canCreate?: boolean }) {
-  const [open, setOpen] = useState(false), [detail, setDetail] = useState(false);
+  const [open, setOpen] = useState(false), [detail, setDetail] = useState(false), [later, setLater] = useState(false);
   const one = useGetMemory(memoryId ?? 0, { query: { queryKey: getGetMemoryQueryKey(memoryId ?? 0), enabled: !!memoryId } });
   const mem = memoryId ? one.data : undefined;
-  if (!memoryId && !canCreate) return null;
-  return <div className="rounded-2xl bg-[#e9efe3] p-4 mt-4 flex items-center gap-3 min-w-0" data-testid="block-memory-prompt">
+  if (!memoryId && (!canCreate || later)) return null;
+  return <div className="rounded-2xl bg-[#e9efe3] p-4 mt-4 flex flex-wrap items-center gap-3 min-w-0" data-testid="block-memory-prompt">
     {mem ? <div className="w-14 h-14 shrink-0 rounded-xl overflow-hidden"><MemoryImage photoUrl={mem.photoUrl} className="w-14 h-14" /></div> : <Camera size={22} className="text-[#41725e] shrink-0" />}
-    <div className="min-w-0 flex-1"><b className="block">{memoryId ? 'لهذا اليوم ذكرى' : 'التقط هذه اللحظة'}</b><span className="text-xs muted">{memoryId ? 'يمكنك تحديد من يرى هذه الذكرى.' : 'اختياري. يمكنك العودة إليها لاحقًا.'}</span></div>
-    {memoryId ? <button type="button" className="btn btn-light min-h-11" data-testid="button-memory-view" onClick={() => setDetail(true)}>عرض</button>
+    <div className="min-w-[100px] flex-1"><b className="block">{memoryId ? 'لهذا اليوم ذكرى' : 'التقط هذه اللحظة'}</b><span className="text-xs muted">{memoryId ? 'يمكنك تحديد من يرى هذه الذكرى.' : 'اختياري. يمكنك العودة إليها لاحقًا.'}</span></div>
+    {memoryId ? mem && memoryDayHref(mem)
+      ? <Link href={memoryDayHref(mem)!} className="btn btn-light min-h-11" data-testid="button-memory-view">افتح يوم الذكرى</Link>
+      : <button type="button" className="btn btn-light min-h-11" data-testid="button-memory-view" onClick={() => setDetail(true)}>عرض</button>
       : <button type="button" className="btn btn-light min-h-11" data-testid="button-memory-add" onClick={() => setOpen(true)}>أضف ذكرى</button>}
+    {!memoryId && <button type="button" className="text-xs underline min-h-11 shrink-0" data-testid="button-memory-later" onClick={() => setLater(true)}>ربما لاحقًا</button>}
     {open && <MemoryCaptureDialog habitId={habitId} date={date.slice(0, 10)} dayLabel={dayNumber ? `اليوم ${dayNumber}` : undefined} onClose={() => setOpen(false)} />}
     {detail && memoryId && <MemoryDetailById memoryId={memoryId} onClose={() => setDetail(false)} />}
   </div>;
@@ -164,19 +191,37 @@ export function MemoryPrompt({ habitId, date, dayNumber, memoryId, canCreate = t
 
 /** Memory section inside the journey node details. */
 export function DayMemory({ habitId, date, dayNumber, memoryId, canCreate }: { habitId: number; date: string; dayNumber: number; memoryId?: number | null; canCreate: boolean }) {
-  return <MemoryPrompt habitId={habitId} date={date} dayNumber={dayNumber} memoryId={memoryId} canCreate={canCreate} />;
+  const q = useGetMemory(memoryId ?? 0, { query: { queryKey: getGetMemoryQueryKey(memoryId ?? 0), enabled: !!memoryId, refetchOnMount: 'always', refetchOnWindowFocus: true, staleTime: 15000 } });
+  const [action, setAction] = useState<'view' | 'delete' | null>(null);
+  if (!memoryId) return <MemoryPrompt key={`${habitId}:${date}`} habitId={habitId} date={date} dayNumber={dayNumber} canCreate={canCreate} />;
+  return <div className="rounded-2xl bg-[#e9efe3] p-4 space-y-3" data-testid="day-memory">
+    <h3 className="font-bold flex items-center gap-2"><Camera size={17} aria-hidden="true" />ذكرى هذا اليوم</h3>
+    {!q.data ? q.isError
+      ? <div role="alert" className="text-sm"><p>تعذّر تحميل الذكرى. إنجاز يومك محفوظ.</p><button type="button" className="btn btn-light min-h-11 mt-2" onClick={() => q.refetch()}>أعد المحاولة</button></div>
+      : <div className="skeleton h-40" aria-label="تحميل ذكرى اليوم" />
+      : <>
+        <MemoryImage photoUrl={q.data.photoUrl} className="w-full max-h-[240px] min-h-[100px] rounded-xl" alt={`ذكرى اليوم ${dayNumber}`} />
+        {memoryText(q.data) && <p className="text-sm whitespace-pre-wrap break-words" data-testid="text-day-memory-caption">{memoryText(q.data)}</p>}
+        <div className="flex flex-wrap gap-2">
+          <button type="button" className="btn btn-light min-h-11" data-testid="button-day-memory-view" onClick={() => setAction('view')}>عرض أكبر / تعديل الكلمة</button>
+          <button type="button" className="btn btn-light min-h-11" data-testid="button-day-memory-delete" onClick={() => setAction('delete')}><Trash2 size={14} aria-hidden="true" />حذف الذكرى</button>
+        </div>
+        <p className="text-xs muted">خاصة بك ما لم تختر مشاركتها. الصورة ليست إثباتًا للعادة.</p>
+        {action && <MemoryDetailById key={action} memoryId={memoryId} startDelete={action === 'delete'} onClose={() => setAction(null)} />}
+      </>}
+  </div>;
 }
 
 /** Recap grid of journey memories. */
 export function JourneyMemories({ habitId }: { habitId: number }) {
   const q = useListMemories({ habitId }, { query: { queryKey: getListMemoriesQueryKey({ habitId }) } });
-  const [sel, setSel] = useState<number | null>(null);
-  const linked = (q.data ?? []).filter(m => m.habitDayId != null);
-  if (q.isLoading || q.isError || !linked.length) return null;
+  const linked = (q.data ?? []).filter(m => memoryDayHref(m) != null);
+  if (q.isLoading) return <div className="skeleton h-24 mb-4" aria-label="تحميل ذكريات الرحلة" />;
+  if (q.isError && !q.data) return <div className="paper rounded-2xl p-5 mb-4 text-sm"><p>تعذّر تحميل ذكريات الرحلة. إنجازك محفوظ.</p><button type="button" className="btn btn-light min-h-11 mt-2" onClick={() => q.refetch()}>أعد المحاولة</button></div>;
+  if (!linked.length) return null;
   return <div className="paper rounded-2xl p-5 mb-4" data-testid="recap-memories"><div className="eyebrow flex items-center gap-2 mb-3"><BookHeart size={15} />ذكريات الرحلة · {linked.length}</div>
-    <div className="grid grid-cols-3 gap-2">{linked.map(m => <button key={m.id} type="button" onClick={() => setSel(m.id)} aria-label={`ذكرى اليوم ${m.dayNumber}`} className="rounded-xl overflow-hidden aspect-square"><MemoryImage photoUrl={m.photoUrl} className="w-full h-full" /></button>)}</div>
-    <Link href="/memories" className="text-sm underline mt-3 inline-block">كل ذكرياتي</Link>
-    {sel && <MemoryDetailById memoryId={sel} onClose={() => setSel(null)} />}
+    <div className="grid grid-cols-3 gap-2">{linked.map(m => <Link key={m.id} href={memoryDayHref(m)!} aria-label={`افتح ذكرى اليوم ${m.dayNumber} في الرحلة`} className="rounded-xl overflow-hidden min-h-11 relative"><MemoryImage photoUrl={m.photoUrl} retryable={false} className="w-full aspect-square" /><span className="block text-xs text-center py-2">اليوم {m.dayNumber}</span></Link>)}</div>
+    <Link href="/memories" className="text-sm underline mt-3 inline-flex items-center min-h-11">سجل ذكريات رحلاتي</Link>
   </div>;
 }
 

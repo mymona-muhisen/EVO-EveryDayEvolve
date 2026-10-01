@@ -13,10 +13,10 @@ import { ensureUser } from "../lib/userService";
 import { toDateOnly, coerceQueryDates } from "../lib/dates";
 import { categories, getTrackedDay } from "../lib/trackedDay";
 import { getCachedTrackedAnalysis } from "../lib/trackedAnalysisCache";
+import { accrueTimer } from "../lib/trackingTimer";
 
 const router: IRouter = Router();
 router.use(requireAuth);
-const intervalAfter = (now: Date, minutes: number) => new Date(now.getTime() + minutes * 60_000);
 const whereSession = (userId: string, date: string) =>
   and(eq(trackingSessionsTable.userId, userId), eq(trackingSessionsTable.date, date));
 
@@ -40,42 +40,59 @@ router.post("/time-tracking/session", async (req, res): Promise<void> => {
   }
   const date = toDateOnly(parsed.data.date);
   const userId = req.userId!;
-  const now = new Date();
   const result = await db.transaction(async tx => {
+    const startAt = new Date();
     if (action === "start") {
       await tx.insert(trackingSessionsTable).values({
         userId, date, status: "active", intervalMinutes: intervalMinutes!,
-        startedAt: now, lastCheckinAt: now, nextCheckinAt: intervalAfter(now, intervalMinutes!),
+        startedAt: startAt, lastCheckinAt: null, nextCheckinAt: null,
+        timerAnchorAt: startAt, activeElapsedMs: 0, intervalElapsedMs: 0,
       }).onConflictDoNothing();
     }
     const [session] = await tx.select().from(trackingSessionsTable)
       .where(whereSession(userId, date)).for("update");
     if (!session) return { error: "Start tracking first", status: 404 };
+    const now = new Date();
     if (action === "start") {
-      if (session.status !== "finished" && session.startedAt.getTime() !== now.getTime()) {
-        return { error: "Tracking already started", status: 409 };
-      }
+      if (session.status === "active") return { session };
+      if (session.status === "paused") return { error: "Resume paused tracking", status: 409 };
       if (session.status === "finished") {
         const [updated] = await tx.update(trackingSessionsTable).set({
           status: "active", finishedAt: null, intervalMinutes: intervalMinutes!,
-          lastCheckinAt: now, nextCheckinAt: intervalAfter(now, intervalMinutes!),
+          intervalElapsedMs: 0, timerAnchorAt: now, nextCheckinAt: null,
         }).where(eq(trackingSessionsTable.id, session.id)).returning();
         return { session: updated };
       }
-      return { session };
+    }
+    if (action === "pause" && session.status === "paused") return { session };
+    if (action === "resume" && session.status === "active") return { session };
+    if (action === "finish" && session.status === "finished") return { session };
+    if (action === "interval" && session.status === "finished") {
+      return { error: "Finished tracking cannot change interval", status: 409 };
     }
     if (action === "pause" && session.status !== "active" ||
-      action === "resume" && session.status !== "paused" ||
-      action === "finish" && session.status === "finished" ||
-      action === "interval" && session.status === "finished") {
+      action === "resume" && session.status !== "paused") {
       return { error: "Tracking state has changed; refresh the page", status: 409 };
     }
-    const changes = action === "pause" ? { status: "paused", nextCheckinAt: null } :
-      action === "resume" ? { status: "active", lastCheckinAt: now,
-        nextCheckinAt: intervalAfter(now, session.intervalMinutes) } :
-      action === "finish" ? { status: "finished", finishedAt: now, nextCheckinAt: null } :
-      { intervalMinutes: intervalMinutes!, lastCheckinAt: now,
-        nextCheckinAt: session.status === "active" ? intervalAfter(now, intervalMinutes!) : null };
+    const accrued = session.status === "active"
+      ? accrueTimer(session, now)
+      : session;
+    const changes = action === "pause" ? {
+      status: "paused", activeElapsedMs: accrued.activeElapsedMs,
+      intervalElapsedMs: accrued.intervalElapsedMs, timerAnchorAt: null, nextCheckinAt: null,
+    } : action === "resume" ? {
+      status: "active", timerAnchorAt: now, nextCheckinAt: null,
+    } : action === "finish" ? {
+      status: "finished", finishedAt: now, nextCheckinAt: null,
+      activeElapsedMs: accrued.activeElapsedMs, intervalElapsedMs: accrued.intervalElapsedMs,
+      timerAnchorAt: null,
+    } : {
+      intervalMinutes: intervalMinutes!,
+      activeElapsedMs: accrued.activeElapsedMs,
+      intervalElapsedMs: accrued.intervalElapsedMs % (intervalMinutes! * 60_000),
+      timerAnchorAt: session.status === "active" ? now : null,
+      nextCheckinAt: null,
+    };
     const [updated] = await tx.update(trackingSessionsTable).set(changes)
       .where(eq(trackingSessionsTable.id, session.id)).returning();
     return { session: updated };
@@ -93,25 +110,24 @@ router.post("/time-tracking/check-in", async (req, res): Promise<void> => {
     res.status(400).json({ error: "Name the other activity" }); return;
   }
   const date = toDateOnly(parsed.data.date);
-  const now = new Date();
   const result = await db.transaction(async tx => {
     const [session] = await tx.select().from(trackingSessionsTable)
       .where(whereSession(req.userId!, date)).for("update");
-    if (!session || session.status !== "active" || !session.lastCheckinAt) {
+    if (!session || session.status !== "active") {
       return { error: "Tracking is not active", status: 409 };
     }
-    const elapsed = now.getTime() - session.lastCheckinAt.getTime();
-    if (elapsed < 60_000) return { error: "Wait at least a minute between check-ins", status: 409 };
-    const durationMinutes = Math.max(1, Math.min(session.intervalMinutes, Math.round(elapsed / 60_000)));
+    const now = new Date();
+    // A check-in is explicit self-reporting. Its duration is the selected
+    // granularity, never inferred from time since a prior check-in.
+    const durationMinutes = session.intervalMinutes;
     const startTime = new Date(now.getTime() - durationMinutes * 60_000);
     const [entry] = await tx.insert(timeEntriesTable).values({
       userId: req.userId!, date, category, source: "check_in",
       label: category === "other" ? label!.trim() : categories[category],
       durationMinutes, startTime, endTime: now,
     }).returning();
-    await tx.update(trackingSessionsTable).set({
-      lastCheckinAt: now, nextCheckinAt: intervalAfter(now, session.intervalMinutes),
-    }).where(eq(trackingSessionsTable.id, session.id));
+    await tx.update(trackingSessionsTable).set({ lastCheckinAt: now })
+      .where(eq(trackingSessionsTable.id, session.id));
     return { entry };
   });
   if ("error" in result) { res.status(result.status ?? 409).json({ error: result.error }); return; }

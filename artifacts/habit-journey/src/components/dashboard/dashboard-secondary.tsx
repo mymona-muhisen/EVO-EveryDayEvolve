@@ -10,6 +10,7 @@ import { CharacterAvatar, CHARACTER_STILL } from '@/components/character/charact
 import { MemoryImage } from '@/components/memory/memory';
 import { newRequestId } from '@/components/social/social-common';
 import { dayKey } from '@/lib/daily';
+import { memoryDayHref } from '@/lib/memory-navigation';
 import { Retry, bad } from './dashboard-sections';
 
 /* ---------- time ---------- */
@@ -19,12 +20,11 @@ export function TimeCard({ d, onRetry, primary = false }: { d: DashboardHome; on
   const [err, setErr] = useState(false);
   if (bad(st)) return <Retry what="ملخص الوقت" onRetry={onRetry} />;
   const s = t?.session, active = s && (s.status as string) !== 'finished' && (s.status as string) !== 'paused', paused = (s?.status as string) === 'paused';
-  const next = s?.nextCheckinAt ? new Intl.DateTimeFormat('ar', { hour: 'numeric', minute: '2-digit', timeZone: d.timezone }).format(new Date(s.nextCheckinAt)) : null;
   const toggle = (action: 'pause' | 'resume') => { setErr(false); change.mutate({ data: { date: dayKey(d.date), action } }, { onError: () => setErr(true) }); };
   return <section aria-label="وقتك اليوم" data-testid="section-time" className={primary ? "rounded-[26px] bg-[#dce8d7] border-2 border-[#245448] p-6 min-w-0 text-base" : "paper rounded-[20px] p-5 min-w-0"}>
     <div className="flex items-center gap-2 eyebrow"><Clock3 size={15} aria-hidden="true" /> مرآة يومك</div>
     {t && (active || paused) && s && <div className="mt-2 text-sm"><span className="badge">{paused ? 'التتبع متوقف مؤقتًا' : 'التتبع يعمل'}</span>
-      <p className="mt-2">المؤكَّد: <b>{t.trackedMinutes}</b> دقيقة · كل {s.intervalMinutes} دقيقة{next && !paused ? ` · التسجيل القادم ${next}` : ''}</p>
+      <p className="mt-2">المؤكَّد: <b>{t.trackedMinutes}</b> دقيقة · فترة التتبّع: {s.intervalMinutes} دقيقة</p>
       <button type="button" disabled={change.isPending} className="btn btn-light min-h-11 mt-3" data-testid="button-tracking-toggle" onClick={() => toggle(paused ? 'resume' : 'pause')}>{paused ? <><Play size={15} aria-hidden="true" /> استئناف</> : <><Pause size={15} aria-hidden="true" /> إيقاف مؤقت</>}</button>
       {err && <p role="alert" className="text-xs text-[#8a4a36] mt-2">تعذّر التحديث. حاول مجددًا.</p>}</div>}
     {t && !active && !paused && (t.trackedMinutes > 0 ? <p className="mt-2 text-sm">المؤكَّد اليوم: <b>{t.trackedMinutes}</b> دقيقة</p> : <p className="mt-2 text-sm muted">لا وقت مؤكَّد بعد اليوم.</p>)}
@@ -106,10 +106,11 @@ export function PeopleCard({ d, onRetry }: { d: DashboardHome; onRetry: () => vo
 
 export function MemoryCard({ d }: { d: DashboardHome }) {
   const m = d.memory; if (!m) return null;
+  const href = memoryDayHref(m); if (!href) return null;
   const text = (m.caption ?? m.note ?? '').trim();
-  return <Link href="/memories" data-testid="section-memory" className="paper rounded-[20px] p-4 flex gap-3 items-center min-h-11 min-w-0">
-    {m.photoUrl && <div className="w-14 h-14 rounded-xl overflow-hidden shrink-0"><MemoryImage photoUrl={m.photoUrl} className="w-14 h-14" /></div>}
-    <div className="min-w-0 flex-1"><div className="eyebrow">ذكرى اليوم</div><p className="text-sm truncate">{text || 'ذكرى محفوظة لهذا اليوم'}</p></div></Link>;
+  return <Link href={href} data-testid="section-memory" className="paper rounded-[20px] p-4 flex gap-3 items-center min-h-11 min-w-0">
+    {m.photoUrl && <div className="w-14 h-14 rounded-xl overflow-hidden shrink-0"><MemoryImage photoUrl={m.photoUrl} retryable={false} className="w-14 h-14" /></div>}
+    <div className="min-w-0 flex-1"><div className="eyebrow">ذكرى اليوم {m.dayNumber} من رحلتك</div><p className="text-sm truncate">{text || 'ذكرى محفوظة لهذا اليوم'}</p><span className="text-xs underline">افتح يومها على الخريطة</span></div></Link>;
 }
 
 
