@@ -2,6 +2,7 @@
 
 - [EVO branding](product-brand.md) — user chose the name EVO and prefers the supplied transparent logo.
 - [Workflow listener state](workflow-listener-state.md) — EADDRINUSE with a failed workflow can mean a healthy older listener survives; check HTTP and exact process ownership.
+- [GitHub authorization channels](github-authorization-channels.md) — connector access does not guarantee valid shell Git credentials; verify the channel actually used.
 
 - [Vite stale cache causes phantom dev errors](vite-stale-cache.md) — clear `node_modules/.vite`/`.vite-temp` + restart before suspecting the package itself.
 - [Orval Zod date boundaries](orval-zod-date-query-params.md) — path/query dates need explicit coercion; response date parsing may serialize as ISO timestamps rather than YYYY-MM-DD.
