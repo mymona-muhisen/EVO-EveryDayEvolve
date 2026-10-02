@@ -1,5 +1,8 @@
 # Memory Index
 
+- [EVO branding](product-brand.md) — user chose the name EVO and prefers the supplied transparent logo.
+- [Workflow listener state](workflow-listener-state.md) — EADDRINUSE with a failed workflow can mean a healthy older listener survives; check HTTP and exact process ownership.
+
 - [Vite stale cache causes phantom dev errors](vite-stale-cache.md) — clear `node_modules/.vite`/`.vite-temp` + restart before suspecting the package itself.
 - [Orval Zod date boundaries](orval-zod-date-query-params.md) — path/query dates need explicit coercion; response date parsing may serialize as ISO timestamps rather than YYYY-MM-DD.
 - [Time-gated E2E fixtures](e2e-testing-time-gated-state.md) — seed calendar and immutable day plans coherently; start-date-only shifts create false progress defects.
