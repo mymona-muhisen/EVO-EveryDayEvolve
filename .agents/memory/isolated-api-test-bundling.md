@@ -14,3 +14,9 @@ An isolated database fixture must include every table exercised by the imported 
 **Why:** Adding a dashboard assertion to a reward test reached an existing time-awareness query; the incomplete fixture produced an HTTP 500 even though the development schema was correct. A shared upload-provenance schema change also made an older isolated cover-image test return 500 before reaching its expected ownership rejection.
 
 **How to apply:** When extending a route integration harness, account for its read dependencies as well as its writes. Sync shared-table fixture columns across affected harnesses, even when new fields do not appear in the tested request. Distinguish fixture/schema failures from application failures before changing production behavior.
+
+Passing isolated HTTP tests does not establish that the live development schema has been reconciled after a merge.
+
+**Why:** Upload tests with complete fixtures passed while the running upload endpoint failed because the live development database lacked the newly merged cleanup columns.
+
+**How to apply:** After a schema-changing merge, confirm the required columns on the explicit development target before relying on fixture-based tests as evidence that the live feature works.
