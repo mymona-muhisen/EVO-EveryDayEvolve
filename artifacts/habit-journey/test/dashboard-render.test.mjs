@@ -237,6 +237,9 @@ test('reward preview reports calendar progress without claim or purchase control
   assert.match(html, /data-testid="section-reward"/);
   assert.match(text(html), /الحالة: قيد الانتظار/);
   assert.match(html, /aria-valuemax="22" aria-valuenow="8"/);
+  assert.match(html, /href="\/habits\/1\/journey\?reward=1"/);
+  assert.match(html, /src="\/assets\/journey-gift\.png"/);
+  assert.doesNotMatch(html, /href="\/rewards"/);
   assert.doesNotMatch(html, /data-testid="button-claim|data-testid="button-purchase"/);
 });
 

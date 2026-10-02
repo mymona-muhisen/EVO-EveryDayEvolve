@@ -1,0 +1,461 @@
+FEATURE: REBUILD JOURNEY PAGE AS A MAP-FIRST EXPERIENCE
+
+The current Journey page is implemented incorrectly as a large dashboard split between:
+- a day/details panel
+- a relatively small map
+- a fixed right sidebar
+
+I need the Journey experience to be MAP-FIRST.
+
+IMPORTANT:
+Do not redesign the existing visual identity or replace the existing island assets.
+Reuse the current islands, path, character and journey visual components.
+The goal is to restructure the UX/layout and integrate Memories + Reward into the Journey itself.
+
+==================================================
+1. CORE UX PRINCIPLE
+==================================================
+
+Journey is not a dashboard with a map beside it.
+
+Journey IS the visual map/world.
+
+The map must be the dominant element of the screen.
+
+The user should feel like they are traveling through a world,
+not looking at analytics.
+
+The visual hierarchy must be:
+
+1. Large journey map
+2. Current journey progress / current day
+3. Day nodes and character
+4. Memories attached to days
+5. Reward attached to the journey/final destination
+6. Day details shown only when needed
+
+==================================================
+2. REMOVE THE CURRENT LARGE DAY PANEL
+==================================================
+
+Do NOT permanently reserve a large left-side panel for the current day.
+
+The existing day information card currently takes too much space.
+
+Replace it with:
+
+- compact overlay HUD for current journey status
+- clickable day nodes on the map
+- a collapsible Day Details panel/modal
+
+The day details panel should open only when:
+- the user clicks a day node
+- the user clicks "Go to today"
+- the user explicitly opens current day details
+
+When closed, the map should reclaim the full available space.
+
+==================================================
+3. MAP MUST OCCUPY MOST OF THE SCREEN
+==================================================
+
+Desktop target:
+
+- map workspace should occupy approximately 70–80%+ of the usable viewport
+- map height should use almost the entire viewport below the header
+- do not constrain the map to a small fixed-size card
+- avoid large empty margins around the map
+- eliminate the current visual feeling of a small map inside a large container
+
+Do NOT use a narrow fixed map viewport.
+
+Use responsive sizing based on the viewport.
+
+The journey workspace should approximately behave like:
+
+height: calc(100vh - journey-header-height)
+
+width: available viewport excluding only the minimal navigation space.
+
+The existing map assets must scale responsively.
+
+==================================================
+4. FULLSCREEN MODE MUST BE REAL FULLSCREEN
+==================================================
+
+The current "ملء الشاشة" behavior does not give a sufficiently large map.
+
+Implement a real Journey fullscreen mode.
+
+When fullscreen is activated:
+
+- hide the normal right navigation/sidebar
+- hide unnecessary page controls
+- hide or collapse the large day panel
+- expand the map to nearly 100vw × 100vh
+- keep only a minimal HUD:
+  - current day / total days
+  - journey progress
+  - exit fullscreen button
+
+The user should feel that they entered the Journey world.
+
+Do not leave large UI chrome around the map.
+
+==================================================
+5. REMOVE INTERNAL VERTICAL SCROLLBAR FROM THE MAP EXPERIENCE
+==================================================
+
+The current implementation shows a vertical scrollbar inside the map area.
+
+Remove this pattern.
+
+Do not make the map a vertically scrolling webpage inside a smaller card.
+
+Instead:
+- fit the journey world responsively
+- use proper positioning/scaling
+- use overflow hidden where appropriate
+- if panning/zooming is necessary, implement it as map interaction rather than a browser-like inner scrollbar
+
+Do not crop the world because of arbitrary fixed heights.
+
+==================================================
+6. MEMORY MUST BELONG TO JOURNEY DAY
+==================================================
+
+Memories must not feel like a separate feature/window.
+
+Primary relationship:
+
+Journey
+→ Habit
+→ Journey Day
+→ Optional Memory
+
+Each journey day can have:
+- 0 or 1 memory in V1
+- photo
+- optional caption
+
+After successful completion of a day, the user can see:
+
+"التقط هذه اللحظة 📸"
+
+with:
+- إضافة ذكرى
+- ربما لاحقاً
+
+Memory upload must NEVER be required for day completion.
+
+Memory upload failure must NEVER affect:
+- habit completion
+- XP
+- coins
+- journey progress
+- reward progress
+
+==================================================
+7. SHOW MEMORY DIRECTLY ON THE MAP
+==================================================
+
+If a journey day has a memory:
+
+show a small camera/photo indicator directly on that day's map node.
+
+Example conceptual state:
+
+Day 1 ✓
+Day 2 ✓ 📷
+Day 3 •
+Day 4 🔒
+
+Clicking Day 2 should open Day Details containing:
+- completion state
+- target/minimum
+- memory thumbnail/photo
+- caption
+- edit memory
+- delete memory
+
+The primary way to access a memory is therefore:
+
+MAP → DAY NODE → DAY DETAILS → MEMORY
+
+NOT:
+
+Sidebar → Memories page
+
+A separate "Memories Gallery" page can remain as secondary history,
+but it must not be the main Journey memory experience.
+
+==================================================
+8. REWARD MUST BELONG TO THE JOURNEY
+==================================================
+
+The reward is NOT a separate feature/window inside the Journey UX.
+
+The reward is part of the Journey world.
+
+Represent the reward as a visual landmark connected to the journey,
+especially the final destination / Final Island.
+
+The map should show a Reward landmark.
+
+States:
+
+LOCKED:
+🏆 المكافأة
+"تنتظرك عند نهاية الرحلة"
+
+IN PROGRESS:
+🏆
+"بقي X يوم"
+
+UNLOCKED:
+🏆
+"مكافأتك جاهزة!"
+
+The Reward landmark must be clickable.
+
+Clicking it opens a small Reward Detail panel/modal containing:
+- reward title
+- description
+- optional image
+- progress
+- locked/unlocked state
+- claim action if unlocked
+
+Do NOT navigate the user to a separate Rewards page just to inspect the reward.
+
+==================================================
+9. FINAL ISLAND = REWARD DESTINATION
+==================================================
+
+Use the existing Final Island as the visual destination of the journey.
+
+The final destination should communicate:
+
+"وصلت"
+
+and contain the reward destination/celebration.
+
+The Reward should visually belong to the Final Island rather than appearing as an unrelated UI card.
+
+Do not imply that the reward exists independently from the journey.
+
+Journey progress should naturally lead toward the Final Island / Reward.
+
+==================================================
+10. DAY NODES MUST BE THE INTERACTIVE STRUCTURE
+==================================================
+
+Each journey day is a map station/node.
+
+States:
+
+- completed
+- current
+- available
+- locked
+- completed + memory
+- reward/final destination
+
+Clicking a node opens Day Details.
+
+The current user's character should occupy the current journey position.
+
+The character position must update based on actual journey progress.
+
+==================================================
+11. MAP SHOULD FEEL LIKE A WORLD
+==================================================
+
+Use the existing islands as the actual journey world.
+
+Do not convert the journey into a generic vertical progress timeline.
+
+Preferred structure:
+
+Island 1 → early days
+Island 2 → middle days
+Island 3 → later days
+Island 4 → advanced days
+Final Island → Day 22 / completion / reward
+
+Existing island assets should be reused.
+
+The map path should visually connect the islands.
+
+Milestones/stations can appear on islands as the journey progresses.
+
+==================================================
+12. CURRENT JOURNEY HEADER
+==================================================
+
+Keep a compact header such as:
+
+رحلة الركض
+
+اليوم 2 من 22
+
+الالتزام: 2 نجاح • 2 أيام مجدولة
+
+Do NOT let this header consume too much vertical space.
+
+It should support the map, not compete with it.
+
+==================================================
+13. "GO TO TODAY"
+==================================================
+
+Keep a prominent but compact action:
+
+"اذهب إلى اليوم 2"
+
+Clicking it should:
+- focus/center the map on current day
+- highlight current node
+- move/position the character correctly
+- optionally open current day details only if useful
+
+==================================================
+14. DAY DETAILS PANEL
+==================================================
+
+When a user clicks a day:
+
+Open a compact panel/modal.
+
+Example:
+
+اليوم 2
+
+الهدف: 60 دقيقة
+الحد الأدنى: 60 دقيقة
+
+✓ ناجح
+
+التحدي:
+صعبة جداً
+
+📸 ذكرى اليوم
+[thumbnail]
+"..." 
+
+Actions:
+- عرض الذكرى
+- تعديل
+- إغلاق
+
+For a day without memory:
+
+📷 التقط هذه اللحظة
+[أضف ذكرى]
+[ربما لاحقاً]
+
+The map remains visible behind the panel.
+
+==================================================
+15. RESPONSIVE BEHAVIOR
+==================================================
+
+Desktop:
+- map dominant
+- day details overlay/panel
+- right navigation minimized when possible
+
+Fullscreen:
+- map nearly entire viewport
+- minimal HUD
+
+Tablet:
+- map remains dominant
+- details panel becomes overlay
+
+Mobile:
+- map remains the main visual
+- details open as bottom sheet/modal
+- do not recreate the current three-column layout
+
+==================================================
+16. DO NOT BREAK EXISTING LOGIC
+==================================================
+
+Preserve:
+- current journey progress
+- day completion
+- streak/consistency
+- character movement
+- XP
+- coins
+- reward state
+- memory storage
+- authentication
+- existing APIs
+
+This task is primarily a UX/layout/integration correction.
+
+Do NOT duplicate reward or memory data models.
+
+Use existing backend data whenever possible.
+
+==================================================
+17. REMOVE REDUNDANT JOURNEY-SIDE FEATURES
+==================================================
+
+The Journey page should not behave like a list of unrelated tools.
+
+Do not make these primary Journey elements:
+
+- separate Memories window
+- separate Rewards window
+- large analytics card
+- large permanently-open day dashboard
+
+Journey should visually unify:
+
+MAP + DAYS + CHARACTER + MEMORIES + REWARD
+
+==================================================
+18. ACCEPTANCE CRITERIA
+==================================================
+
+1. On desktop, the map is the dominant visual area.
+2. The previous large permanent day panel no longer consumes half the page.
+3. The map no longer looks like a small card.
+4. No internal vertical scrollbar is visible inside the main map experience.
+5. Fullscreen expands the journey map to almost the entire viewport.
+6. Memories are attached to Journey Days.
+7. A day with a memory shows a memory/camera indicator on the map.
+8. Clicking that day reveals the memory in Day Details.
+9. Reward is represented visually on the Journey map.
+10. Reward can be opened from the map without navigating to a separate rewards screen.
+11. Final Island acts as the journey destination.
+12. Character remains part of the map and reflects current progress.
+13. Existing backend logic and data remain intact.
+14. Existing island assets are reused.
+15. Memory and Reward feel like part of the same journey system, not separate modules.
+16. The page should feel like an interactive journey/world rather than an analytics dashboard.
+
+==================================================
+19. IMPORTANT VISUAL TEST
+==================================================
+
+After implementation, test the page at:
+
+- 1920×1080 desktop
+- 1600×900 desktop
+- 1366×768 laptop
+
+At each size verify that the map remains the dominant area.
+
+Also test fullscreen.
+
+Take a screenshot before/after and compare:
+
+CURRENT PROBLEM:
+small map + large day panel + sidebar
+
+DESIRED:
+large immersive map + compact HUD + on-demand details

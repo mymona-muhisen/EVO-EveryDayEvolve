@@ -110,3 +110,6 @@ h1,h2,h3,h4 { font-family: var(--font-display); }
 .cl-cardBox { border: 1px solid #e8dfcb; box-shadow: 0 20px 60px rgba(27,63,54,.1); }
 .cl-formButtonPrimary:hover { background: #346b58; }
 @media (prefers-reduced-motion: reduce) { *,*::before,*::after { animation-duration: .01ms!important; transition-duration: .01ms!important; scroll-behavior: auto!important; } }
+@keyframes layerIn { from { opacity: 0 } to { opacity: 1 } }
+.fade-in-layer { animation: layerIn .18s ease both; }
+@media (prefers-reduced-motion: reduce) { .fade-in-layer { animation: none; } }

@@ -10,7 +10,8 @@ import {
   getListJourneyRewardsQueryKey, getGetJourneyRewardQueryKey, getGetHabitJourneyQueryKey, getListHabitsQueryKey, getGetDashboardTodayQueryKey,
   type JourneyReward, type JourneyRewardInput, type DashboardJourneyRewardCard, type Habit,
 } from '@workspace/api-client-react';
-import { Field, Modal } from '@/components/journey-ui';
+import { Field } from '@/components/journey-ui';
+import { Modal } from '@/components/journey/scoped-modal';
 import { usePhotoUpload } from '@/hooks/use-photo-upload';
 import { invalidateDailyAll } from '@/hooks/use-daily';
 

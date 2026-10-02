@@ -1,6 +1,6 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { X } from 'lucide-react';
+import { closeTopLayer } from './layers';
 
 let nativeOwner: symbol | null = null;
 
@@ -26,8 +26,10 @@ export function FullscreenOverlay({ onClose, onAfterClose, returnSignal, childre
     }).catch(() => undefined);
     ref.current?.focus();
     const key = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') { e.preventDefault(); finish(); return; }
-      if (e.key !== 'Tab') return;
+      if (e.key === 'Escape') { if (e.defaultPrevented) return; e.preventDefault(); if (!closeTopLayer(ref.current)) finish(); return; }
+      if (e.key !== 'Tab' || e.defaultPrevented) return;
+      // A focus-trapping layer (modal sheet, memory dialog, legacy modal) owns Tab.
+      if (Array.from(document.querySelectorAll('[role="dialog"]')).some(d => d !== ref.current && !d.hasAttribute('data-modeless'))) return;
       const targets = Array.from(ref.current?.querySelectorAll<HTMLElement>('button:not(:disabled), a[href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex="0"]') ?? []).filter(el => el.getClientRects().length);
       const first = targets[0], last = targets[targets.length - 1];
       if (!first) { e.preventDefault(); ref.current?.focus(); }
@@ -71,8 +73,7 @@ export function FullscreenOverlay({ onClose, onAfterClose, returnSignal, childre
       }));
     };
   }, []);
-  return createPortal(<div ref={ref} role="dialog" aria-modal="true" aria-label="الخريطة بملء الشاشة" tabIndex={-1} onClick={event => event.stopPropagation()} onPointerDown={event => event.stopPropagation()} className="fixed inset-0 z-[100] bg-[#f2ecdc] overflow-y-auto overflow-x-hidden outline-none" style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }} data-testid="journey-fullscreen">
-    <div className="sticky top-0 z-10 flex justify-end p-3 pointer-events-none"><button className="btn pointer-events-auto" onClick={() => closeRef.current()} data-testid="button-exit-fullscreen"><X size={17} />خروج من ملء الشاشة</button></div>
-    <div className="max-w-[1270px] mx-auto px-4 md:px-8 pb-10 -mt-2">{children}</div>
+  return createPortal(<div ref={ref} role="dialog" aria-modal="true" aria-label="الخريطة بملء الشاشة" tabIndex={-1} onClick={event => event.stopPropagation()} onPointerDown={event => event.stopPropagation()} className="fixed inset-0 z-[100] bg-[#f2ecdc] overflow-hidden outline-none" style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }} data-testid="journey-fullscreen">
+    <div className="h-full w-full">{children}</div>
   </div>, document.body);
 }

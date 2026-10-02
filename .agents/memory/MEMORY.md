@@ -15,7 +15,7 @@
 - [Private upload ownership](private-upload-ownership.md) — knowing an object path never permits adoption; enforce ownership/provenance across every ACL-writing endpoint.
 - [Browser errors without stacks](browser-errors-without-stacks.md) — an unknown runtime overlay may omit the browser event message; inspect it before assuming a thrown application exception.
 - [Legacy memory association](legacy-memory-policy.md) — habit/date alone does not prove an old memory's saved-day link; preserve full old notes until explicitly edited.
-- [Journey-day memory experience](journey-memory-experience.md) — Journey → Day → Memory is primary; gallery is secondary history and must return to verified days.
+- [Journey map-first experience](journey-memory-experience.md) — map-first world; day-contained memories and final-island personal rewards; no independent priced-reward section.
 - [Valid image fixtures](image-test-fixtures.md) — browsers may display CRC-invalid PNGs that Sharp correctly rejects; generate and validate fixtures before upload testing.
 - [Database target verification](database-target-verification.md) — select the platform SQL environment explicitly; a process flag or database name alone is not target verification.
 - [Social consent boundaries](social-consent-boundaries.md) — no retrospective announcements; group/challenge scopes stay separate, and social reads must not lock rewarded check-ins.

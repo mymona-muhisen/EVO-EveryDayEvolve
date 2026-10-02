@@ -1,7 +1,7 @@
 import { invalidateDailyAll } from '@/hooks/use-daily';
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { useAiHabitBuilder, useCreateHabit, useGetDashboardToday, useListRewards, getListRewardsQueryKey, getListHabitsQueryKey, getGetDashboardTodayQueryKey, type HabitInput } from '@workspace/api-client-react';
+import { useAiHabitBuilder, useCreateHabit, useGetDashboardToday, getListRewardsQueryKey, getListHabitsQueryKey, getGetDashboardTodayQueryKey, type HabitInput } from '@workspace/api-client-react';
 import { toast } from 'sonner';
 import { ArrowLeft, ArrowRight, Sparkles } from 'lucide-react';
 import { Field } from '@/components/journey-ui';
@@ -30,7 +30,6 @@ const num = (v: string) => (v === '' ? 0 : Number(v));
 
 export function HabitWizard({ seed, onSaved }: { seed?: { title: string; minutes: number; category: Cat; emoji: string; intent?: string }; onSaved?: (id: number) => void }) {
   const today = useGetDashboardToday();
-  const rewards = useListRewards();
   const builder = useAiHabitBuilder();
   const tipBuilder = useAiHabitBuilder();
   const [tip, setTip] = useState('');
@@ -58,7 +57,6 @@ export function HabitWizard({ seed, onSaved }: { seed?: { title: string; minutes
   const [startAction, setStartAction] = useState('');
   const [startWhen, setStartWhen] = useState<'today' | 'tomorrow' | null>(null);
   const [needBaseline, setNeedBaseline] = useState(false);
-  const [rewardId, setRewardId] = useState<number | null>(null);
   const [rd, setRd] = useState<RewardDraft>(emptyDraft());
   const [saving, setSaving] = useState(false);
   const { uploadPhoto } = usePhotoUpload();
@@ -67,7 +65,6 @@ export function HabitWizard({ seed, onSaved }: { seed?: { title: string; minutes
   const suggested = today.data?.suggestedJourneyStartDate?.slice(0, 10);
   const startChoice: 'today' | 'tomorrow' = startWhen ?? (suggested && serverDate && suggested > serverDate ? 'tomorrow' : 'today');
   const tomorrow = (() => { if (!serverDate) return ''; const d = new Date(`${serverDate}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + 1); return d.toISOString().slice(0, 10); })();
-  const owned = (rewards.data || []).filter(r => !r.isRedeemed && !r.habitId);
   const set = <K extends keyof typeof p>(k: K, v: (typeof p)[K]) => setP(x => ({ ...x, [k]: v }));
 
   const propose = () => {
@@ -125,7 +122,7 @@ export function HabitWizard({ seed, onSaved }: { seed?: { title: string; minutes
       ...(effGoal === 'build' ? { minimumValue: effP.minimum, busyDayValue: effP.busy } : { baselineValue: p.baseline, successLimitValue: p.limit }),
       cueType, cueTime: cueType === 'time' ? cueTime : null, cue: cueType === 'time' ? null : cue.trim() || null,
       startAction: startAction.trim() || null, friction: friction || null, minimumFloor: effP.floor,
-      journeyStartDate: startChoice === 'today' ? serverDate : tomorrow, journeyLength: 22, rewardId: rewardId ?? undefined, ...(journeyReward ? { journeyReward } : {}),
+      journeyStartDate: startChoice === 'today' ? serverDate : tomorrow, journeyLength: 22, ...(journeyReward ? { journeyReward } : {}),
     };
     create.mutate({ data }, {
       onSuccess: r => {
@@ -190,9 +187,6 @@ export function HabitWizard({ seed, onSaved }: { seed?: { title: string; minutes
     {step === 4 && <div className="space-y-4">
       <div><div className="text-sm font-bold mb-2">رحلة من 22 يومًا. متى تبدأ؟</div><div className="grid grid-cols-2 gap-2">{([['today', 'اليوم'], ['tomorrow', 'غدًا']] as const).map(([v, t]) => <button type="button" key={v} onClick={() => setStartWhen(v)} className={`rounded-xl p-3 border ${startChoice === v ? 'bg-[#dfebdd] border-[#3b765c]' : 'border-[#e3d9c9]'}`}>{t}</button>)}</div>{!serverDate && <p className="text-xs muted mt-2">نجهّز تاريخ اليوم…</p>}</div>
       <div className="rounded-2xl border border-[#e3d9c9] p-4"><div className="font-bold text-sm mb-3">مكافأة حقيقية تنتظرك في نهاية الرحلة</div><RewardEditor draft={rd} onChange={setRd} disabled={saving || create.isPending} /></div>
-      <Field label="مكافأة من متجر العملات (اختياري)"><select data-testid="select-reward" className="field" value={rewardId ?? ''} onChange={e => setRewardId(e.target.value ? Number(e.target.value) : null)}><option value="">بدون مكافأة مرتبطة</option>{owned.map(r => <option key={r.id} value={r.id}>{r.title}</option>)}</select></Field>
-      {rewards.isError && <p className="text-xs muted">تعذّر تحميل مكافآتك، يمكنك المتابعة بدونها.</p>}
-      {!rewards.isLoading && !owned.length && <p className="text-xs muted">لا مكافآت متاحة للربط الآن. يمكنك إضافتها من صفحة المكافآت لاحقًا.</p>}
     </div>}
 
     {step === 5 && <div className="space-y-3">
@@ -200,7 +194,7 @@ export function HabitWizard({ seed, onSaved }: { seed?: { title: string; minutes
         {goal === 'build' ? <p>الهدف {p.target} {u} · الحد الأدنى {p.minimum} · اليوم المزدحم {p.busy}</p> : <p>المعتاد {p.baseline} · هدف التخفيض {p.target} · النجاح عند {p.limit} {u} أو أقل</p>}
         <p>الإشارة: {cueType === 'time' ? `الساعة ${cueTime}` : cue}</p>
         {friction && <p>العائق: {friction}</p>}{startAction && <p>أول حركة: {startAction}</p>}
-        <p>تبدأ {startChoice === 'today' ? 'اليوم' : 'غدًا'} · 22 يومًا{rewardId ? ` · مكافأة المتجر: ${owned.find(r => r.id === rewardId)?.title ?? ''}` : ''}</p>
+        <p>تبدأ {startChoice === 'today' ? 'اليوم' : 'غدًا'} · 22 يومًا</p>
         <div className="border-t border-[#e8dfce] pt-2" data-testid="summary-reward">{rd.enabled ? <p><b>مكافأتك:</b> {rd.title.trim() || '—'} · {rd.type === 'physical' ? 'شيء أملكه' : 'تجربة'}{rd.value !== '' ? ` · قيمة تقديرية ${rd.value}` : ''}{rd.description.trim() ? <span className="block muted">{rd.description.trim()}</span> : null}</p> : <p className="muted">بلا مكافأة حقيقية لهذه الرحلة.</p>}<button type="button" data-testid="button-edit-reward-summary" className="text-xs underline mt-1" onClick={() => setStep(4)}>تعديل المكافأة</button></div></div>
       <p className="muted text-xs">يمكنك العودة لتغيير أي شيء. لن يُنشأ شيء قبل الضغط على الزر.</p>
     </div>}

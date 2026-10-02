@@ -1,14 +1,14 @@
 import { Link } from 'wouter';
 import type { Habit, HabitDay, HabitJourney } from '@workspace/api-client-react';
-import { Gift, Lock } from 'lucide-react';
+import { Lock } from 'lucide-react';
 import { DayMemory, canCaptureDay } from '@/components/memory/memory';
 import { arDate } from '@/components/journey-ui';
 import { DailyDayPanel } from '@/components/daily/day-panel';
-import { canShowUnlocked, classifyDay, hasRecoveryRecord, historyRows, isTodayExecutable, MILESTONES, STATE_LABEL } from '@/lib/journey-map';
+import { classifyDay, hasRecoveryRecord, historyRows, isTodayExecutable, MILESTONES, STATE_LABEL } from '@/lib/journey-map';
 
 export function NodeDetails({ habit, journey, day }: { habit: Habit; journey: HabitJourney; day: HabitDay }) {
   const today = journey.today.slice(0, 10), s = classifyDay(day, today), h = historyRows(day);
-  const ms = (MILESTONES as readonly number[]).includes(day.dayNumber), r = journey.selectedReward;
+  const ms = (MILESTONES as readonly number[]).includes(day.dayNumber);
   return <section className="paper rounded-[22px] p-5 space-y-3 focus-visible:outline-2" data-testid="node-details" aria-live="polite" tabIndex={-1}>
     <div className="flex justify-between gap-2"><h2 className="font-black text-lg">اليوم {day.dayNumber} · {arDate(day.date.slice(0, 10))}</h2><span className="badge">{STATE_LABEL[s]}</span></div>
     {ms && <p className="text-sm panel rounded-xl p-3">{day.dayNumber === 22 ? 'محطة النهاية. تُحسب النهاية فقط حين ينجح آخر يوم مجدول وتبلغ اليوم الثاني والعشرين.' : 'محطة على الطريق. هي علامة وليست نجاحًا بحد ذاتها؛ نجاح اليوم يُحسب من خطوتك الفعلية.'}</p>}
@@ -23,7 +23,6 @@ export function NodeDetails({ habit, journey, day }: { habit: Habit; journey: Ha
     </dl>}
     {(day.memoryId || s === 'success' || s === 'recovered') && <DayMemory canCreate={canCaptureDay(day, today)} habitId={habit.id} date={day.date.slice(0, 10)} dayNumber={day.dayNumber} memoryId={day.memoryId} />}
     {hasRecoveryRecord(day) && <p className="text-xs muted">سجل استعادة: {day.recoveryUsed} من {day.recoveryLimit} (غير متاحة الآن).</p>}
-    {day.dayNumber === 22 && r && <div className="flex gap-2 items-start text-sm"><Gift size={16} className="text-[#b87755] mt-1" /><span>مكافأتك: {r.title} · {canShowUnlocked(journey) ? (r.isRedeemed ? 'حصلت عليها' : 'مفتوحة، يمكنك استبدالها من صفحة المكافآت') : 'تُفتح عند إنهاء الرحلة'}</span></div>}
     {journey.status === 'completed' && <Link href={`/habits/${habit.id}/journey/complete`} className="btn">عرض ملخص الرحلة</Link>}
   </section>;
 }

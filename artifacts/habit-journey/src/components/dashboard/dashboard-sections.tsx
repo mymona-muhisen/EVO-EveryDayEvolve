@@ -110,12 +110,12 @@ export function RewardPreview({ d }: { d: DashboardHome }) {
   const st = r.status === 'pending' ? 'قيد الانتظار' : r.status === 'unlocked' ? 'مفتوحة' : 'مُستلمة';
   return <section aria-label="مكافأتك" data-testid="section-reward" className="rounded-[22px] bg-[#f3e4c4] border border-[#e4cf9d] p-5 min-w-0">
     <div className="flex gap-3 items-center min-w-0">
-      {r.imageUrl && <div className="w-16 h-16 rounded-xl overflow-hidden shrink-0"><MemoryImage photoUrl={r.imageUrl} className="w-16 h-16" alt={`صورة مكافأة ${r.title}`} /></div>}
+      <div className="w-16 h-16 rounded-xl overflow-hidden shrink-0">{r.imageUrl ? <MemoryImage photoUrl={r.imageUrl} className="w-16 h-16" alt={`صورة مكافأة ${r.title}`} /> : <img src={`${import.meta.env.BASE_URL}assets/journey-gift.png`} className="w-16 h-16 object-contain" alt="" />}</div>
       <div className="min-w-0 flex-1"><div className="eyebrow">مكافأتك الشخصية</div><h2 className="font-black text-lg break-words">{r.title}</h2><span className="text-xs font-bold">الحالة: {st}</span></div>
     </div>
     <div className="flex justify-between text-xs mt-4"><span>اليوم {day} من 22</span><span>متبقٍ {r.daysRemaining ?? Math.max(0, 22 - day)} يوم</span></div>
     <div role="progressbar" aria-label="تقدّم أيام المكافأة" aria-valuemin={0} aria-valuemax={22} aria-valuenow={day} className="h-2 rounded-full bg-[#e8d4a6] mt-2 overflow-hidden"><div className="h-full bg-[#b26648] rounded-full" style={{ width: `${pct}%` }} /></div>
-    <Link href="/rewards" className="inline-flex items-center gap-1 text-sm font-bold mt-3 min-h-11 text-[#7a4a2d]">المكافآت <ArrowLeft size={15} aria-hidden="true" /></Link>
+    <Link href={`/habits/${r.habitId}/journey?reward=1`} className="inline-flex items-center gap-1 text-sm font-bold mt-3 min-h-11 text-[#7a4a2d]">مكافأة الرحلة <ArrowLeft size={15} aria-hidden="true" /></Link>
   </section>;
 }
 

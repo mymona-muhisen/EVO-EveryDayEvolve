@@ -192,8 +192,10 @@ test('oversized legacy captions remain fully visible in the existing memory deta
 
 test('journey route initializes and follows selection from the validated query day', async () => {
   const source = await readSource('src/pages/habit-journey.tsx');
-  assert.match(source, /const requestedDay = journeyDayFromSearch\(useSearch\(\)\)/);
+  assert.match(source, /const search = useSearch\(\), requestedDay = journeyDayFromSearch\(search\)/);
   assert.match(source, /const \[sel, setSel\] = useState<number \| null>\(requestedDay\)/);
-  assert.match(source, /const cur = sel \?\? calendarDay\(d\)/);
-  assert.match(source, /nav\(`\/habits\/\$\{id\}\/journey\?day=\$\{n\}`,\s*\{ replace: true \}\)/);
+  assert.match(source, /useEffect\(\(\) => \{ setSel\(requestedDay\); \}, \[requestedDay\]\)/);
+  assert.match(source, /nav\(url\(n\), \{ replace: true \}\)/);
+  assert.match(source, /d\.days\.find\(x => x\.dayNumber === sel\)/);
+  assert.match(source, /detailsOpen = !!day/);
 });
