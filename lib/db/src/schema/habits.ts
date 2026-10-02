@@ -48,6 +48,14 @@ export interface HabitMilestoneJson {
   order: number;
 }
 
+export interface HabitOriginJson {
+  source: "ai_time_recovery";
+  analysisDate: string;
+  recoveredMinutes: number;
+  originalCategory: string;
+  replacementActivity: string;
+}
+
 export const habitsTable = pgTable("habits", {
   id: serial("id").primaryKey(),
   userId: text("user_id")
@@ -61,6 +69,11 @@ export const habitsTable = pgTable("habits", {
   unit: habitUnitEnum("unit").notNull(),
   executionType: habitExecutionTypeEnum("execution_type"),
   targetValue: doublePrecision("target_value").notNull(),
+  originalGoal: text("original_goal"),
+  desiredTarget: doublePrecision("desired_target"),
+  desiredUnit: habitUnitEnum("desired_unit"),
+  recommendedStartingTarget: doublePrecision("recommended_starting_target"),
+  origin: jsonb("origin").$type<HabitOriginJson>(),
   minimumValue: doublePrecision("minimum_value"),
   busyDayValue: doublePrecision("busy_day_value"),
   baselineValue: doublePrecision("baseline_value"),

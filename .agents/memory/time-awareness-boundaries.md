@@ -14,3 +14,9 @@ The 15/30-minute interval is silent tracking granularity, never a reminder: no s
 **Why:** The user explicitly corrected the product experience: users notice passing time and choose when to record activity, without interruptions.
 
 **How to apply:** Preserve this separation in future dashboard, timer, and notification changes. Display the tracking interval rather than a “next reminder,” and never infer activity or unknown historical active time from the running clock.
+
+The coach deliberately uses generative AI to prioritize evidence-supported actions, not to invent numeric prescriptions or unrestricted interpretations.
+
+**Why:** A richer coaching experience must still be auditable against the user's records, remain useful when the provider fails, and leave habit changes under the user's control. More fluent wording is not sufficient evidence.
+
+**How to apply:** Expand supported observations and safe choices when adding coaching capabilities. Keep factual claims and numeric limits grounded in application calculations; do not replace this boundary with an unconstrained coaching prompt.

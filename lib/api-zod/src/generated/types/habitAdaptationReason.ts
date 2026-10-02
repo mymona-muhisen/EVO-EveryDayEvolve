@@ -15,4 +15,6 @@ export const HabitAdaptationReason = {
   missed_reasons: 'missed_reasons',
   steady: 'steady',
   no_history: 'no_history',
+  low_completion: 'low_completion',
+  consistent_completion: 'consistent_completion',
 } as const;

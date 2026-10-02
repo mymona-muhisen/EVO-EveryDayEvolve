@@ -11,4 +11,5 @@ export interface ReplacementActivity {
   title: string;
   minutes: number;
   category: TimeCategory;
+  reason?: string;
 }

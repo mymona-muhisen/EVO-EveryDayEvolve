@@ -8,10 +8,12 @@
 import type { HabitCadence } from './habitCadence';
 import type { HabitCategory } from './habitCategory';
 import type { HabitCueType } from './habitCueType';
+import type { HabitDesiredUnit } from './habitDesiredUnit';
 import type { HabitDifficulty } from './habitDifficulty';
 import type { HabitExecutionType } from './habitExecutionType';
 import type { HabitGoalType } from './habitGoalType';
 import type { HabitMilestone } from './habitMilestone';
+import type { HabitOrigin } from './habitOrigin';
 import type { HabitUnit } from './habitUnit';
 
 export interface Habit {
@@ -33,6 +35,15 @@ export interface Habit {
      */
   executionType?: HabitExecutionType;
   targetValue: number;
+  /** @nullable */
+  originalGoal?: string | null;
+  /** @nullable */
+  desiredTarget?: number | null;
+  /** @nullable */
+  desiredUnit?: HabitDesiredUnit;
+  /** @nullable */
+  recommendedStartingTarget?: number | null;
+  origin?: HabitOrigin | null;
   /** @nullable */
   minimumValue: number | null;
   /** @nullable */

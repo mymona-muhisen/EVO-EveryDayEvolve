@@ -24,7 +24,7 @@ import {
 import { requireAuth } from "../middlewares/requireAuth";
 import { ensureUser } from "../lib/userService";
 import {
-  checkinsForPlanRevision, defaultMinimumFloor, effectiveMinimum, missedScheduledDays,
+  defaultMinimumFloor, effectiveMinimum, missedScheduledDays,
   proposeHabitAdaptation, validateHabitPlanUpdate,
 } from "../lib/aiRules";
 import { habitAdaptationMessages } from "../lib/aiMessages";
@@ -34,6 +34,9 @@ import {
   resolveExecutionType,
 } from "../lib/habitJourney";
 import { reviseFutureUnrecordedDays } from "../lib/habitPlanService";
+import { buildDayCoach } from "../lib/dayCoach";
+import { categories, getTrackedDay } from "../lib/trackedDay";
+import { habitCoachingHistory } from "../lib/coachHistory";
 import { evaluateJourneyLifecycle } from "../lib/journeyLifecycle";
 import {
   journeysAssociatedWithReward, markJourneyRewardRequired, preserveJourneyRewardGate,
@@ -55,6 +58,7 @@ const habitInputKeys = new Set([
   "cueType", "cueTime", "cue", "startAction", "friction", "minimumFloor",
   "journeyStartDate", "journeyLength", "rewardId", "journeyReward", "difficulty",
   "goalType", "milestones",
+  "originalGoal", "desiredTarget", "desiredUnit", "recommendedStartingTarget", "origin",
 ]);
 function onlyKnownKeys(value: unknown, keys: Set<string>): boolean {
   return value != null && typeof value === "object" && !Array.isArray(value)
@@ -108,6 +112,21 @@ router.post("/habits", async (req, res): Promise<void> => {
   const minimumFloor = defaultMinimumFloor(input.goalType, input.minimumFloor);
   const successLimitValue = input.successLimitValue ?? (input.goalType === "quit" ? input.targetValue : null);
   const today = todayInTimezone(user.timezone);
+  if (input.origin) {
+    const origin = input.origin;
+    const parsedDate = new Date(`${origin.analysisDate}T12:00:00Z`);
+    if (!Number.isFinite(parsedDate.getTime()) || parsedDate.toISOString().slice(0, 10) !== origin.analysisDate
+      || origin.analysisDate > today) {
+      res.status(400).json({ error: "Invalid recovery analysis date" });
+      return;
+    }
+    const evidence = buildDayCoach(await getTrackedDay(req.userId!, origin.analysisDate), user.timezone, [], categories);
+    if (!evidence.suggestedChange || evidence.suggestedChange.category !== origin.originalCategory
+      || evidence.suggestedChange.minutes !== origin.recoveredMinutes) {
+      res.status(409).json({ error: "Tracking changed; refresh the day analysis before creating this opportunity" });
+      return;
+    }
+  }
   const journeyStartDate = input.journeyStartDate == null
     ? today
     : typeof input.journeyStartDate === "string"
@@ -171,6 +190,11 @@ router.post("/habits", async (req, res): Promise<void> => {
     const [habit] = await tx.insert(habitsTable).values({
       userId: req.userId!,
       ...habitInput,
+      originalGoal: input.originalGoal ?? input.title,
+      desiredTarget: input.desiredTarget ?? input.targetValue,
+      desiredUnit: input.desiredUnit ?? input.unit,
+      recommendedStartingTarget: input.recommendedStartingTarget ?? null,
+      origin: input.origin ?? null,
       executionType,
       minimumValue,
       minimumFloor,
@@ -724,40 +748,17 @@ router.get("/habits/:habitId/adaptation", async (req, res): Promise<void> => {
         && isScheduledDate(row.date, offset + 1, habit.cadence, habit.customDays);
     });
   const recordedDates = new Set(history.map((row) => row.date));
-  const reflectedMisses = dailyHistory.filter((row) => row.scheduled
-    && row.status === "missed"
-    && row.date < today
-    && !recordedDates.has(row.date)
-    && (row.missedReason != null || row.note != null || row.difficulty != null));
-  const analysisHistory = [
-    ...scheduledCheckins,
-    ...reflectedMisses.map((row) => ({
-      date: row.date,
-      difficulty: row.difficulty,
-      missedReason: row.missedReason,
-      completed: false,
-      note: row.note,
-    })),
-  ].sort((a, b) => b.date.localeCompare(a.date));
   const latestRevisionRow = latestRevisionRows[0];
   const currentRevision = latestRevisionRow?.revision ?? 0;
-  const revisionScopedCheckins = journeyDays.length
-    ? checkinsForPlanRevision(scheduledCheckins, journeyDays, currentRevision)
-    : latestRevisionRow
-      ? scheduledCheckins.filter((row) => row.date >= latestRevisionRow.effectiveFrom)
-      : scheduledCheckins;
-  const numericHistory = [
-    ...revisionScopedCheckins,
-    ...reflectedMisses
-      .filter((row) => row.planRevision === currentRevision)
-      .map((row) => ({
-        date: row.date,
-        difficulty: row.difficulty,
-        missedReason: row.missedReason,
-        completed: false,
-        note: row.note,
-      })),
-  ].sort((a, b) => b.date.localeCompare(a.date));
+  const coachingFrom = addCalendarDays(today, -6);
+  const coaching = habitCoachingHistory(
+    scheduledCheckins.filter(r => r.date >= coachingFrom),
+    journeyDays.filter(r => r.date >= coachingFrom),
+    dailyHistory.filter(r => r.date >= coachingFrom).map(r => ({
+      ...r, completed: r.status.startsWith("completed"),
+    })),
+    today, currentRevision, latestRevisionRow?.effectiveFrom,
+  );
   const currentMinimum = effectiveMinimum(habit.targetValue, habit.minimumValue);
   const proposal = proposeHabitAdaptation({
     targetValue: habit.targetValue,
@@ -767,8 +768,8 @@ router.get("/habits/:habitId/adaptation", async (req, res): Promise<void> => {
     successLimitValue: habit.successLimitValue,
     baselineValue: habit.baselineValue,
     minimumFloor: habit.minimumFloor,
-    checkins: [...analysisHistory].reverse(),
-    numericCheckins: [...numericHistory].reverse(),
+    checkins: coaching.history,
+    numericCheckins: coaching.numericHistory,
   });
   const missedDays = journeyDays.length
     ? journeyDays.filter((day) => day.scheduled && day.date < today && !recordedDates.has(day.date)).length

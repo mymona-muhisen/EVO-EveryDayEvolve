@@ -57,6 +57,6 @@ function EditForm({habit,seed,onSaved}: {habit?:Habit;seed?:{title:string;minute
     <button data-testid="button-save-habit-plan" className="btn w-full" disabled={create.isPending||update.isPending||builder.isPending||!planned}>{create.isPending||update.isPending?'نحفظ خطوتك…':!planned?'اقترح بداية أولًا':habit?'حفظ التغييرات':'أضف هذه العادة'} <ArrowLeft size={16}/></button>
   </form>;
 }
-export function HabitPlanForm({habit,seed,onSaved}: {habit?:Habit;seed?:{title:string;minutes:number;category:HabitInput['category'];emoji:string;intent?:string};onSaved?:(id:number)=>void}){
+export function HabitPlanForm({habit,seed,onSaved}: {habit?:Habit;seed?:{title:string;minutes:number;category:HabitInput['category'];emoji:string;intent?:string;origin?:HabitInput['origin'];cueTime?:string};onSaved?:(id:number)=>void}){
   return habit?<EditForm habit={habit} onSaved={onSaved}/>:<HabitWizard seed={seed} onSaved={onSaved}/>;
 }

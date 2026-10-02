@@ -146,6 +146,19 @@ export const HabitExecutionType = {
 /**
  * @nullable
  */
+export type HabitDesiredUnit = typeof HabitDesiredUnit[keyof typeof HabitDesiredUnit] | null;
+
+
+export const HabitDesiredUnit = {
+  minutes: 'minutes',
+  count: 'count',
+  pages: 'pages',
+  custom: 'custom',
+} as const;
+
+/**
+ * @nullable
+ */
 export type HabitCueType = typeof HabitCueType[keyof typeof HabitCueType] | null;
 
 
@@ -172,6 +185,49 @@ export const HabitGoalType = {
   quit: 'quit',
 } as const;
 
+export type HabitOriginSource = typeof HabitOriginSource[keyof typeof HabitOriginSource];
+
+
+export const HabitOriginSource = {
+  ai_time_recovery: 'ai_time_recovery',
+} as const;
+
+export type TimeCategory = typeof TimeCategory[keyof typeof TimeCategory];
+
+
+export const TimeCategory = {
+  study: 'study',
+  work: 'work',
+  social_media: 'social_media',
+  gaming: 'gaming',
+  entertainment: 'entertainment',
+  exercise: 'exercise',
+  eating: 'eating',
+  rest: 'rest',
+  travel: 'travel',
+  socializing: 'socializing',
+  personal: 'personal',
+  other: 'other',
+  unknown: 'unknown',
+} as const;
+
+export interface HabitOrigin {
+  source: HabitOriginSource;
+  /** @pattern ^\d{4}-\d{2}-\d{2}$ */
+  analysisDate: string;
+  /**
+     * @minimum 5
+     * @maximum 20
+     */
+  recoveredMinutes: number;
+  originalCategory: TimeCategory;
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
+  replacementActivity: string;
+}
+
 export interface Habit {
   id: number;
   title: string;
@@ -191,6 +247,15 @@ export interface Habit {
      */
   executionType?: HabitExecutionType;
   targetValue: number;
+  /** @nullable */
+  originalGoal?: string | null;
+  /** @nullable */
+  desiredTarget?: number | null;
+  /** @nullable */
+  desiredUnit?: HabitDesiredUnit;
+  /** @nullable */
+  recommendedStartingTarget?: number | null;
+  origin?: HabitOrigin | null;
   /** @nullable */
   minimumValue: number | null;
   /** @nullable */
@@ -290,6 +355,16 @@ export const HabitInputExecutionType = {
   limit: 'limit',
 } as const;
 
+export type HabitInputDesiredUnit = typeof HabitInputDesiredUnit[keyof typeof HabitInputDesiredUnit];
+
+
+export const HabitInputDesiredUnit = {
+  minutes: 'minutes',
+  count: 'count',
+  pages: 'pages',
+  custom: 'custom',
+} as const;
+
 /**
  * @nullable
  */
@@ -360,6 +435,23 @@ export interface HabitInput {
   executionType?: HabitInputExecutionType;
   /** @minimum 0 */
   targetValue: number;
+  /**
+     * @minLength 1
+     * @maxLength 300
+     */
+  originalGoal?: string;
+  /**
+     * @minimum 0
+     * @maximum 1000000
+     */
+  desiredTarget?: number;
+  desiredUnit?: HabitInputDesiredUnit;
+  /**
+     * @minimum 0
+     * @maximum 1000000
+     */
+  recommendedStartingTarget?: number;
+  origin?: HabitOrigin;
   /** @minimum 0 */
   minimumValue?: number;
   /** @minimum 0 */
@@ -716,6 +808,8 @@ export const HabitAdaptationReason = {
   missed_reasons: 'missed_reasons',
   steady: 'steady',
   no_history: 'no_history',
+  low_completion: 'low_completion',
+  consistent_completion: 'consistent_completion',
 } as const;
 
 /**
@@ -1568,25 +1662,6 @@ export const TimeEntrySource = {
   future_auto: 'future_auto',
 } as const;
 
-export type TimeCategory = typeof TimeCategory[keyof typeof TimeCategory];
-
-
-export const TimeCategory = {
-  study: 'study',
-  work: 'work',
-  social_media: 'social_media',
-  gaming: 'gaming',
-  entertainment: 'entertainment',
-  exercise: 'exercise',
-  eating: 'eating',
-  rest: 'rest',
-  travel: 'travel',
-  socializing: 'socializing',
-  personal: 'personal',
-  other: 'other',
-  unknown: 'unknown',
-} as const;
-
 export interface TimeEntry {
   id: number;
   /** @nullable */
@@ -1727,6 +1802,7 @@ export interface ReplacementActivity {
   title: string;
   minutes: number;
   category: TimeCategory;
+  reason?: string;
 }
 
 export type TrackedDayAnalysisStatus = typeof TrackedDayAnalysisStatus[keyof typeof TrackedDayAnalysisStatus];
@@ -1736,6 +1812,98 @@ export const TrackedDayAnalysisStatus = {
   ready: 'ready',
   insufficient: 'insufficient',
 } as const;
+
+export type TrackedDayAnalysisSource = typeof TrackedDayAnalysisSource[keyof typeof TrackedDayAnalysisSource];
+
+
+export const TrackedDayAnalysisSource = {
+  gemini: 'gemini',
+  fallback: 'fallback',
+} as const;
+
+export type TrackedDayAnalysisInsightsItemType = typeof TrackedDayAnalysisInsightsItemType[keyof typeof TrackedDayAnalysisInsightsItemType];
+
+
+export const TrackedDayAnalysisInsightsItemType = {
+  focus: 'focus',
+  dominant_activity: 'dominant_activity',
+  consistency: 'consistency',
+  insufficient: 'insufficient',
+} as const;
+
+export type TrackedDayAnalysisInsightsItem = {
+  type: TrackedDayAnalysisInsightsItemType;
+  label: string;
+  value: string;
+  evidence: string;
+};
+
+export type TrackedDayAnalysisRecommendationType = typeof TrackedDayAnalysisRecommendationType[keyof typeof TrackedDayAnalysisRecommendationType];
+
+
+export const TrackedDayAnalysisRecommendationType = {
+  reduce_time: 'reduce_time',
+  adjust_habit: 'adjust_habit',
+  maintain: 'maintain',
+  none: 'none',
+} as const;
+
+export type TrackedDayAnalysisRecommendationConfidence = typeof TrackedDayAnalysisRecommendationConfidence[keyof typeof TrackedDayAnalysisRecommendationConfidence];
+
+
+export const TrackedDayAnalysisRecommendationConfidence = {
+  low: 'low',
+  medium: 'medium',
+  high: 'high',
+} as const;
+
+export type TrackedDayAnalysisRecommendation = {
+  type: TrackedDayAnalysisRecommendationType;
+  /**
+     * @minimum 0
+     * @maximum 20
+     */
+  minutesToRecover: number;
+  reason: string;
+  confidence: TrackedDayAnalysisRecommendationConfidence;
+};
+
+export type TrackedDayAnalysisHabitAdjustmentUnit = typeof TrackedDayAnalysisHabitAdjustmentUnit[keyof typeof TrackedDayAnalysisHabitAdjustmentUnit];
+
+
+export const TrackedDayAnalysisHabitAdjustmentUnit = {
+  minutes: 'minutes',
+  count: 'count',
+  pages: 'pages',
+  custom: 'custom',
+} as const;
+
+export type TrackedDayAnalysisHabitAdjustmentAction = typeof TrackedDayAnalysisHabitAdjustmentAction[keyof typeof TrackedDayAnalysisHabitAdjustmentAction];
+
+
+export const TrackedDayAnalysisHabitAdjustmentAction = {
+  increase: 'increase',
+  decrease: 'decrease',
+  simplify: 'simplify',
+  reschedule: 'reschedule',
+  maintain: 'maintain',
+} as const;
+
+export type TrackedDayAnalysisHabitAdjustment = {
+  habitId: number;
+  habitTitle: string;
+  currentTarget: number;
+  suggestedTarget: number;
+  unit: TrackedDayAnalysisHabitAdjustmentUnit;
+  reason: string;
+  action: TrackedDayAnalysisHabitAdjustmentAction;
+} | null;
+
+export type TrackedDayAnalysisBestTimeSuggestion = {
+  start: string;
+  end: string;
+  reason: string;
+} | null;
 
 export type TrackedDayAnalysisSuggestedChange = {
   minutes: number;
@@ -1748,6 +1916,16 @@ export interface TrackedDayAnalysis {
   observation: string;
   pattern: string;
   opportunity: string;
+  source?: TrackedDayAnalysisSource;
+  /** @minimum 0 */
+  trackedMinutes?: number;
+  /** @maxItems 3 */
+  insights?: TrackedDayAnalysisInsightsItem[];
+  recommendation?: TrackedDayAnalysisRecommendation;
+  habitAdjustment?: TrackedDayAnalysisHabitAdjustment;
+  bestTimeSuggestion?: TrackedDayAnalysisBestTimeSuggestion;
+  tomorrowSuggestion?: string;
+  actionable?: boolean;
   suggestedChange: TrackedDayAnalysisSuggestedChange;
   replacements: ReplacementActivity[];
 }

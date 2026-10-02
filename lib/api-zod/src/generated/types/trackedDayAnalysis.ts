@@ -6,6 +6,11 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { ReplacementActivity } from './replacementActivity';
+import type { TrackedDayAnalysisBestTimeSuggestion } from './trackedDayAnalysisBestTimeSuggestion';
+import type { TrackedDayAnalysisHabitAdjustment } from './trackedDayAnalysisHabitAdjustment';
+import type { TrackedDayAnalysisInsightsItem } from './trackedDayAnalysisInsightsItem';
+import type { TrackedDayAnalysisRecommendation } from './trackedDayAnalysisRecommendation';
+import type { TrackedDayAnalysisSource } from './trackedDayAnalysisSource';
 import type { TrackedDayAnalysisStatus } from './trackedDayAnalysisStatus';
 import type { TrackedDayAnalysisSuggestedChange } from './trackedDayAnalysisSuggestedChange';
 
@@ -15,6 +20,16 @@ export interface TrackedDayAnalysis {
   observation: string;
   pattern: string;
   opportunity: string;
+  source?: TrackedDayAnalysisSource;
+  /** @minimum 0 */
+  trackedMinutes?: number;
+  /** @maxItems 3 */
+  insights?: TrackedDayAnalysisInsightsItem[];
+  recommendation?: TrackedDayAnalysisRecommendation;
+  habitAdjustment?: TrackedDayAnalysisHabitAdjustment;
+  bestTimeSuggestion?: TrackedDayAnalysisBestTimeSuggestion;
+  tomorrowSuggestion?: string;
+  actionable?: boolean;
   suggestedChange: TrackedDayAnalysisSuggestedChange;
   replacements: ReplacementActivity[];
 }

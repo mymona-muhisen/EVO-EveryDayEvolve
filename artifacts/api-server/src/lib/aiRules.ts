@@ -154,7 +154,7 @@ export function missedScheduledDays(
 }
 
 export interface HabitAdaptation {
-  reason: "repeated_hard" | "repeated_easy" | "missed_reasons" | "steady" | "no_history";
+  reason: "repeated_hard" | "repeated_easy" | "missed_reasons" | "steady" | "no_history" | "low_completion" | "consistent_completion";
   missedReason: MissedReason | null;
   targetValue: number;
   minimumValue: number;
@@ -205,7 +205,8 @@ export function proposeHabitAdaptation(input: {
   const successfulRecent = numericRecent.filter((c) => c.completed);
   const easySuccessful = successfulRecent.filter((c) => c.difficulty === "easy").length;
   const majorityEasy = successfulRecent.length >= 3
-    && easySuccessful >= Math.ceil(successfulRecent.length / 2);
+    && easySuccessful >= Math.ceil(successfulRecent.length / 2)
+    && successfulRecent.length / numericRecent.length >= .7;
   const numericTooDifficultCount = numericRecent.filter((c) => c.missedReason === "too_difficult").length;
   const reasonCounts = new Map<MissedReason, number>();
   for (const checkin of recent) {
@@ -257,7 +258,7 @@ export function proposeHabitAdaptation(input: {
   if (numericTooDifficultCount >= 1) {
     return { reason: "missed_reasons", missedReason: "too_difficult", ...unchanged };
   }
-  if (isQuit && easySuccessful >= 3) {
+  if (isQuit && easySuccessful >= 3 && successfulRecent.length / numericRecent.length >= .7) {
     const limit = currentSuccessLimit ?? currentTarget;
     if (limit <= currentTarget) {
       const roundedStep = Math.round((currentTarget * 0.125) / 10) * 10;
@@ -286,6 +287,20 @@ export function proposeHabitAdaptation(input: {
     const targetValue = Math.min(Math.max(currentTarget + 1, Math.ceil(currentTarget * 1.1)), currentTarget * 2);
     const boundedTarget = Math.max(floor, targetValue);
     return { reason: "repeated_easy", missedReason: null, targetValue: boundedTarget, minimumValue: Math.min(boundedTarget, Math.max(floor, currentMinimum, Math.ceil(currentMinimum * 1.1))), successLimitValue: null, busyDayValue: input.busyDayValue ?? null };
+  }
+  // Completion evidence is separate from difficulty: normal successes are not
+  // falsely described as "easy", and known missed obligations are not activity.
+  if (!isQuit && numericRecent.length >= 3 && successfulRecent.length / numericRecent.length <= 1 / 3) {
+    const targetValue = Math.max(floor, Math.floor(currentTarget * .8));
+    const minimumValue = Math.max(floor, Math.min(targetValue, Math.floor(currentMinimum * .8)));
+    return { reason: "low_completion", missedReason: null, targetValue, minimumValue,
+      successLimitValue: null, busyDayValue: input.busyDayValue == null ? null : Math.min(input.busyDayValue, minimumValue) };
+  }
+  if (!isQuit && numericRecent.length >= 6 && successfulRecent.length / numericRecent.length >= .8) {
+    const targetValue = Math.max(floor, currentTarget + Math.max(1, Math.floor(currentTarget * .1)));
+    return { reason: "consistent_completion", missedReason: null, targetValue,
+      minimumValue: Math.min(targetValue, Math.max(floor, currentMinimum)),
+      successLimitValue: null, busyDayValue: input.busyDayValue ?? null };
   }
   return { reason: "steady", missedReason: null, ...unchanged };
 }

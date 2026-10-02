@@ -8,11 +8,13 @@
 import type { HabitInputCadence } from './habitInputCadence';
 import type { HabitInputCategory } from './habitInputCategory';
 import type { HabitInputCueType } from './habitInputCueType';
+import type { HabitInputDesiredUnit } from './habitInputDesiredUnit';
 import type { HabitInputDifficulty } from './habitInputDifficulty';
 import type { HabitInputExecutionType } from './habitInputExecutionType';
 import type { HabitInputGoalType } from './habitInputGoalType';
 import type { HabitInputUnit } from './habitInputUnit';
 import type { HabitMilestone } from './habitMilestone';
+import type { HabitOrigin } from './habitOrigin';
 import type { JourneyRewardInput } from './journeyRewardInput';
 
 export interface HabitInput {
@@ -30,6 +32,23 @@ export interface HabitInput {
   executionType?: HabitInputExecutionType;
   /** @minimum 0 */
   targetValue: number;
+  /**
+     * @minLength 1
+     * @maxLength 300
+     */
+  originalGoal?: string;
+  /**
+     * @minimum 0
+     * @maximum 1000000
+     */
+  desiredTarget?: number;
+  desiredUnit?: HabitInputDesiredUnit;
+  /**
+     * @minimum 0
+     * @maximum 1000000
+     */
+  recommendedStartingTarget?: number;
+  origin?: HabitOrigin;
   /** @minimum 0 */
   minimumValue?: number;
   /** @minimum 0 */

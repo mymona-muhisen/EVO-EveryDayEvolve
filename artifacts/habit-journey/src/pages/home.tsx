@@ -1,5 +1,5 @@
 import { lazy, Suspense, useState } from 'react';
-import { Link } from 'wouter';
+import { Link, useLocation } from 'wouter';
 import { Plus, Coins } from 'lucide-react';
 import { useGetDashboardHome, getGetDashboardHomeQueryKey, type User } from '@workspace/api-client-react';
 import { HabitPlanForm } from '@/components/habit-plan-form';
@@ -18,6 +18,7 @@ type Seed = { title: string; minutes: number; category: 'productivity'; emoji: s
 export function HomePage({ user }: { user: User }) {
   useDashboardFreshness();
   const q = useGetDashboardHome({ query: { queryKey: getGetDashboardHomeQueryKey(), refetchOnMount: 'always', refetchOnWindowFocus: true, staleTime: 15000, refetchInterval: 30000 } });
+  const [, nav] = useLocation();
   const [createOpen, setCreateOpen] = useState(false), [seed, setSeed] = useState<Seed | undefined>();
   if (q.isLoading) return <div aria-busy="true" aria-label="تحميل الصفحة الرئيسية"><Loading /></div>;
   const d = q.data;
@@ -25,7 +26,6 @@ export function HomePage({ user }: { user: User }) {
   const retry = () => q.refetch();
   const open = (s?: Seed) => { setSeed(s); setCreateOpen(true); };
   const opp = d.coach?.analysis?.status === 'ready' ? d.coach.analysis.opportunity : null;
-  const seedFrom = (text: string, minutes: number) => ({ title: '', minutes: minutes > 0 ? minutes : 5, category: 'productivity' as const, emoji: '🌱', intent: text });
   const name = (d.profile.displayName || user.displayName).split(' ')[0];
   const habitsDown = d.sectionStatus.habits === 'unavailable';
   const completion = d.completion ?? (d.journey?.status === 'completed'
@@ -64,14 +64,14 @@ export function HomePage({ user }: { user: User }) {
           <Link href={d.journey ? `/habits/${d.journey.habitId}/journey` : '/habits'} className="btn btn-light min-h-11 mt-4">راجع خطتك</Link>
         </section>}
         {trackingPrimary && <Suspense fallback={<div className="skeleton h-40" />}><LazyTime d={d} onRetry={retry} primary /></Suspense>}
-        {noHabit && (d.state === 'new_user' ? <GuidedStart /> : opp ? <Opportunity d={d} onExplore={() => open(seedFrom(opp, d.coach?.analysis?.suggestedChange?.minutes ?? 0))} /> : <section className={`paper rounded-[26px] ${trackingPrimary ? 'p-4' : 'p-6'}`} data-testid="section-no-habit"><h2 className="text-2xl font-black">لا عادة نشطة اليوم</h2><p className="muted mt-2 text-sm">ابدأ بخطوة صغيرة، أو افهم يومك أولًا.</p><div className="flex flex-wrap gap-2 mt-4"><button type="button" className="btn min-h-11" onClick={() => open()}>أنشئ عادة</button><Link href="/time" className="btn btn-light min-h-11" data-testid="link-start-tracking">ابدأ التتبع</Link></div></section>)}
+        {noHabit && (d.state === 'new_user' ? <GuidedStart /> : opp ? <Opportunity d={d} onExplore={() => nav('/time')} /> : <section className={`paper rounded-[26px] ${trackingPrimary ? 'p-4' : 'p-6'}`} data-testid="section-no-habit"><h2 className="text-2xl font-black">لا عادة نشطة اليوم</h2><p className="muted mt-2 text-sm">ابدأ بخطوة صغيرة، أو افهم يومك أولًا.</p><div className="flex flex-wrap gap-2 mt-4"><button type="button" className="btn min-h-11" onClick={() => open()}>أنشئ عادة</button><Link href="/time" className="btn btn-light min-h-11" data-testid="link-start-tracking">ابدأ التتبع</Link></div></section>)}
         <OtherHabits items={d.otherHabits} />
         <div className="grid md:grid-cols-2 gap-5"><JourneyPreview d={d} /><RewardPreview d={d} /></div>
         {d.sectionStatus.journey === 'unavailable' && <Retry what="الرحلة" onRetry={retry} />}
         {d.sectionStatus.reward === 'unavailable' && <Retry what="المكافأة" onRetry={retry} />}
       </div>
       <aside className="space-y-4 min-w-0">
-        <Suspense fallback={<div className="skeleton h-32" aria-label="تحميل" />}><Secondary hideTime={trackingPrimary} d={d} onSeed={(t, m) => open(seedFrom(t, m))} onRetry={retry} /></Suspense>
+        <Suspense fallback={<div className="skeleton h-32" aria-label="تحميل" />}><Secondary hideTime={trackingPrimary} d={d} onRetry={retry} /></Suspense>
       </aside>
     </div>
     {createOpen && <Modal title="عادة جديدة على الطريق" onClose={() => setCreateOpen(false)}><HabitPlanForm seed={seed} onSaved={() => setCreateOpen(false)} /></Modal>}

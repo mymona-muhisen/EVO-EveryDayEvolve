@@ -16,6 +16,7 @@
     "test:newdashboard": "node ./test/run-ai.mjs dashboard && node --test ./test/reward-atomicity.mjs",
     "test:journey": "node ./test/run-ai.mjs journey",
     "test:time": "node ./test/run-time-tracking.mjs",
+    "test:day-coach": "node ./test/run-day-coach.mjs",
     "test:social-circles": "node --test ./test/social-challenge-habit.mjs ./test/social-circles-http.mjs",
     "test:recovery": "node ./test/recovery-flow.mjs",
     "test:rewards": "node ./test/reward-atomicity.mjs",

@@ -77,6 +77,12 @@ export const ListHabitsQueryParams = zod.object({
 export const listHabitsResponseCustomDaysItemMin = 0;
 export const listHabitsResponseCustomDaysItemMax = 6;
 
+export const listHabitsResponseOriginOneAnalysisDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const listHabitsResponseOriginOneRecoveredMinutesMin = 5;
+export const listHabitsResponseOriginOneRecoveredMinutesMax = 20;
+
+export const listHabitsResponseOriginOneReplacementActivityMax = 80;
+
 export const listHabitsResponseCueTimeRegExp = new RegExp('^([01][0-9]|2[0-3]):[0-5][0-9]$');
 export const listHabitsResponseMinimumFloorMin = 0;
 
@@ -95,6 +101,17 @@ export const ListHabitsResponseItem = zod.object({
   "unit": zod.enum(['minutes', 'count', 'pages', 'custom']),
   "executionType": zod.union([zod.literal('duration'),zod.literal('count'),zod.literal('boolean'),zod.literal('limit'),zod.literal(null)]).nullish().describe('Nullable for legacy records; inferred from unit and goalType when consumed.'),
   "targetValue": zod.number(),
+  "originalGoal": zod.string().nullish(),
+  "desiredTarget": zod.number().nullish(),
+  "desiredUnit": zod.union([zod.literal('minutes'),zod.literal('count'),zod.literal('pages'),zod.literal('custom'),zod.literal(null)]).nullish(),
+  "recommendedStartingTarget": zod.number().nullish(),
+  "origin": zod.union([zod.object({
+  "source": zod.enum(['ai_time_recovery']),
+  "analysisDate": zod.string().regex(listHabitsResponseOriginOneAnalysisDateRegExp),
+  "recoveredMinutes": zod.number().int().min(listHabitsResponseOriginOneRecoveredMinutesMin).max(listHabitsResponseOriginOneRecoveredMinutesMax),
+  "originalCategory": zod.enum(['study', 'work', 'social_media', 'gaming', 'entertainment', 'exercise', 'eating', 'rest', 'travel', 'socializing', 'personal', 'other', 'unknown']),
+  "replacementActivity": zod.string().min(1).max(listHabitsResponseOriginOneReplacementActivityMax)
+}),zod.null()]).optional(),
   "minimumValue": zod.number().nullable(),
   "busyDayValue": zod.number().nullable(),
   "baselineValue": zod.number().nullable(),
@@ -135,6 +152,20 @@ export const createHabitBodyCustomDaysItemMax = 6;
 
 export const createHabitBodyTargetValueMin = 0;
 
+export const createHabitBodyOriginalGoalMax = 300;
+
+export const createHabitBodyDesiredTargetMin = 0;
+export const createHabitBodyDesiredTargetMax = 1000000;
+
+export const createHabitBodyRecommendedStartingTargetMin = 0;
+export const createHabitBodyRecommendedStartingTargetMax = 1000000;
+
+export const createHabitBodyOriginAnalysisDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const createHabitBodyOriginRecoveredMinutesMin = 5;
+export const createHabitBodyOriginRecoveredMinutesMax = 20;
+
+export const createHabitBodyOriginReplacementActivityMax = 80;
+
 export const createHabitBodyMinimumValueMin = 0;
 
 export const createHabitBodyBusyDayValueMin = 0;
@@ -166,6 +197,17 @@ export const CreateHabitBody = zod.object({
   "unit": zod.enum(['minutes', 'count', 'pages', 'custom']),
   "executionType": zod.enum(['duration', 'count', 'boolean', 'limit']).optional(),
   "targetValue": zod.number().min(createHabitBodyTargetValueMin),
+  "originalGoal": zod.string().min(1).max(createHabitBodyOriginalGoalMax).optional(),
+  "desiredTarget": zod.number().min(createHabitBodyDesiredTargetMin).max(createHabitBodyDesiredTargetMax).optional(),
+  "desiredUnit": zod.enum(['minutes', 'count', 'pages', 'custom']).optional(),
+  "recommendedStartingTarget": zod.number().min(createHabitBodyRecommendedStartingTargetMin).max(createHabitBodyRecommendedStartingTargetMax).optional(),
+  "origin": zod.object({
+  "source": zod.enum(['ai_time_recovery']),
+  "analysisDate": zod.string().regex(createHabitBodyOriginAnalysisDateRegExp),
+  "recoveredMinutes": zod.number().int().min(createHabitBodyOriginRecoveredMinutesMin).max(createHabitBodyOriginRecoveredMinutesMax),
+  "originalCategory": zod.enum(['study', 'work', 'social_media', 'gaming', 'entertainment', 'exercise', 'eating', 'rest', 'travel', 'socializing', 'personal', 'other', 'unknown']),
+  "replacementActivity": zod.string().min(1).max(createHabitBodyOriginReplacementActivityMax)
+}).optional(),
   "minimumValue": zod.number().min(createHabitBodyMinimumValueMin).optional(),
   "busyDayValue": zod.number().min(createHabitBodyBusyDayValueMin).optional(),
   "baselineValue": zod.number().min(createHabitBodyBaselineValueMin).optional(),
@@ -199,6 +241,12 @@ export const CreateHabitBody = zod.object({
 export const createHabitResponseCustomDaysItemMin = 0;
 export const createHabitResponseCustomDaysItemMax = 6;
 
+export const createHabitResponseOriginOneAnalysisDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const createHabitResponseOriginOneRecoveredMinutesMin = 5;
+export const createHabitResponseOriginOneRecoveredMinutesMax = 20;
+
+export const createHabitResponseOriginOneReplacementActivityMax = 80;
+
 export const createHabitResponseCueTimeRegExp = new RegExp('^([01][0-9]|2[0-3]):[0-5][0-9]$');
 export const createHabitResponseMinimumFloorMin = 0;
 
@@ -217,6 +265,17 @@ export const CreateHabitResponse = zod.object({
   "unit": zod.enum(['minutes', 'count', 'pages', 'custom']),
   "executionType": zod.union([zod.literal('duration'),zod.literal('count'),zod.literal('boolean'),zod.literal('limit'),zod.literal(null)]).nullish().describe('Nullable for legacy records; inferred from unit and goalType when consumed.'),
   "targetValue": zod.number(),
+  "originalGoal": zod.string().nullish(),
+  "desiredTarget": zod.number().nullish(),
+  "desiredUnit": zod.union([zod.literal('minutes'),zod.literal('count'),zod.literal('pages'),zod.literal('custom'),zod.literal(null)]).nullish(),
+  "recommendedStartingTarget": zod.number().nullish(),
+  "origin": zod.union([zod.object({
+  "source": zod.enum(['ai_time_recovery']),
+  "analysisDate": zod.string().regex(createHabitResponseOriginOneAnalysisDateRegExp),
+  "recoveredMinutes": zod.number().int().min(createHabitResponseOriginOneRecoveredMinutesMin).max(createHabitResponseOriginOneRecoveredMinutesMax),
+  "originalCategory": zod.enum(['study', 'work', 'social_media', 'gaming', 'entertainment', 'exercise', 'eating', 'rest', 'travel', 'socializing', 'personal', 'other', 'unknown']),
+  "replacementActivity": zod.string().min(1).max(createHabitResponseOriginOneReplacementActivityMax)
+}),zod.null()]).optional(),
   "minimumValue": zod.number().nullable(),
   "busyDayValue": zod.number().nullable(),
   "baselineValue": zod.number().nullable(),
@@ -257,6 +316,12 @@ export const GetHabitParams = zod.object({
 export const getHabitResponseCustomDaysItemMin = 0;
 export const getHabitResponseCustomDaysItemMax = 6;
 
+export const getHabitResponseOriginOneAnalysisDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const getHabitResponseOriginOneRecoveredMinutesMin = 5;
+export const getHabitResponseOriginOneRecoveredMinutesMax = 20;
+
+export const getHabitResponseOriginOneReplacementActivityMax = 80;
+
 export const getHabitResponseCueTimeRegExp = new RegExp('^([01][0-9]|2[0-3]):[0-5][0-9]$');
 export const getHabitResponseMinimumFloorMin = 0;
 
@@ -275,6 +340,17 @@ export const GetHabitResponse = zod.object({
   "unit": zod.enum(['minutes', 'count', 'pages', 'custom']),
   "executionType": zod.union([zod.literal('duration'),zod.literal('count'),zod.literal('boolean'),zod.literal('limit'),zod.literal(null)]).nullish().describe('Nullable for legacy records; inferred from unit and goalType when consumed.'),
   "targetValue": zod.number(),
+  "originalGoal": zod.string().nullish(),
+  "desiredTarget": zod.number().nullish(),
+  "desiredUnit": zod.union([zod.literal('minutes'),zod.literal('count'),zod.literal('pages'),zod.literal('custom'),zod.literal(null)]).nullish(),
+  "recommendedStartingTarget": zod.number().nullish(),
+  "origin": zod.union([zod.object({
+  "source": zod.enum(['ai_time_recovery']),
+  "analysisDate": zod.string().regex(getHabitResponseOriginOneAnalysisDateRegExp),
+  "recoveredMinutes": zod.number().int().min(getHabitResponseOriginOneRecoveredMinutesMin).max(getHabitResponseOriginOneRecoveredMinutesMax),
+  "originalCategory": zod.enum(['study', 'work', 'social_media', 'gaming', 'entertainment', 'exercise', 'eating', 'rest', 'travel', 'socializing', 'personal', 'other', 'unknown']),
+  "replacementActivity": zod.string().min(1).max(getHabitResponseOriginOneReplacementActivityMax)
+}),zod.null()]).optional(),
   "minimumValue": zod.number().nullable(),
   "busyDayValue": zod.number().nullable(),
   "baselineValue": zod.number().nullable(),
@@ -373,6 +449,12 @@ export const UpdateHabitBody = zod.object({
 export const updateHabitResponseCustomDaysItemMin = 0;
 export const updateHabitResponseCustomDaysItemMax = 6;
 
+export const updateHabitResponseOriginOneAnalysisDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const updateHabitResponseOriginOneRecoveredMinutesMin = 5;
+export const updateHabitResponseOriginOneRecoveredMinutesMax = 20;
+
+export const updateHabitResponseOriginOneReplacementActivityMax = 80;
+
 export const updateHabitResponseCueTimeRegExp = new RegExp('^([01][0-9]|2[0-3]):[0-5][0-9]$');
 export const updateHabitResponseMinimumFloorMin = 0;
 
@@ -391,6 +473,17 @@ export const UpdateHabitResponse = zod.object({
   "unit": zod.enum(['minutes', 'count', 'pages', 'custom']),
   "executionType": zod.union([zod.literal('duration'),zod.literal('count'),zod.literal('boolean'),zod.literal('limit'),zod.literal(null)]).nullish().describe('Nullable for legacy records; inferred from unit and goalType when consumed.'),
   "targetValue": zod.number(),
+  "originalGoal": zod.string().nullish(),
+  "desiredTarget": zod.number().nullish(),
+  "desiredUnit": zod.union([zod.literal('minutes'),zod.literal('count'),zod.literal('pages'),zod.literal('custom'),zod.literal(null)]).nullish(),
+  "recommendedStartingTarget": zod.number().nullish(),
+  "origin": zod.union([zod.object({
+  "source": zod.enum(['ai_time_recovery']),
+  "analysisDate": zod.string().regex(updateHabitResponseOriginOneAnalysisDateRegExp),
+  "recoveredMinutes": zod.number().int().min(updateHabitResponseOriginOneRecoveredMinutesMin).max(updateHabitResponseOriginOneRecoveredMinutesMax),
+  "originalCategory": zod.enum(['study', 'work', 'social_media', 'gaming', 'entertainment', 'exercise', 'eating', 'rest', 'travel', 'socializing', 'personal', 'other', 'unknown']),
+  "replacementActivity": zod.string().min(1).max(updateHabitResponseOriginOneReplacementActivityMax)
+}),zod.null()]).optional(),
   "minimumValue": zod.number().nullable(),
   "busyDayValue": zod.number().nullable(),
   "baselineValue": zod.number().nullable(),
@@ -1246,6 +1339,12 @@ export const CreateCheckinBody = zod.object({
 export const createCheckinResponseTwoHabitCustomDaysItemMin = 0;
 export const createCheckinResponseTwoHabitCustomDaysItemMax = 6;
 
+export const createCheckinResponseTwoHabitOriginOneAnalysisDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const createCheckinResponseTwoHabitOriginOneRecoveredMinutesMin = 5;
+export const createCheckinResponseTwoHabitOriginOneRecoveredMinutesMax = 20;
+
+export const createCheckinResponseTwoHabitOriginOneReplacementActivityMax = 80;
+
 export const createCheckinResponseTwoHabitCueTimeRegExp = new RegExp('^([01][0-9]|2[0-3]):[0-5][0-9]$');
 export const createCheckinResponseTwoHabitMinimumFloorMin = 0;
 
@@ -1284,6 +1383,17 @@ export const CreateCheckinResponse = zod.object({
   "unit": zod.enum(['minutes', 'count', 'pages', 'custom']),
   "executionType": zod.union([zod.literal('duration'),zod.literal('count'),zod.literal('boolean'),zod.literal('limit'),zod.literal(null)]).nullish().describe('Nullable for legacy records; inferred from unit and goalType when consumed.'),
   "targetValue": zod.number(),
+  "originalGoal": zod.string().nullish(),
+  "desiredTarget": zod.number().nullish(),
+  "desiredUnit": zod.union([zod.literal('minutes'),zod.literal('count'),zod.literal('pages'),zod.literal('custom'),zod.literal(null)]).nullish(),
+  "recommendedStartingTarget": zod.number().nullish(),
+  "origin": zod.union([zod.object({
+  "source": zod.enum(['ai_time_recovery']),
+  "analysisDate": zod.string().regex(createCheckinResponseTwoHabitOriginOneAnalysisDateRegExp),
+  "recoveredMinutes": zod.number().int().min(createCheckinResponseTwoHabitOriginOneRecoveredMinutesMin).max(createCheckinResponseTwoHabitOriginOneRecoveredMinutesMax),
+  "originalCategory": zod.enum(['study', 'work', 'social_media', 'gaming', 'entertainment', 'exercise', 'eating', 'rest', 'travel', 'socializing', 'personal', 'other', 'unknown']),
+  "replacementActivity": zod.string().min(1).max(createCheckinResponseTwoHabitOriginOneReplacementActivityMax)
+}),zod.null()]).optional(),
   "minimumValue": zod.number().nullable(),
   "busyDayValue": zod.number().nullable(),
   "baselineValue": zod.number().nullable(),
@@ -1368,7 +1478,7 @@ export const getHabitAdaptationResponseMissedDaysMin = 0;
 
 export const GetHabitAdaptationResponse = zod.object({
   "habitId": zod.number().int(),
-  "reason": zod.enum(['repeated_hard', 'repeated_easy', 'missed_reasons', 'steady', 'no_history']),
+  "reason": zod.enum(['repeated_hard', 'repeated_easy', 'missed_reasons', 'steady', 'no_history', 'low_completion', 'consistent_completion']),
   "suggestion": zod.boolean(),
   "expectedTargetValue": zod.number(),
   "expectedMinimumValue": zod.number(),
@@ -1404,6 +1514,12 @@ export const RecoverStreakParams = zod.object({
 export const recoverStreakResponseHabitCustomDaysItemMin = 0;
 export const recoverStreakResponseHabitCustomDaysItemMax = 6;
 
+export const recoverStreakResponseHabitOriginOneAnalysisDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const recoverStreakResponseHabitOriginOneRecoveredMinutesMin = 5;
+export const recoverStreakResponseHabitOriginOneRecoveredMinutesMax = 20;
+
+export const recoverStreakResponseHabitOriginOneReplacementActivityMax = 80;
+
 export const recoverStreakResponseHabitCueTimeRegExp = new RegExp('^([01][0-9]|2[0-3]):[0-5][0-9]$');
 export const recoverStreakResponseHabitMinimumFloorMin = 0;
 
@@ -1423,6 +1539,17 @@ export const RecoverStreakResponse = zod.object({
   "unit": zod.enum(['minutes', 'count', 'pages', 'custom']),
   "executionType": zod.union([zod.literal('duration'),zod.literal('count'),zod.literal('boolean'),zod.literal('limit'),zod.literal(null)]).nullish().describe('Nullable for legacy records; inferred from unit and goalType when consumed.'),
   "targetValue": zod.number(),
+  "originalGoal": zod.string().nullish(),
+  "desiredTarget": zod.number().nullish(),
+  "desiredUnit": zod.union([zod.literal('minutes'),zod.literal('count'),zod.literal('pages'),zod.literal('custom'),zod.literal(null)]).nullish(),
+  "recommendedStartingTarget": zod.number().nullish(),
+  "origin": zod.union([zod.object({
+  "source": zod.enum(['ai_time_recovery']),
+  "analysisDate": zod.string().regex(recoverStreakResponseHabitOriginOneAnalysisDateRegExp),
+  "recoveredMinutes": zod.number().int().min(recoverStreakResponseHabitOriginOneRecoveredMinutesMin).max(recoverStreakResponseHabitOriginOneRecoveredMinutesMax),
+  "originalCategory": zod.enum(['study', 'work', 'social_media', 'gaming', 'entertainment', 'exercise', 'eating', 'rest', 'travel', 'socializing', 'personal', 'other', 'unknown']),
+  "replacementActivity": zod.string().min(1).max(recoverStreakResponseHabitOriginOneReplacementActivityMax)
+}),zod.null()]).optional(),
   "minimumValue": zod.number().nullable(),
   "busyDayValue": zod.number().nullable(),
   "baselineValue": zod.number().nullable(),
@@ -1703,12 +1830,51 @@ export const GetTrackedDayAnalysisQueryParams = zod.object({
   "date": zod.date()
 })
 
+export const getTrackedDayAnalysisResponseTrackedMinutesMin = 0;
+
+export const getTrackedDayAnalysisResponseInsightsMax = 3;
+
+export const getTrackedDayAnalysisResponseRecommendationMinutesToRecoverMin = 0;
+export const getTrackedDayAnalysisResponseRecommendationMinutesToRecoverMax = 20;
+
+
+
 export const GetTrackedDayAnalysisResponse = zod.object({
   "status": zod.enum(['ready', 'insufficient']),
   "headline": zod.string(),
   "observation": zod.string(),
   "pattern": zod.string(),
   "opportunity": zod.string(),
+  "source": zod.enum(['gemini', 'fallback']).optional(),
+  "trackedMinutes": zod.number().int().min(getTrackedDayAnalysisResponseTrackedMinutesMin).optional(),
+  "insights": zod.array(zod.object({
+  "type": zod.enum(['focus', 'dominant_activity', 'consistency', 'insufficient']),
+  "label": zod.string(),
+  "value": zod.string(),
+  "evidence": zod.string()
+})).max(getTrackedDayAnalysisResponseInsightsMax).optional(),
+  "recommendation": zod.object({
+  "type": zod.enum(['reduce_time', 'adjust_habit', 'maintain', 'none']),
+  "minutesToRecover": zod.number().int().min(getTrackedDayAnalysisResponseRecommendationMinutesToRecoverMin).max(getTrackedDayAnalysisResponseRecommendationMinutesToRecoverMax),
+  "reason": zod.string(),
+  "confidence": zod.enum(['low', 'medium', 'high'])
+}).optional(),
+  "habitAdjustment": zod.union([zod.object({
+  "habitId": zod.number().int(),
+  "habitTitle": zod.string(),
+  "currentTarget": zod.number(),
+  "suggestedTarget": zod.number(),
+  "unit": zod.enum(['minutes', 'count', 'pages', 'custom']),
+  "reason": zod.string(),
+  "action": zod.enum(['increase', 'decrease', 'simplify', 'reschedule', 'maintain'])
+}),zod.null()]).optional(),
+  "bestTimeSuggestion": zod.union([zod.object({
+  "start": zod.string(),
+  "end": zod.string(),
+  "reason": zod.string()
+}),zod.null()]).optional(),
+  "tomorrowSuggestion": zod.string().optional(),
+  "actionable": zod.boolean().optional(),
   "suggestedChange": zod.union([zod.object({
   "minutes": zod.number().int(),
   "category": zod.enum(['study', 'work', 'social_media', 'gaming', 'entertainment', 'exercise', 'eating', 'rest', 'travel', 'socializing', 'personal', 'other', 'unknown'])
@@ -1716,7 +1882,8 @@ export const GetTrackedDayAnalysisResponse = zod.object({
   "replacements": zod.array(zod.object({
   "title": zod.string(),
   "minutes": zod.number().int(),
-  "category": zod.enum(['study', 'work', 'social_media', 'gaming', 'entertainment', 'exercise', 'eating', 'rest', 'travel', 'socializing', 'personal', 'other', 'unknown'])
+  "category": zod.enum(['study', 'work', 'social_media', 'gaming', 'entertainment', 'exercise', 'eating', 'rest', 'travel', 'socializing', 'personal', 'other', 'unknown']),
+  "reason": zod.string().optional()
 }))
 })
 
@@ -2564,6 +2731,12 @@ export const GetDashboardTodayResponse = zod.object({
 export const getDashboardHomeResponseFocusOneHabitCustomDaysItemMin = 0;
 export const getDashboardHomeResponseFocusOneHabitCustomDaysItemMax = 6;
 
+export const getDashboardHomeResponseFocusOneHabitOriginOneAnalysisDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const getDashboardHomeResponseFocusOneHabitOriginOneRecoveredMinutesMin = 5;
+export const getDashboardHomeResponseFocusOneHabitOriginOneRecoveredMinutesMax = 20;
+
+export const getDashboardHomeResponseFocusOneHabitOriginOneReplacementActivityMax = 80;
+
 export const getDashboardHomeResponseFocusOneHabitCueTimeRegExp = new RegExp('^([01][0-9]|2[0-3]):[0-5][0-9]$');
 export const getDashboardHomeResponseFocusOneHabitMinimumFloorMin = 0;
 
@@ -2585,6 +2758,12 @@ export const getDashboardHomeResponseFocusOneExecutionEligibleDaysMin = 0;
 export const getDashboardHomeResponseOtherHabitsItemHabitCustomDaysItemMin = 0;
 export const getDashboardHomeResponseOtherHabitsItemHabitCustomDaysItemMax = 6;
 
+export const getDashboardHomeResponseOtherHabitsItemHabitOriginOneAnalysisDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const getDashboardHomeResponseOtherHabitsItemHabitOriginOneRecoveredMinutesMin = 5;
+export const getDashboardHomeResponseOtherHabitsItemHabitOriginOneRecoveredMinutesMax = 20;
+
+export const getDashboardHomeResponseOtherHabitsItemHabitOriginOneReplacementActivityMax = 80;
+
 export const getDashboardHomeResponseOtherHabitsItemHabitCueTimeRegExp = new RegExp('^([01][0-9]|2[0-3]):[0-5][0-9]$');
 export const getDashboardHomeResponseOtherHabitsItemHabitMinimumFloorMin = 0;
 
@@ -2605,6 +2784,12 @@ export const getDashboardHomeResponseOtherHabitsItemExecutionEligibleDaysMin = 0
 
 export const getDashboardHomeResponseMissedDayOneHabitCustomDaysItemMin = 0;
 export const getDashboardHomeResponseMissedDayOneHabitCustomDaysItemMax = 6;
+
+export const getDashboardHomeResponseMissedDayOneHabitOriginOneAnalysisDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const getDashboardHomeResponseMissedDayOneHabitOriginOneRecoveredMinutesMin = 5;
+export const getDashboardHomeResponseMissedDayOneHabitOriginOneRecoveredMinutesMax = 20;
+
+export const getDashboardHomeResponseMissedDayOneHabitOriginOneReplacementActivityMax = 80;
 
 export const getDashboardHomeResponseMissedDayOneHabitCueTimeRegExp = new RegExp('^([01][0-9]|2[0-3]):[0-5][0-9]$');
 export const getDashboardHomeResponseMissedDayOneHabitMinimumFloorMin = 0;
@@ -2708,6 +2893,13 @@ export const getDashboardHomeResponseTimeOneCategoryTotalsItemPercentageMax = 10
 
 export const getDashboardHomeResponseTimeOneCategoryTotalsMax = 3;
 
+export const getDashboardHomeResponseCoachOneAnalysisOneTrackedMinutesMin = 0;
+
+export const getDashboardHomeResponseCoachOneAnalysisOneInsightsMax = 3;
+
+export const getDashboardHomeResponseCoachOneAnalysisOneRecommendationMinutesToRecoverMin = 0;
+export const getDashboardHomeResponseCoachOneAnalysisOneRecommendationMinutesToRecoverMax = 20;
+
 export const getDashboardHomeResponseFriendsItemJourneyOneProgressDayMin = 0;
 export const getDashboardHomeResponseFriendsItemJourneyOneProgressDayMax = 22;
 
@@ -2752,6 +2944,17 @@ export const GetDashboardHomeResponse = zod.object({
   "unit": zod.enum(['minutes', 'count', 'pages', 'custom']),
   "executionType": zod.union([zod.literal('duration'),zod.literal('count'),zod.literal('boolean'),zod.literal('limit'),zod.literal(null)]).nullish().describe('Nullable for legacy records; inferred from unit and goalType when consumed.'),
   "targetValue": zod.number(),
+  "originalGoal": zod.string().nullish(),
+  "desiredTarget": zod.number().nullish(),
+  "desiredUnit": zod.union([zod.literal('minutes'),zod.literal('count'),zod.literal('pages'),zod.literal('custom'),zod.literal(null)]).nullish(),
+  "recommendedStartingTarget": zod.number().nullish(),
+  "origin": zod.union([zod.object({
+  "source": zod.enum(['ai_time_recovery']),
+  "analysisDate": zod.string().regex(getDashboardHomeResponseFocusOneHabitOriginOneAnalysisDateRegExp),
+  "recoveredMinutes": zod.number().int().min(getDashboardHomeResponseFocusOneHabitOriginOneRecoveredMinutesMin).max(getDashboardHomeResponseFocusOneHabitOriginOneRecoveredMinutesMax),
+  "originalCategory": zod.enum(['study', 'work', 'social_media', 'gaming', 'entertainment', 'exercise', 'eating', 'rest', 'travel', 'socializing', 'personal', 'other', 'unknown']),
+  "replacementActivity": zod.string().min(1).max(getDashboardHomeResponseFocusOneHabitOriginOneReplacementActivityMax)
+}),zod.null()]).optional(),
   "minimumValue": zod.number().nullable(),
   "busyDayValue": zod.number().nullable(),
   "baselineValue": zod.number().nullable(),
@@ -2853,6 +3056,17 @@ export const GetDashboardHomeResponse = zod.object({
   "unit": zod.enum(['minutes', 'count', 'pages', 'custom']),
   "executionType": zod.union([zod.literal('duration'),zod.literal('count'),zod.literal('boolean'),zod.literal('limit'),zod.literal(null)]).nullish().describe('Nullable for legacy records; inferred from unit and goalType when consumed.'),
   "targetValue": zod.number(),
+  "originalGoal": zod.string().nullish(),
+  "desiredTarget": zod.number().nullish(),
+  "desiredUnit": zod.union([zod.literal('minutes'),zod.literal('count'),zod.literal('pages'),zod.literal('custom'),zod.literal(null)]).nullish(),
+  "recommendedStartingTarget": zod.number().nullish(),
+  "origin": zod.union([zod.object({
+  "source": zod.enum(['ai_time_recovery']),
+  "analysisDate": zod.string().regex(getDashboardHomeResponseOtherHabitsItemHabitOriginOneAnalysisDateRegExp),
+  "recoveredMinutes": zod.number().int().min(getDashboardHomeResponseOtherHabitsItemHabitOriginOneRecoveredMinutesMin).max(getDashboardHomeResponseOtherHabitsItemHabitOriginOneRecoveredMinutesMax),
+  "originalCategory": zod.enum(['study', 'work', 'social_media', 'gaming', 'entertainment', 'exercise', 'eating', 'rest', 'travel', 'socializing', 'personal', 'other', 'unknown']),
+  "replacementActivity": zod.string().min(1).max(getDashboardHomeResponseOtherHabitsItemHabitOriginOneReplacementActivityMax)
+}),zod.null()]).optional(),
   "minimumValue": zod.number().nullable(),
   "busyDayValue": zod.number().nullable(),
   "baselineValue": zod.number().nullable(),
@@ -2954,6 +3168,17 @@ export const GetDashboardHomeResponse = zod.object({
   "unit": zod.enum(['minutes', 'count', 'pages', 'custom']),
   "executionType": zod.union([zod.literal('duration'),zod.literal('count'),zod.literal('boolean'),zod.literal('limit'),zod.literal(null)]).nullish().describe('Nullable for legacy records; inferred from unit and goalType when consumed.'),
   "targetValue": zod.number(),
+  "originalGoal": zod.string().nullish(),
+  "desiredTarget": zod.number().nullish(),
+  "desiredUnit": zod.union([zod.literal('minutes'),zod.literal('count'),zod.literal('pages'),zod.literal('custom'),zod.literal(null)]).nullish(),
+  "recommendedStartingTarget": zod.number().nullish(),
+  "origin": zod.union([zod.object({
+  "source": zod.enum(['ai_time_recovery']),
+  "analysisDate": zod.string().regex(getDashboardHomeResponseMissedDayOneHabitOriginOneAnalysisDateRegExp),
+  "recoveredMinutes": zod.number().int().min(getDashboardHomeResponseMissedDayOneHabitOriginOneRecoveredMinutesMin).max(getDashboardHomeResponseMissedDayOneHabitOriginOneRecoveredMinutesMax),
+  "originalCategory": zod.enum(['study', 'work', 'social_media', 'gaming', 'entertainment', 'exercise', 'eating', 'rest', 'travel', 'socializing', 'personal', 'other', 'unknown']),
+  "replacementActivity": zod.string().min(1).max(getDashboardHomeResponseMissedDayOneHabitOriginOneReplacementActivityMax)
+}),zod.null()]).optional(),
   "minimumValue": zod.number().nullable(),
   "busyDayValue": zod.number().nullable(),
   "baselineValue": zod.number().nullable(),
@@ -3164,6 +3389,36 @@ export const GetDashboardHomeResponse = zod.object({
   "observation": zod.string(),
   "pattern": zod.string(),
   "opportunity": zod.string(),
+  "source": zod.enum(['gemini', 'fallback']).optional(),
+  "trackedMinutes": zod.number().int().min(getDashboardHomeResponseCoachOneAnalysisOneTrackedMinutesMin).optional(),
+  "insights": zod.array(zod.object({
+  "type": zod.enum(['focus', 'dominant_activity', 'consistency', 'insufficient']),
+  "label": zod.string(),
+  "value": zod.string(),
+  "evidence": zod.string()
+})).max(getDashboardHomeResponseCoachOneAnalysisOneInsightsMax).optional(),
+  "recommendation": zod.object({
+  "type": zod.enum(['reduce_time', 'adjust_habit', 'maintain', 'none']),
+  "minutesToRecover": zod.number().int().min(getDashboardHomeResponseCoachOneAnalysisOneRecommendationMinutesToRecoverMin).max(getDashboardHomeResponseCoachOneAnalysisOneRecommendationMinutesToRecoverMax),
+  "reason": zod.string(),
+  "confidence": zod.enum(['low', 'medium', 'high'])
+}).optional(),
+  "habitAdjustment": zod.union([zod.object({
+  "habitId": zod.number().int(),
+  "habitTitle": zod.string(),
+  "currentTarget": zod.number(),
+  "suggestedTarget": zod.number(),
+  "unit": zod.enum(['minutes', 'count', 'pages', 'custom']),
+  "reason": zod.string(),
+  "action": zod.enum(['increase', 'decrease', 'simplify', 'reschedule', 'maintain'])
+}),zod.null()]).optional(),
+  "bestTimeSuggestion": zod.union([zod.object({
+  "start": zod.string(),
+  "end": zod.string(),
+  "reason": zod.string()
+}),zod.null()]).optional(),
+  "tomorrowSuggestion": zod.string().optional(),
+  "actionable": zod.boolean().optional(),
   "suggestedChange": zod.union([zod.object({
   "minutes": zod.number().int(),
   "category": zod.enum(['study', 'work', 'social_media', 'gaming', 'entertainment', 'exercise', 'eating', 'rest', 'travel', 'socializing', 'personal', 'other', 'unknown'])
@@ -3171,7 +3426,8 @@ export const GetDashboardHomeResponse = zod.object({
   "replacements": zod.array(zod.object({
   "title": zod.string(),
   "minutes": zod.number().int(),
-  "category": zod.enum(['study', 'work', 'social_media', 'gaming', 'entertainment', 'exercise', 'eating', 'rest', 'travel', 'socializing', 'personal', 'other', 'unknown'])
+  "category": zod.enum(['study', 'work', 'social_media', 'gaming', 'entertainment', 'exercise', 'eating', 'rest', 'travel', 'socializing', 'personal', 'other', 'unknown']),
+  "reason": zod.string().optional()
 }))
 }),zod.null()]),
   "analysisDate": zod.coerce.date().nullable(),

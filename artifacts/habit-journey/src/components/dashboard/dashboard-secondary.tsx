@@ -11,6 +11,7 @@ import { MemoryImage } from '@/components/memory/memory';
 import { newRequestId } from '@/components/social/social-common';
 import { dayKey } from '@/lib/daily';
 import { memoryDayHref } from '@/lib/memory-navigation';
+import { DayInsights } from '@/components/day-insights';
 import { Retry, bad } from './dashboard-sections';
 
 /* ---------- time ---------- */
@@ -35,7 +36,7 @@ export function TimeCard({ d, onRetry, primary = false }: { d: DashboardHome; on
 }
 
 /* ---------- coach ---------- */
-export function CoachCard({ d, seedOpp, onTry, onRetry }: { d: DashboardHome; seedOpp: (text: string, minutes: number) => void; onTry?: () => void; onRetry: () => void }) {
+export function CoachCard({ d, onTry, onRetry }: { d: DashboardHome; seedOpp?: (text: string, minutes: number) => void; onTry?: () => void; onRetry: () => void }) {
   const qc = useQueryClient();
   const c = d.coach, a = c?.analysis;
   const key = `${a?.headline ?? ''}|${c?.analysisDate ?? ''}|${c?.updatedAt ?? ''}|${d.profile.id}`;
@@ -55,11 +56,10 @@ export function CoachCard({ d, seedOpp, onTry, onRetry }: { d: DashboardHome; se
       <p className="font-semibold leading-8 mt-3">{a.headline}</p>
       {a.opportunity && <p className="text-sm muted leading-7 mt-1">{a.opportunity}</p>}
       {c?.isStale && <p className="text-xs mt-2 rounded-lg bg-[#f3e4c4] p-2" data-testid="text-coach-stale">هذه ملاحظة محفوظة{when ? ` من ${when}` : ''}.</p>}
-      {!cur && a.opportunity && <div className="flex flex-wrap gap-2 mt-3">
-        <button type="button" className="btn btn-light min-h-11" data-testid="button-coach-try" onClick={() => { setDecision({ key, v: 'try' }); seedOpp(a.opportunity, a.suggestedChange?.minutes ?? 0); onTry?.(); }}>جرّب هذا التغيير</button>
-        <button type="button" className="min-h-11 px-3 text-sm underline" data-testid="button-coach-later" onClick={() => setDecision({ key, v: 'later' })}>ليس الآن</button></div>}
+      {!cur && a.opportunity && <div className="flex gap-2 mt-3"><button type="button" className="min-h-11 px-3 text-sm underline" data-testid="button-coach-later" onClick={() => setDecision({ key, v: 'later' })}>ليس الآن</button></div>}
       {cur === 'later' && <p role="status" className="text-sm muted mt-3">لا بأس. الملاحظة وحدها خطوة.</p>}
-      {cur === 'try' && <p role="status" className="text-sm mt-3">القرار لك، متى شئت.</p>}
+            <Link href="/time" className="inline-flex items-center gap-1 text-sm font-bold min-h-11 text-[#23604e]" data-testid="link-coach-choices">اختر بديلًا من وقتك المستعاد <ArrowLeft size={14} aria-hidden="true" /></Link>
+      <div className="mt-3"><DayInsights analysis={a} trackedMinutes={d.time?.trackedMinutes} compact /></div>
     </> : <p className="text-sm muted mt-3 leading-7">{a ? 'لا توجد ملاحظة كبيرة اليوم.' : 'لا توجد ملاحظة محفوظة بعد. يمكنك طلب أول ملاحظة حين تشاء.'}</p>}
     {(c?.isStale || (a && a.status !== 'ready') || (!a && (d.time?.trackedMinutes ?? 0) > 0)) && <button type="button" disabled={busy} className="btn btn-light min-h-11 mt-3" data-testid="button-refresh-insight" onClick={refresh}><RefreshCw size={15} aria-hidden="true" /> {busy ? 'لحظة…' : a ? 'حدّث ملاحظة اليوم' : 'احصل على أول ملاحظة'}</button>}
     {err && <p role="alert" className="text-xs text-[#8a4a36] mt-2">المدرّب يستريح قليلًا. حاول لاحقًا.</p>}
@@ -114,11 +114,11 @@ export function MemoryCard({ d }: { d: DashboardHome }) {
 }
 
 
-export default function SecondaryCards({ d, onSeed, onRetry, hideTime }: { hideTime?: boolean; d: DashboardHome; onSeed: (t: string, m: number) => void; onRetry: () => void }) {
+export default function SecondaryCards({ d, onRetry, hideTime }: { hideTime?: boolean; d: DashboardHome; onSeed?: (t: string, m: number) => void; onRetry: () => void }) {
   const fresh = d.state === 'new_user';
   const coach = d.sectionStatus.coach === 'unavailable' || !!d.coach?.analysis || (d.time?.trackedMinutes ?? 0) > 0;
   return <>
-    {coach && (!fresh || d.sectionStatus.coach === 'unavailable') && <CoachCard d={d} seedOpp={onSeed} onRetry={onRetry} />}
+    {coach && (!fresh || d.sectionStatus.coach === 'unavailable') && <CoachCard d={d} onRetry={onRetry} />}
     {!fresh && !hideTime && <TimeCard d={d} onRetry={onRetry} />}
     <CharacterWidget d={d} onRetry={onRetry} />
     <PeopleCard d={d} onRetry={onRetry} />

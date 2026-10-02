@@ -1,7 +1,7 @@
 import { invalidateDailyAll } from '@/hooks/use-daily';
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { useAiHabitBuilder, useCreateHabit, useGetDashboardToday, getListRewardsQueryKey, getListHabitsQueryKey, getGetDashboardTodayQueryKey, type HabitInput } from '@workspace/api-client-react';
+import { useAiHabitBuilder, useCreateHabit, useGetDashboardToday, getListRewardsQueryKey, getListHabitsQueryKey, getGetDashboardTodayQueryKey, getGetDashboardHomeQueryKey, getGetTrackedDayAnalysisQueryKey, type HabitInput } from '@workspace/api-client-react';
 import { toast } from 'sonner';
 import { ArrowLeft, ArrowRight, Sparkles } from 'lucide-react';
 import { Field } from '@/components/journey-ui';
@@ -28,7 +28,7 @@ const frictions: [string, string, string][] = [
 const steps = ['النية', 'الاقتراح', 'الإشارة', 'العائق', 'الرحلة', 'الملخص'];
 const num = (v: string) => (v === '' ? 0 : Number(v));
 
-export function HabitWizard({ seed, onSaved }: { seed?: { title: string; minutes: number; category: Cat; emoji: string; intent?: string }; onSaved?: (id: number) => void }) {
+export function HabitWizard({ seed, onSaved }: { seed?: { title: string; minutes: number; category: Cat; emoji: string; intent?: string; origin?: HabitInput['origin']; cueTime?: string }; onSaved?: (id: number) => void }) {
   const today = useGetDashboardToday();
   const builder = useAiHabitBuilder();
   const tipBuilder = useAiHabitBuilder();
@@ -50,8 +50,10 @@ export function HabitWizard({ seed, onSaved }: { seed?: { title: string; minutes
   const [understood, setUnderstood] = useState('');
   const [fallbackNote, setFallbackNote] = useState('');
   const [p, setP] = useState({ title: '', target: 10, minimum: 5, busy: 2, baseline: 0, limit: 0, floor: 1 });
-  const [cueType, setCueType] = useState<'time' | 'routine' | 'custom'>('routine');
-  const [cueTime, setCueTime] = useState('07:30');
+  const [cueType, setCueType] = useState<'time' | 'routine' | 'custom'>(seed?.cueTime ? 'time' : 'routine');
+  const [recommended, setRecommended] = useState<number | null>(null);
+  const [why, setWhy] = useState('');
+  const [cueTime, setCueTime] = useState(seed?.cueTime || '07:30');
   const [cue, setCue] = useState('');
   const [friction, setFriction] = useState('');
   const [startAction, setStartAction] = useState('');
@@ -75,7 +77,7 @@ export function HabitWizard({ seed, onSaved }: { seed?: { title: string; minutes
         if (r.needsBaseline) { if (!goalExplicit) setGoal('quit'); if (baselineAsk > 0) { toast.error('الرقم الذي كتبته لم يكفِ، جرّب رقمًا أدق'); return; } setNeedBaseline(true); toast.info('نحتاج أولًا أن تخبرنا كم تفعله عادةً، ثم نقترح عليك من جديد'); return; }
         setNeedBaseline(false);
         setUnit(r.unit); setCategory(r.category);
-        setUnderstood(r.understoodGoal); setFallbackNote(r.source === 'deterministic' ? 'أعددنا لك بداية متحفظة؛ عدّل ما تريد.' : '');
+        setRecommended(r.targetValue); setWhy(r.reason || r.coachMessage || ''); setUnderstood(r.understoodGoal); setFallbackNote(r.source === 'deterministic' ? 'أعددنا لك بداية متحفظة؛ عدّل ما تريد.' : '');
         setP({ title: r.title, target: r.targetValue, minimum: r.minimumValue, busy: r.busyDayValue, baseline: r.baselineValue ?? baselineAsk, limit: r.successLimitValue ?? 0, floor: r.minimumFloor ?? (r.goalType === 'quit' ? 0 : 1) });
         if (r.cueType) setCueType(r.cueType); if (r.cueTime) setCueTime(r.cueTime); if (r.cue) setCue(r.cue); if (r.startAction) setStartAction(r.startAction);
         setStep(1);
@@ -122,6 +124,8 @@ export function HabitWizard({ seed, onSaved }: { seed?: { title: string; minutes
       ...(effGoal === 'build' ? { minimumValue: effP.minimum, busyDayValue: effP.busy } : { baselineValue: p.baseline, successLimitValue: p.limit }),
       cueType, cueTime: cueType === 'time' ? cueTime : null, cue: cueType === 'time' ? null : cue.trim() || null,
       startAction: startAction.trim() || null, friction: friction || null, minimumFloor: effP.floor,
+      ...(recommended !== null && desired > 0 ? { originalGoal: intent.trim(), desiredTarget: desired, desiredUnit: effUnit, recommendedStartingTarget: recommended } : {}),
+      ...(seed?.origin ? { origin: seed.origin } : {}),
       journeyStartDate: startChoice === 'today' ? serverDate : tomorrow, journeyLength: 22, ...(journeyReward ? { journeyReward } : {}),
     };
     create.mutate({ data }, {
@@ -130,12 +134,22 @@ export function HabitWizard({ seed, onSaved }: { seed?: { title: string; minutes
         qc.invalidateQueries({ queryKey: getListHabitsQueryKey() });
         qc.invalidateQueries({ queryKey: getGetDashboardTodayQueryKey() });
         qc.invalidateQueries({ queryKey: getListRewardsQueryKey() });
+        qc.invalidateQueries({ queryKey: getGetDashboardHomeQueryKey() });
+        if (seed?.origin) qc.invalidateQueries({ queryKey: getGetTrackedDayAnalysisQueryKey({ date: seed.origin.analysisDate }) });
         refreshRewards(qc, r.id);
          window.dispatchEvent(new CustomEvent('habit-journey-created', { detail: { habitId: r.id, title: r.title } }));
-        toast.success('بدأت رحلتك الجديدة، اثنان وعشرون يومًا بخطوات صغيرة');
+        toast.success(seed?.origin ? `بدأت عادة «${r.title}» من ${seed.origin.recoveredMinutes} دقيقة استعدتها` : 'بدأت رحلتك الجديدة، اثنان وعشرون يومًا بخطوات صغيرة');
         onSaved?.(r.id);
       },
-      onError: () => toast.error('تعذّر إنشاء العادة. لم يُحفظ شيء، حاول مجددًا.'),
+      onError: (e) => {
+        if (seed?.origin && (e as { status?: number })?.status === 409) {
+          qc.invalidateQueries({ queryKey: getGetTrackedDayAnalysisQueryKey({ date: seed.origin.analysisDate }) });
+          qc.invalidateQueries({ queryKey: getGetDashboardHomeQueryKey() });
+          toast.error('تغيّر تتبّع هذا اليوم منذ آخر قراءة، فلم تعد التوصية مطابقة. أغلق هذه النافذة وراجع قراءة اليوم المحدّثة، ثم اختر من جديد.');
+          return;
+        }
+        toast.error('تعذّر إنشاء العادة. لم يُحفظ شيء، حاول مجددًا.');
+      },
     });
   };
   const u = unitAr(unit);
@@ -146,7 +160,7 @@ export function HabitWizard({ seed, onSaved }: { seed?: { title: string; minutes
     {step === 0 && <div className="space-y-4">
       <div className="rounded-2xl bg-[#e6eee2] border border-[#cfdfce] p-4"><div className="flex items-center gap-2 text-[#245448] font-bold mb-1"><Sparkles size={16} /> من نية كبيرة إلى بداية ممكنة</div><p className="muted text-sm">ابدأ بما تتمناه، ونقترح عليك خطوة صغيرة تعدّلها كما تشاء.</p></div>
       <div className="flex flex-wrap gap-2">{quick.map(q => <button type="button" key={q.label} data-testid={`button-quick-goal-${q.label}`} onClick={() => { setIntent(q.intent); setUnit(q.unit); setDesired(q.amount); setCategory(q.category); setGoal(q.goal); setGoalExplicit(true); setEmoji(q.emoji); }} className={`px-4 py-2 rounded-full text-sm border ${intent === q.intent ? 'bg-[#245448] text-white border-[#245448]' : 'bg-[#f7f1e7] border-[#e5dacb]'}`}>{q.label}</button>)}</div>
-      <Field label="نيّتك"><input data-testid="input-habit-intent" className="field" value={intent} onChange={e => setIntent(e.target.value)} placeholder="أريد القراءة كل يوم" /></Field>
+      <Field label="نيّتك"><input data-testid="input-habit-intent" maxLength={300} className="field" value={intent} onChange={e => setIntent(e.target.value)} placeholder="أريد القراءة كل يوم" /></Field>
       <div className="grid grid-cols-2 gap-2">{([['build', 'أبني عادة'], ['quit', 'أقلّل سلوكًا']] as const).map(([v, t]) => <button type="button" key={v} onClick={() => { setGoal(v); setGoalExplicit(true); }} className={`rounded-xl p-3 border ${goal === v ? 'bg-[#dfebdd] border-[#3b765c]' : 'border-[#e3d9c9]'}`}>{t}</button>)}</div>
       <div className="grid grid-cols-2 gap-3"><Field label={goal === 'quit' ? 'الكمية التي تتمنى الوصول إليها' : 'الكمية التي تتمناها'}><input data-testid="input-desired-duration" type="number" min="1" className="field" value={desired || ''} onChange={e => setDesired(num(e.target.value))} /></Field><Field label="القياس"><select className="field" disabled={execMode === 'boolean' || execMode === 'duration'} value={effUnit} onChange={e => setUnit(e.target.value as Unit)}><option value="minutes">دقيقة</option><option value="pages">صفحة</option><option value="count">مرة</option><option value="custom">وحدة</option></select></Field></div>
       {(goal === 'quit' || needBaseline) && <Field label={`كم تفعله عادةً في اليوم؟ (${u})`}><input data-testid="input-baseline" type="number" min="1" className="field" value={baselineAsk || ''} onChange={e => setBaselineAsk(num(e.target.value))} placeholder="مثلًا 120" /></Field>}
@@ -154,6 +168,12 @@ export function HabitWizard({ seed, onSaved }: { seed?: { title: string; minutes
 
     {step === 1 && <div className="space-y-4">
       <div className="rounded-2xl bg-[#f3ead9] p-4"><div className="eyebrow mb-1">فهمنا هدفك هكذا</div><p data-testid="text-understood-goal" className="leading-7">{understood || intent}</p>{fallbackNote && <p className="text-xs muted mt-2">{fallbackNote}</p>}</div>
+      {recommended !== null && desired > 0 && <div data-testid="card-goal-vs-start" className="rounded-2xl border border-[#cfdfce] bg-[#e6eee2] p-4 space-y-3">
+        <div className="grid grid-cols-2 gap-2 text-center"><div className="panel rounded-xl p-3"><small className="muted block">هدفك الأصلي</small><b className="text-xl">{desired} {u}</b></div><div className="panel rounded-xl p-3"><small className="muted block">بداية مقترحة</small><b className="text-xl">{recommended} {u}</b></div></div>
+        {why && <p className="text-xs leading-6 muted">{why}</p>}
+        <div className="flex flex-wrap gap-2"><button type="button" data-testid="button-use-suggested-start" className={`btn ${p.target === recommended ? '' : 'btn-light'}`} onClick={() => set('target', recommended)}>ابدأ بالمقترح</button><button type="button" data-testid="button-use-original-goal" className={`btn ${p.target === desired ? '' : 'btn-light'}`} onClick={() => set('target', desired)}>استخدم هدفي الأصلي</button></div>
+        <p className="text-xs muted">القيمة النشطة الآن: {p.target} {u}. يبقى هدفك الأصلي محفوظًا مهما عدّلتها.</p>
+      </div>}
       <Field label="اسم العادة"><input data-testid="input-habit-title" className="field" value={p.title} onChange={e => set('title', e.target.value)} /></Field>
       {goal === 'build' ? <div className="grid grid-cols-3 gap-2"><Field label={`الهدف (${u})`}><input data-testid="input-habit-target" type="number" min="1" className="field" value={p.target || ''} onChange={e => set('target', num(e.target.value))} /></Field><Field label="الحد الأدنى"><input data-testid="input-habit-minimum" type="number" min="1" className="field" value={p.minimum || ''} onChange={e => set('minimum', num(e.target.value))} /></Field><Field label="اليوم المزدحم"><input data-testid="input-habit-busy" type="number" min="1" className="field" value={p.busy || ''} onChange={e => set('busy', num(e.target.value))} /></Field></div>
         : <div className="grid grid-cols-3 gap-2"><Field label="المعتاد"><input type="number" min="1" className="field" value={p.baseline || ''} onChange={e => set('baseline', num(e.target.value))} /></Field><Field label="هدف التخفيض"><input data-testid="input-habit-target" type="number" min="0" className="field" value={p.target || ''} onChange={e => set('target', num(e.target.value))} /></Field><Field label="حد النجاح (الأقصى)"><input type="number" min="1" className="field" value={p.limit || ''} onChange={e => set('limit', num(e.target.value))} /></Field></div>}
